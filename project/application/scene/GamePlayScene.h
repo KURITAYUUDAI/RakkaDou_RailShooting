@@ -19,6 +19,7 @@
 #include "GamePlaySceneUI.h"
 
 #include "PostEffectController.h"
+#include "Text.h"
 
 class GamePlayScene : public BaseScene
 {
@@ -37,6 +38,13 @@ public:
 	void FinishFadeIn() override;
 
 	void Draw() override;
+
+private:
+	void InitializePauseUI();
+	void UpdatePauseUI();
+	void DrawPauseUI();
+	void SetPaused(bool paused);
+	void RefreshPauseMenuText();
 
 private:
 
@@ -124,6 +132,14 @@ private:
 	std::unique_ptr<GamePlaySceneUI> sceneUI_;
 
 	std::unique_ptr<Sprite> controlSprite_;
+
+	bool isPaused_ = false;
+	int pauseMenuSelection_ = 0;
+	std::unique_ptr<Sprite> pauseDimSprite_;
+	std::unique_ptr<Sprite> pausePanelSprite_;
+	std::unique_ptr<Text> pauseTitleText_;
+	std::unique_ptr<Text> pauseMenuText_;
+	std::unique_ptr<Text> pauseHelpText_;
 
 	PostEffectHandle bloomHandle_;
 	PostEffectHandle glayscaleHandle_;

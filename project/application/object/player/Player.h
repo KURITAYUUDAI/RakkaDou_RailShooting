@@ -56,6 +56,7 @@ public:	// Command
 	void StartChargeEffect();
 	void UpdateChargeEffect(float deltaTime);
 	void StopChargeEffect();
+	void UpdateChargeParticleEffect(float deltaTime);
 	void MeleeAttack();
 	void CounterMeleeAttack();
 	void Avoid(const Vector2& direction);
@@ -218,6 +219,7 @@ private:
 	bool justAvoidAccept_ = false;
 
 	std::unique_ptr<ParticleEmitter> justAvoidEmitter_;
+	std::unique_ptr<ParticleEmitter> chargeParticleEmitter_;
 	bool isChargeEffectActive_ = false;
 
 

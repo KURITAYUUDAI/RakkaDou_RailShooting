@@ -77,6 +77,12 @@ public:
 
 	struct Particle
 	{
+		enum class MotionType
+		{
+			Default,
+			ChargeAbsorb,
+		};
+
 		EulerTransform transform;	// 変換情報
 		EulerTransform uvTransform = {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};	
 								// UV変換情報
@@ -84,6 +90,12 @@ public:
 		Vector4 color;			// 色
 		float lifeTime;			// 生存時間
 		float currentTime;		// 経過時間
+		MotionType motionType = MotionType::Default;
+		Vector3 startPosition{};
+		Vector3 startScale{ 1.0f, 1.0f, 1.0f };
+		float angularVelocity = 0.0f;
+		float moveSpeed = 0.0f;
+		float initialDistance = 1.0f;
 	};
 
 	struct Emitter
@@ -116,6 +128,7 @@ public:
 
 		bool isMoveAccelerationField = true;						// 加速場の影響を受けるかどうか
 		bool isBillboard = true;
+		Vector3 attractionTarget{};
 
 		std::string psoName_;										// PSOの名前
 		PSOManager::BlendMode blendMode_;							// ブレンドモード
@@ -148,6 +161,9 @@ public:
 
 	void Emit(const std::string name, const Vector3& position, uint32_t count);
 
+	// 周囲からtargetへ縮小しながら吸収される正方形パーティクルを生成
+	void EmitChargeAbsorb(const std::string& name, const Vector3& target, uint32_t count);
+
 public: // 外部入出力
 
 	// セッター
@@ -157,6 +173,7 @@ public: // 外部入出力
 	void SetModel(const std::string& name, std::string filePath);
 	void SetIsMoveAccelerationField(const std::string& name, bool isMove);
 	void SetIsBillboard(const std::string& name, bool isBillboard);
+	void SetAttractionTarget(const std::string& name, const Vector3& target);
 
 	// ゲッター
 	DirectXBase* GetDxBase() const { return dxBase_; }

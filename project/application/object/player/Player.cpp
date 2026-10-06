@@ -134,6 +134,15 @@ void Player::Initialize()
 	justAvoidEmitter_->Initialize("ring_avoid",
 		{ {1.0f, 2.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.1f);
 
+	ParticleManager::GetInstance()->CreateParticleGroup("charge_absorb", "white1x1.png");
+	ParticleManager::GetInstance()->SetModel("charge_absorb", "plane.obj");
+	ParticleManager::GetInstance()->SetIsMoveAccelerationField("charge_absorb", false);
+	ParticleManager::GetInstance()->SetIsBillboard("charge_absorb", true);
+
+	chargeParticleEmitter_ = std::make_unique<ParticleEmitter>();
+	chargeParticleEmitter_->Initialize("charge_absorb",
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 2, 0.06f);
+
 	objectChargeRing_ = std::make_unique<Object3d>();
 	objectChargeRing_->Initialize();
 	objectChargeRing_->SetModel("ring_charge");
@@ -274,6 +283,8 @@ void Player::Update(const float& deltaTime)
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
+	ParticleManager::GetInstance()->SetAttractionTarget(
+		"charge_absorb", GetWorldPosition());
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
 	UpdateMeleeFollowUpEffect(deltaTime_);
@@ -676,6 +687,17 @@ void Player::UpdateChargeEffect(float deltaTime)
 void Player::StopChargeEffect()
 {
 	isChargeEffectActive_ = false;
+}
+
+void Player::UpdateChargeParticleEffect(float deltaTime)
+{
+	if (!chargeParticleEmitter_)
+	{
+		return;
+	}
+
+	chargeParticleEmitter_->SetTranslate(GetWorldPosition());
+	chargeParticleEmitter_->EmitChargeAbsorb(deltaTime);
 }
 
 void Player::MeleeAttack()

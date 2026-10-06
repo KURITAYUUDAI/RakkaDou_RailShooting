@@ -16,6 +16,8 @@ public:
 
 	void EmitSlash();
 
+	void EmitChargeAbsorb(const float& deltaTime);
+
 public: // 外部入出力
 
 	void SetName(const std::string& name){ name_ = name; }

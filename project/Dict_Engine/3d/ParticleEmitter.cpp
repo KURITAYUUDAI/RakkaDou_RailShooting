@@ -46,3 +46,16 @@ void ParticleEmitter::EmitSlash()
 	ParticleManager::GetInstance()->EmitSlash(name_, transform_.translate, count_);
 }
 
+void ParticleEmitter::EmitChargeAbsorb(const float& deltaTime)
+{
+	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Effect);
+
+	frequencyTime_ += deltaTime_;
+	while (frequency_ <= frequencyTime_)
+	{
+		ParticleManager::GetInstance()->EmitChargeAbsorb(
+			name_, transform_.translate, count_);
+		frequencyTime_ -= frequency_;
+	}
+}
+

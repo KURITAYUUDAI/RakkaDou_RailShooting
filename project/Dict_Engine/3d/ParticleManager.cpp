@@ -10,6 +10,12 @@
 #include "ResourcePath.h"
 #include "time/DeltaTimeManager.h"
 
+namespace
+{
+	constexpr float kChargeParticleSpawnDistance = 2.0f;
+	constexpr float kChargeParticleMoveSpeed = 6.0f;
+}
+
 std::unique_ptr<ParticleManager> ParticleManager::instance_ = nullptr;
 
 void ParticleManager::Initialize(DirectXBase* dxBase)
@@ -150,19 +156,52 @@ void ParticleManager::Update(const float& deltaTime)
 				continue;
 			}
 
-			for (const AccelerationField& accelerationField : accelerationFields_)
+			const float lifeRate = std::clamp(
+				particle.currentTime / particle.lifeTime, 0.0f, 1.0f);
+
+			if (particle.motionType == Particle::MotionType::ChargeAbsorb)
 			{
-				if (IsCollision(accelerationField.area, particle.transform.translate) 
-					&& particleGroup.second.isMoveAccelerationField)
+				const Vector3 toTarget =
+					particleGroup.second.attractionTarget - particle.transform.translate;
+				const float distance = Length(toTarget);
+				const float moveDistance = particle.moveSpeed * deltaTime_;
+
+				if (distance <= moveDistance || distance <= 0.0001f)
 				{
-					particle.velocity += accelerationField.acceleration * deltaTime_;
+					particle.transform.translate = particleGroup.second.attractionTarget;
+					particle.transform.scale = {};
+					particle.color.w = 0.0f;
+					particle.currentTime = particle.lifeTime;
 				}
+				else
+				{
+					particle.transform.translate += Normalize(toTarget) * moveDistance;
+					const float remainingDistance = distance - moveDistance;
+					const float scaleRate = std::clamp(
+						remainingDistance / particle.initialDistance, 0.0f, 1.0f);
+					particle.transform.scale = particle.startScale * scaleRate;
+					particle.color.w = scaleRate;
+				}
+				particle.transform.rotate.z += particle.angularVelocity * deltaTime_;
+			}
+			else
+			{
+				for (const AccelerationField& accelerationField : accelerationFields_)
+				{
+					if (IsCollision(accelerationField.area, particle.transform.translate)
+						&& particleGroup.second.isMoveAccelerationField)
+					{
+						particle.velocity += accelerationField.acceleration * deltaTime_;
+					}
+				}
+
+				particle.transform.translate += particle.velocity * deltaTime_;
 			}
 
-			particle.transform.translate += particle.velocity * deltaTime_;
-
-			particle.color.w =
-				1.0f - (particle.currentTime / particle.lifeTime);
+			if (particle.motionType != Particle::MotionType::ChargeAbsorb)
+			{
+				particle.color.w = 1.0f - lifeRate;
+			}
 
 			particle.currentTime += deltaTime_;
 
@@ -406,6 +445,54 @@ void ParticleManager::Emit(const std::string name, const Vector3& position, uint
 	}
 }
 
+void ParticleManager::EmitChargeAbsorb(
+	const std::string& name, const Vector3& target, uint32_t count)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	particleGroups_[name].attractionTarget = target;
+
+	for (uint32_t index = 0; index < count; ++index)
+	{
+		const float angle = SeedManager::GetInstance()->GenerateFloat(-pi, pi);
+		const float size = SeedManager::GetInstance()->GenerateFloat(0.10f, 0.24f);
+
+		Particle particle{};
+		particle.startPosition = target + Vector3{
+			std::cos(angle) * kChargeParticleSpawnDistance,
+			std::sin(angle) * kChargeParticleSpawnDistance,
+			0.0f
+		};
+		particle.startScale = { size, size, size };
+		particle.transform.scale = particle.startScale;
+		particle.transform.rotate = {
+			0.0f,
+			0.0f,
+			SeedManager::GetInstance()->GenerateFloat(-pi, pi)
+		};
+		particle.transform.translate = particle.startPosition;
+		particle.velocity = {};
+		particle.color = {
+			0.15f,
+			SeedManager::GetInstance()->GenerateFloat(0.8f, 1.2f),
+			SeedManager::GetInstance()->GenerateFloat(1.6f, 2.4f),
+			1.0f
+		};
+		particle.lifeTime = 1.0f;
+		particle.currentTime = 0.0f;
+		particle.motionType = Particle::MotionType::ChargeAbsorb;
+		particle.angularVelocity = SeedManager::GetInstance()->GenerateFloat(-7.0f, 7.0f);
+		particle.moveSpeed = kChargeParticleMoveSpeed;
+		particle.initialDistance = kChargeParticleSpawnDistance;
+
+		particleGroups_[name].particles.push_back(particle);
+	}
+}
+
 void ParticleManager::CreateAccelerationField(const Vector3& acceleration, const AABB& area)
 {
 	AccelerationField accelerationField;
@@ -452,6 +539,16 @@ void ParticleManager::SetIsBillboard(const std::string& name, bool isBillboard)
 	}
 
 	particleGroups_[name].isBillboard = isBillboard;
+}
+
+void ParticleManager::SetAttractionTarget(const std::string& name, const Vector3& target)
+{
+	if (!particleGroups_.contains(name))
+	{
+		return;
+	}
+
+	particleGroups_[name].attractionTarget = target;
 }
 
 const std::list<std::string> ParticleManager::GetParticleGroupName()

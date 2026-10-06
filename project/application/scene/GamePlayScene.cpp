@@ -13,6 +13,9 @@
 #include "BulletManager.h"
 #include "SplineCurve.h"
 #include "HPGageUI.h"
+#include "freetype/FreeTypeManager.h"
+#include "FontManager.h"
+#include "TextManager.h"
 
 void GamePlayScene::Initialize()
 {
@@ -225,6 +228,10 @@ void GamePlayScene::Initialize()
 	soundManager_->SoundLoadFile("", "Alarm01.wav");
 	soundManager_->SoundLoadFile("", "test.mp3");
 
+	FreeTypeManager::GetInstance()->Initialize();
+	TextManager::GetInstance()->Initialize();
+	InitializePauseUI();
+
 	eventBus_ = std::make_unique<EventBus>();
 	sceneUI_ = std::make_unique<GamePlaySceneUI>();
 	sceneUI_->Initialize(eventBus_.get());
@@ -256,6 +263,20 @@ void GamePlayScene::Initialize()
 void GamePlayScene::Finalize()
 {
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
+
+	if (sceneUI_)
+	{
+		sceneUI_->Finalize();
+		sceneUI_.reset();
+	}
+	pauseTitleText_.reset();
+	pauseMenuText_.reset();
+	pauseHelpText_.reset();
+	pauseDimSprite_.reset();
+	pausePanelSprite_.reset();
+	FreeTypeManager::GetInstance()->Finalize();
+	FontManager::GetInstance()->Finalize();
+	TextManager::GetInstance()->Finalize();
 
 	enemyManager_->Finalize();
 	player_->Finalize();
@@ -304,11 +325,20 @@ void GamePlayScene::Finalize()
 
 void GamePlayScene::Update(const float& deltaTime)
 {
-	//if (inputManager_->TriggerKey(DIK_RETURN))
-	//{
-	//	// シーン切り替え
-	//	SceneManager::GetInstance()->SetSceneRequest("TITLE");
-	//}
+	const bool pauseTriggered =
+		inputManager_->TriggerKey(DIK_ESCAPE) ||
+		(inputManager_->IsControllerConnected() &&
+		 inputManager_->TriggerButton(XINPUT_GAMEPAD_START));
+	if (pauseTriggered)
+	{
+		SetPaused(!isPaused_);
+	}
+
+	if (isPaused_)
+	{
+		UpdatePauseUI();
+		return;
+	}
 
 	WorldTransform::AdvanceFrame();
 
@@ -640,4 +670,131 @@ void GamePlayScene::Draw()
 	sceneUI_->DrawLayer(UILayer::World);
 	sceneUI_->DrawLayer(UILayer::Screen);
 	sceneUI_->DrawLayer(UILayer::Overlay);
+
+	if (isPaused_)
+	{
+		DrawPauseUI();
+	}
+}
+
+void GamePlayScene::InitializePauseUI()
+{
+	pauseDimSprite_ = std::make_unique<Sprite>();
+	pauseDimSprite_->Initialize("white1x1.png");
+	pauseDimSprite_->SetPosition({ 0.0f, 0.0f });
+	pauseDimSprite_->SetSize({ 1280.0f, 720.0f });
+	pauseDimSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 0.68f });
+	pauseDimSprite_->Update();
+
+	pausePanelSprite_ = std::make_unique<Sprite>();
+	pausePanelSprite_->Initialize("white1x1.png");
+	pausePanelSprite_->SetPosition({ 360.0f, 170.0f });
+	pausePanelSprite_->SetSize({ 560.0f, 380.0f });
+	pausePanelSprite_->SetColor({ 0.04f, 0.08f, 0.15f, 0.94f });
+	pausePanelSprite_->Update();
+
+	pauseTitleText_ = std::make_unique<Text>();
+	pauseTitleText_->InitializeRichText(
+		"fonts/x8y12pxTheStrongGamer.ttf",
+		48,
+		U"<b><color=#40dfff>PAUSED</color></b>");
+	pauseTitleText_->SetPosition({ 520.0f, 205.0f });
+
+	pauseMenuText_ = std::make_unique<Text>();
+	pauseMenuText_->InitializeRichText(
+		"fonts/x8y12pxTheStrongGamer.ttf",
+		30,
+		U"");
+	pauseMenuText_->SetPosition({ 485.0f, 320.0f });
+
+	pauseHelpText_ = std::make_unique<Text>();
+	pauseHelpText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf",
+		18,
+		U"W/S or D-PAD : SELECT    ENTER/A : OK");
+	pauseHelpText_->SetPosition({ 405.0f, 505.0f });
+	pauseHelpText_->SetColor({ 0.72f, 0.78f, 0.86f, 1.0f });
+
+	RefreshPauseMenuText();
+}
+
+void GamePlayScene::UpdatePauseUI()
+{
+	const bool moveUp =
+		inputManager_->TriggerKey(DIK_W) ||
+		inputManager_->TriggerKey(DIK_UP) ||
+		(inputManager_->IsControllerConnected() &&
+		 inputManager_->TriggerButton(XINPUT_GAMEPAD_DPAD_UP));
+	const bool moveDown =
+		inputManager_->TriggerKey(DIK_S) ||
+		inputManager_->TriggerKey(DIK_DOWN) ||
+		(inputManager_->IsControllerConnected() &&
+		 inputManager_->TriggerButton(XINPUT_GAMEPAD_DPAD_DOWN));
+
+	if (moveUp || moveDown)
+	{
+		pauseMenuSelection_ = 1 - pauseMenuSelection_;
+		RefreshPauseMenuText();
+	}
+
+	const bool confirm =
+		inputManager_->TriggerKey(DIK_RETURN) ||
+		(inputManager_->IsControllerConnected() &&
+		 inputManager_->TriggerButton(XINPUT_GAMEPAD_A));
+	if (confirm)
+	{
+		if (pauseMenuSelection_ == 0)
+		{
+			SetPaused(false);
+			return;
+		}
+
+		SceneManager::GetInstance()->SetSceneRequest("TITLE");
+	}
+
+	pauseDimSprite_->Update();
+	pausePanelSprite_->Update();
+	pauseTitleText_->Update();
+	pauseMenuText_->Update();
+	pauseHelpText_->Update();
+}
+
+void GamePlayScene::DrawPauseUI()
+{
+	pauseDimSprite_->Draw();
+	pausePanelSprite_->Draw();
+	pauseTitleText_->Draw();
+	pauseMenuText_->Draw();
+	pauseHelpText_->Draw();
+}
+
+void GamePlayScene::SetPaused(bool paused)
+{
+	isPaused_ = paused;
+	if (isPaused_)
+	{
+		pauseMenuSelection_ = 0;
+		RefreshPauseMenuText();
+	}
+}
+
+void GamePlayScene::RefreshPauseMenuText()
+{
+	if (!pauseMenuText_)
+	{
+		return;
+	}
+
+	if (pauseMenuSelection_ == 0)
+	{
+		pauseMenuText_->SetRichText(
+			U"<color=#ffd840>> RESUME</color>\n"
+			U"  TITLE");
+	}
+	else
+	{
+		pauseMenuText_->SetRichText(
+			U"  RESUME\n"
+			U"<color=#ffd840>> TITLE</color>");
+	}
 }

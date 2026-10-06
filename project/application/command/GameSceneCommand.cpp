@@ -31,6 +31,7 @@ LongPressShotCommand::Result LongPressShotCommand::Update(Player* player, float 
 			isChargeEffectVisible_ = false;
 		}
 		holdTime_ += deltaTime;
+		player->UpdateChargeParticleEffect(deltaTime);
 		if (holdTime_ >= kChargeDuration)
 		{
 			if (!isChargeEffectVisible_)

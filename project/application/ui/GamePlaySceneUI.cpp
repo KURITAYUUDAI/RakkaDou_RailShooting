@@ -21,6 +21,10 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
     playerConfig.fillSize = { 300.0f, 32.0f };
     playerConfig.backColor = { 0.8f, 0.8f, 0.8f, 1.0f };
     playerConfig.fillColor = { 0.0f, 1.0f, 1.0f, 1.0f };
+    playerConfig.showText = true;
+    playerConfig.label = U"PLAYER";
+    playerConfig.labelPos = { 32.0f, 6.0f };
+    playerConfig.valuePos = { 224.0f, 39.0f };
     playerConfig.direction = HPGageDirection::LeftToRight;
     playerConfig.layer = UILayer::Screen;
 
@@ -131,6 +135,10 @@ void GamePlaySceneUI::SyncScreenBossHPGage()
     config.fillSize = { 300.0f, 32.0f };
     config.backColor = { 0.8f, 0.8f, 0.8f, 1.0f };
     config.fillColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+    config.showText = true;
+    config.label = U"BOSS";
+    config.labelPos = { 940.0f, 6.0f };
+    config.valuePos = { 1132.0f, 39.0f };
     config.direction = HPGageDirection::RightToLeft;
     config.layer = UILayer::Screen;
 
