@@ -33,7 +33,7 @@ void WindowsAPI::Initialize()
 	// ウィンドウの生成
 	hwnd_ = CreateWindow(
 		wc_.lpszClassName,
-		L"LE3B_06_クリタ_ユウダイ",
+		L"LE3B_07_クリタ_ユウダイ",
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,

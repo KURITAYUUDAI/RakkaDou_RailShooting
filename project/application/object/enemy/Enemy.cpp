@@ -58,7 +58,7 @@ void Enemy::Initialize()
 
 	transform_.scale = { 2.0f, 2.0f, 2.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
-	transform_.translate = { 0.0f, 0.0f, 7.5f };
+	transform_.translate = { 0.0f, 0.0f, 30.0f };
 
 	rightHandTransform_.scale = { 1.0f, 1.0f, 1.0f };
 	rightHandTransform_.rotate = { -40.0f / 180.0f * pi, 0.0f, 0.0f };

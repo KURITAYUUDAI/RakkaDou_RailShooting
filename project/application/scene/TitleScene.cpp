@@ -2,6 +2,8 @@
 #include "SceneManager.h"
 #include "LightManager.h"
 #include "CameraManager.h"
+#include "SrvManager.h"
+#include "Dict_Engine/tool/effect/DissolveManager.h"
 
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
@@ -24,7 +26,7 @@ void TitleScene::Initialize()
 	/*camera_->SetRotate({ pi / 3.0f, pi, 0.0f });
 	camera_->SetTranslate({ 0.0f, 9.0f, 5.0f });*/
 	camera_->SetRotate({ 0.0f, pi, 0.0f });
-	camera_->SetTranslate({ 0.0f, 0.0f, 15.0f });
+	camera_->SetTranslate({ 15.0f, 0.0f, 15.0f });
 
 
 	/*object3dManager_->SetDefaultCamera(camera_.get());
@@ -178,26 +180,38 @@ void TitleScene::Initialize()
 
 
 
-	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
+	ModelManager::GetInstance()->LoadModel("player", "player.obj");
+	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
+	ModelManager::GetInstance()->LoadModel("Field", "InField.obj");
+	ModelManager::GetInstance()->LoadModel("Field", "OutField.obj");
+	PSOManager::GetInstance()->RegisterEnvironmentPSO();
 
-	PSOManager::GetInstance()->RegisterSkinningPSO();
+	inFieldObject_ = std::make_unique<Object3d>();
+	inFieldObject_->Initialize();
+	inFieldObject_->SetModel("InField.obj");
 
-	glTFObject_ = std::make_unique<Object3d>();
-	glTFObject_->Initialize();
-	glTFObject_->SetModel("walk.gltf");
-	glTFObject_->SetEnableLighting(false);
-	glTFObject_->SetPsoName("Skinning");
-	// モデルの高さ中心が画面中央に来るよう、足元基準の原点を少し下げる。
-	glTFObject_->SetTranslate({ 0.0f, -0.83f, 0.0f });
-	// モデル自身は回さず、タイトルカメラを周回させる。
-	glTFObject_->SetRotate({ 0.0f, pi, 0.0f });
+	outFieldObject_ = std::make_unique<Object3d>();
+	outFieldObject_->Initialize();
+	outFieldObject_->SetModel("OutField.obj");
 
-	glTFAnimation_ = LoadAnimationFile("Animation", "walk.gltf");
-	animationTime = 0.0f;
+	playerObject_ = std::make_unique<Object3d>();
+	playerObject_->Initialize();
+	playerObject_->SetModel("player.obj");
+	playerObject_->SetPsoName("Environment");
+	playerObject_->SetEnvironmentCoefficient(0.2f);
+	playerObject_->SetTranslate({ 15.0f, 0.0f, 15.0f });
+	playerObject_->SetRotate({ 0.0f, 0.0f, 0.0f });
 
-	glTFSkeleton_ = CreateSkeleton(glTFObject_->GetModel()->GetRootNode(0));
-
-	glTFSkinCluster_ = CreateSkinCluster(glTFSkeleton_, glTFObject_->GetModel()->GetMesh(0), skinClusterHeap_);
+	// Enemy と同様に手を本体の子にし、Player の右横へ配置する。
+	rightHandObject_ = std::make_unique<Object3d>();
+	rightHandObject_->Initialize();
+	rightHandObject_->SetModel("RightHand.obj");
+	rightHandObject_->SetPsoName("Environment");
+	rightHandObject_->SetEnvironmentCoefficient(0.2f);
+	rightHandObject_->SetParent(playerObject_->GetWorldTransform());
+	rightHandObject_->SetScale({ 0.35f, 0.35f, 0.35f });
+	rightHandObject_->SetRotate({ -40.0f / 180.0f * pi, pi, 0.0f });
+	rightHandObject_->SetTranslate({ 1.2f, 0.0f, 0.0f });
 
 	// シーン初期化終わり
 
@@ -325,12 +339,12 @@ void TitleScene::Update(const float& deltaTime)
 
 	ImGui::End();
 
-	ImGui::Begin("glTFObject Setting");
+	ImGui::Begin("Title Player Setting");
 
-	Vector3 glTFTanslate = glTFObject_->GetTranslate();
-	if (ImGui::DragFloat3("translate", &glTFTanslate.x, 0.1f))
+	Vector3 playerTranslate = playerObject_->GetTranslate();
+	if (ImGui::DragFloat3("translate", &playerTranslate.x, 0.1f))
 	{
-		glTFObject_->SetTranslate(glTFTanslate);
+		playerObject_->SetTranslate(playerTranslate);
 	}
 
 	ImGui::End();
@@ -398,27 +412,10 @@ void TitleScene::Update(const float& deltaTime)
 		cylinderEmitter_->Emit();
 	}
 
-	animationTime += deltaTime;
-	animationTime = std::fmod(animationTime, glTFAnimation_.duration);
-
-	ApplyAnimation(glTFSkeleton_, glTFAnimation_, animationTime);
-	UpdateSkeleton(glTFSkeleton_);
-	UpdateSkinCluster(glTFSkinCluster_, glTFSkeleton_);
-
-	glTFObject_->SetRotate({ 0.0f, pi, 0.0f });
-
-#ifdef USE_IMGUI
-	skeletonImGuiDebug_.Draw(
-		glTFSkeleton_,
-		glTFObject_->GetWorldTransform()->GetWorldMatrix(),
-		cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
-#endif
-
-	/*Matrix4x4 animationMatrix = PlayAnimation(glTFObject_->GetModel()->GetMesh(0), glTFAnimation_, animationTime, deltaTime);
-	
-	*/
-	
-	glTFObject_->Update(nullptr, nullptr, false);
+	playerObject_->Update();
+	rightHandObject_->Update();
+	inFieldObject_->Update();
+	outFieldObject_->Update();
 
 	enterSprite_->Update();
 
@@ -438,7 +435,7 @@ void TitleScene::FinishFadeIn()
 void TitleScene::Draw()
 {
 	skyBox_->Draw();
-	terrain_->Draw();
+	//terrain_->Draw();
 
 	if (isDrawObject3d_)
 	{
@@ -451,9 +448,25 @@ void TitleScene::Draw()
 
 	}
 
-	glTFObject_->Draw(
-		&glTFSkinCluster_.influenceBufferView,
-		&glTFSkinCluster_.paletteSrvHandle.second);
+	const DissolveParams dissolveParams{};
+	auto drawEnvironmentObject = [this, &dissolveParams](Object3d* object)
+	{
+		auto environmentPso = PSOManager::GetInstance()->GetPSOData(
+			"Environment", PSOManager::BlendMode::Normal, PSOManager::FillMode::kSolid);
+		DirectXBase::GetInstance()->GetCommandList()->SetPipelineState(
+			environmentPso.pipelineState.Get());
+		DirectXBase::GetInstance()->GetCommandList()->SetGraphicsRootSignature(
+			environmentPso.rootSignature.Get());
+		SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(
+			5, skyBox_->GetEnvironmentTextureIndex());
+		DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams);
+		DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+		object->Draw();
+	};
+	drawEnvironmentObject(playerObject_.get());
+	drawEnvironmentObject(rightHandObject_.get());
+	inFieldObject_->Draw();
+	outFieldObject_->Draw();
 
 	/*particleManager_->Draw();*/
 
@@ -463,13 +476,13 @@ void TitleScene::Draw()
 	}*/
 
 
-	if (isDrawSprite_)
+	/*if (isDrawSprite_)
 	{
 		for (size_t i = 0; i < sprites_.size(); i++)
 		{
 			sprites_[i]->Draw();
 		}
-	}
+	}*/
 
 	enterSprite_->Draw();
 
@@ -485,7 +498,7 @@ void TitleScene::Draw()
 
 	}
 
-	titleText_->Draw();
+	/*titleText_->Draw();*/
 
 	cameraManager_->DrawDebugUI();
 

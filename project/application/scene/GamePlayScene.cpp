@@ -47,12 +47,20 @@ void GamePlayScene::Initialize()
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
 
+	railRoot_ = std::make_unique<RailRoot>();
+	railRoot_->Initialize();
+
 	railCameraController_ = std::make_unique<RailCameraController>();
 	railCameraController_->Initialize();
+	railCameraController_->SetRailRoot(railRoot_.get());
+
+	followCameraController_ = std::make_unique<FollowCameraController>();
+	followCameraController_->Initialize();
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
 	cameraManager_->AddCameraController("Rail", railCameraController_.get());
-	cameraManager_->SetActiveCameraController("Rail");
+	cameraManager_->AddCameraController("Follow", followCameraController_.get());
+	cameraManager_->SetActiveCameraController("Follow");
 
 	lightManager_->Initialize();
 	lightManager_->SetDirectionalLightColor({ 1.0f, 1.0f, 1.0f, 1.0f });
@@ -92,6 +100,8 @@ void GamePlayScene::Initialize()
 	modelManager_->LoadModel("", "axis.obj");
 	modelManager_->LoadModel("", "sphere.obj");
 	modelManager_->LoadModel("", "multiMaterial.obj");
+	modelManager_->LoadModel("Field", "InField.obj");
+	modelManager_->LoadModel("Field", "OutField.obj");
 
 	for (size_t i = 0; i < 1; i++)
 	{
@@ -187,12 +197,22 @@ void GamePlayScene::Initialize()
 	terrain_ = std::make_unique<Terrain>();
 	terrain_->Initialize();
 
+	inFieldObject_ = std::make_unique<Object3d>();
+	inFieldObject_->Initialize();
+	inFieldObject_->SetModel("InField.obj");
+
+	outFieldObject_ = std::make_unique<Object3d>();
+	outFieldObject_->Initialize();
+	outFieldObject_->SetModel("OutField.obj");
+
 	player_ = std::make_unique<Player>();
 	player_->Initialize();
 	player_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
-	railCameraController_->SetBattleSpaceParent(
-		cameraManager_->GetActiveCameraController()->GetWorldTransform());
-	player_->SetParent(railCameraController_->GetBattleWorldTransform());
+	player_->SetParent(railRoot_->GetWorldTransform());
+	followCameraController_->SetTarget(player_->GetWorldTransform());
+	followCameraController_->SetOrientationReference(
+		player_->GetWorldTransform());
+	cameraManager_->SetActiveCameraController("Follow");
 
 	BulletManager::GetInstance()->Initialize();
 
@@ -238,7 +258,7 @@ void GamePlayScene::Initialize()
 	{
 		Enemy* enemy = enemyManager_->FindEnemy(id);
 		enemy->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
-		enemy->SetParent(railCameraController_->GetBattleWorldTransform());
+		enemy->SetParent(railRoot_->GetWorldTransform());
 		enemy->SetEventBus(eventBus_.get());
 		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss |
 			EnemyHPGageDisplayType::OverHead);
@@ -275,6 +295,11 @@ void GamePlayScene::Finalize()
 	particleManager_->Reset();
 
 	BulletManager::GetInstance()->Finalize();
+
+	followCameraController_->Finalize();
+	railCameraController_->Finalize();
+	defaultCameraController_->Finalize();
+	railRoot_->Finalize();
 
 	/*for (auto it = object3ds_.begin(); it != object3ds_.end(); ++it)
 	{
@@ -326,6 +351,14 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 	ImGui::Checkbox("DrawSprite", &isDrawSprite_);
 	ImGui::Checkbox("DrawObject3d", &isDrawObject3d_);
+	const char* cameraControllerOptions[] = {"Rail", "Follow"};
+	if (ImGui::Combo(
+		"CameraController", &cameraControllerIndex_,
+		cameraControllerOptions, IM_ARRAYSIZE(cameraControllerOptions)))
+	{
+		cameraManager_->SetActiveCameraController(
+			cameraControllerOptions[cameraControllerIndex_]);
+	}
 	ImGui::End();
 
 
@@ -434,9 +467,8 @@ void GamePlayScene::Update(const float& deltaTime)
 		cameraManager_->SetActiveCamera("Default");
 	}
 
+	railRoot_->Update(deltaTime);
 	cameraManager_->Update(deltaTime);
-	railCameraController_->SetBattleSpaceParent(
-		cameraManager_->GetActiveCameraController()->GetWorldTransform());
 
 
 
@@ -464,6 +496,8 @@ void GamePlayScene::Update(const float& deltaTime)
 	skyBox_->Update();
 
 	terrain_->Update();
+	inFieldObject_->Update();
+	outFieldObject_->Update();
 
 	player_->Update(deltaTime);
 	// 敵の接近先計算で、同じフレームのPlayer位置を使えるよう先に配信する。
@@ -575,6 +609,8 @@ void GamePlayScene::Draw()
 		}*/
 
 		terrain_->Draw();
+		inFieldObject_->Draw();
+		outFieldObject_->Draw();
 		player_->Draw();
 		/*enemy_->Draw();*/
 		enemyManager_->Draw();
@@ -621,6 +657,7 @@ void GamePlayScene::Draw()
 
 	controlSprite_->Draw();
 
+	railRoot_->DrawDebugUI();
 	cameraManager_->DrawDebugUI();
 
 #ifdef _DEBUG

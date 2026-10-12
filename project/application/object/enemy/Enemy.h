@@ -68,6 +68,11 @@ public:	//外部入出力
 	const Vector3 GetWorldPosition() const;
 	const Vector2 GetScreenPosition() const;
 	const Vector3 GetWorldRotate() const;
+	WorldTransform* GetWorldTransform() { return object3d_->GetWorldTransform(); }
+	const WorldTransform* GetWorldTransform() const
+	{
+		return object3d_->GetWorldTransform();
+	}
 
 	const EulerTransform& GetRightHandTransform() const { return rightHandTransform_; }
 	

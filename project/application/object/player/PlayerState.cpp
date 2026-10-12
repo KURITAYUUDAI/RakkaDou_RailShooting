@@ -92,6 +92,8 @@ void PlayerShotState::Finalize(Player* player)
 
 void PlayerAvoidState::Initialize(Player* player)
 {
+	player->SetVisualRotate({ 0.0f, 0.0f, 0.0f });
+
 	if (inputDirection_.x != 0.0f && inputDirection_.y != 0.0f)
 	{
 		Vector3 currentVelocity = player->GetVelocity();
@@ -134,6 +136,34 @@ void PlayerAvoidState::Initialize(Player* player)
 
 	player->SetAvoidDirection(avoidDirection_);
 	player->SetJustAvoidAccept(true);
+
+	Vector3 targetLocalPosition{};
+	if (player->TryGetLockOnTargetLocalPosition(targetLocalPosition))
+	{
+		const Vector3 playerLocalPosition = player->GetTranslate();
+		const Vector2 radial =
+		{
+			playerLocalPosition.x - targetLocalPosition.x,
+			playerLocalPosition.z - targetLocalPosition.z
+		};
+		orbitRadius_ = Length(radial);
+		if (orbitRadius_ > 0.0001f)
+		{
+			orbitCenter_ = targetLocalPosition;
+			orbitStartAngle_ = std::atan2(radial.y, radial.x);
+			orbitLocalY_ = playerLocalPosition.y;
+
+			const Vector2 positiveAngleTangent =
+				{ -radial.y / orbitRadius_, radial.x / orbitRadius_ };
+			const Vector2 orbitInput =
+				{ avoidDirection_.x, avoidDirection_.z };
+			const float inputDot =
+				positiveAngleTangent.x * orbitInput.x +
+				positiveAngleTangent.y * orbitInput.y;
+			orbitDirection_ = inputDot >= 0.0f ? 1.0f : -1.0f;
+			hasOrbitTarget_ = true;
+		}
+	}
 }
 
 void PlayerAvoidState::Update(Player* player, const float& deltaTime)
@@ -157,15 +187,35 @@ void PlayerAvoidState::Update(Player* player, const float& deltaTime)
 		currentRoll = -progress * oneRotation;  // 右回転
 	}
 
-	Vector3 currentRotate = player->GetRotate();
+	Vector3 currentRotate = player->GetVisualRotate();
 	currentRotate.z = currentRoll;
-	player->SetRotate(currentRotate);
+	player->SetVisualRotate(currentRotate);
 
-	float speedRate = 1.0f - (progress * progress);
-
-	float currentSpeed = avoidSpeed_ * speedRate;
-
-	player->MoveAvoid(avoidDirection_, currentSpeed);
+	Vector3 targetLocalPosition{};
+	if (hasOrbitTarget_ &&
+		player->TryGetLockOnTargetLocalPosition(targetLocalPosition))
+	{
+		// ロックオン対象のY軸を中心に、XZ平面上を固定の円弧長だけ回避する。
+		orbitCenter_ = targetLocalPosition;
+		const float smoothProgress = progress * progress *
+			(3.0f - 2.0f * progress);
+		const float orbitAngle = orbitStartAngle_ + orbitDirection_ *
+			(kOrbitTravelDistance_ / orbitRadius_) * smoothProgress;
+		player->SetTranslate(
+			{
+				orbitCenter_.x + std::cos(orbitAngle) * orbitRadius_,
+				orbitLocalY_,
+				orbitCenter_.z + std::sin(orbitAngle) * orbitRadius_
+			});
+		player->SetVelocity({ 0.0f, 0.0f, 0.0f });
+	}
+	else
+	{
+		hasOrbitTarget_ = false;
+		const float speedRate = 1.0f - (progress * progress);
+		const float currentSpeed = avoidSpeed_ * speedRate;
+		player->MoveAvoid(avoidDirection_, currentSpeed);
+	}
 
 	/*if (timer_ / duration_ > 0.8f)
 	{
@@ -182,7 +232,7 @@ void PlayerAvoidState::Update(Player* player, const float& deltaTime)
 
 	if (timer_ >= duration_)
 	{
-		player->SetRotate(Vector3(0.0f, 0.0f, 0.0f));
+		player->SetVisualRotate(Vector3(0.0f, 0.0f, 0.0f));
 		
 		/*player->ClearLockOn();*/
 		player->ChangeState(std::make_unique<PlayerIdleState>());
@@ -198,7 +248,7 @@ void PlayerAvoidState::Draw(Player* player)
 void PlayerAvoidState::Finalize(Player * player)
 {
 	/*player->SetTargetRoll({0.0f, 0.0f, 0.0f});*/
-	
+	player->SetVisualRotate({ 0.0f, 0.0f, 0.0f });
 	player->SetIsHit(true);
 }
 
@@ -210,9 +260,39 @@ void PlayerJustAvoidState::Initialize(Player* player)
 	justAvoidDarken_->SetSetting(setting);
 	justAvoidDarken_->Play();
 
-	player->SetRotate(Vector3(0.0f, 0.0f, 0.0f));
+	player->SetVisualRotate(Vector3(0.0f, 0.0f, 0.0f));
 	player->SetIsHit(false);
 	player->SetJustAvoidAccept(false);
+
+	Vector3 targetLocalPosition{};
+	if (player->TryGetLockOnTargetLocalPosition(targetLocalPosition))
+	{
+		const Vector3 playerLocalPosition = player->GetTranslate();
+		const Vector2 radial =
+		{
+			playerLocalPosition.x - targetLocalPosition.x,
+			playerLocalPosition.z - targetLocalPosition.z
+		};
+		orbitRadius_ = Length(radial);
+		if (orbitRadius_ > 0.0001f)
+		{
+			orbitCenter_ = targetLocalPosition;
+			orbitStartAngle_ = std::atan2(radial.y, radial.x);
+			orbitLocalY_ = playerLocalPosition.y;
+
+			// XZ平面上の接線を使い、左右入力に近い周回方向を選ぶ。
+			const Vector2 positiveAngleTangent =
+				{ -radial.y / orbitRadius_, radial.x / orbitRadius_ };
+			const Vector2 inputDirection =
+				{ avoidDirection_.x, avoidDirection_.z };
+			const float inputDot =
+				positiveAngleTangent.x * inputDirection.x +
+				positiveAngleTangent.y * inputDirection.y;
+			orbitDirection_ = inputDot >= 0.0f
+				? 1.0f : -1.0f;
+			hasOrbitTarget_ = true;
+		}
+	}
 }
 
 void PlayerJustAvoidState::Update(Player* player, const float& deltaTime)
@@ -239,15 +319,35 @@ void PlayerJustAvoidState::Update(Player* player, const float& deltaTime)
 			currentRoll = -progress * oneRotation;  // 右回転
 		}
 
-		Vector3 currentRotate = player->GetRotate();
+		Vector3 currentRotate = player->GetVisualRotate();
 		currentRotate.y = currentRoll;
-		player->SetRotate(currentRotate);
+		player->SetVisualRotate(currentRotate);
 
-		float speedRate = 1.0f - (progress * progress);
-
-		float currentSpeed = avoidSpeed_ * speedRate;
-
-		player->MoveJustAvoid(avoidDirection_, currentSpeed);
+		Vector3 targetLocalPosition{};
+		if (hasOrbitTarget_ &&
+			player->TryGetLockOnTargetLocalPosition(targetLocalPosition))
+		{
+			// EnemyのY軸を中心に、XZ平面上を固定の円弧長だけ回り込む。
+			orbitCenter_ = targetLocalPosition;
+			const float smoothProgress = progress * progress *
+				(3.0f - 2.0f * progress);
+			const float orbitAngle = orbitStartAngle_ + orbitDirection_ *
+				(kOrbitTravelDistance_ / orbitRadius_) * smoothProgress;
+			player->SetTranslate(
+				{
+					orbitCenter_.x + std::cos(orbitAngle) * orbitRadius_,
+					orbitLocalY_,
+					orbitCenter_.z + std::sin(orbitAngle) * orbitRadius_
+				});
+			player->SetVelocity({ 0.0f, 0.0f, 0.0f });
+		}
+		else
+		{
+			hasOrbitTarget_ = false;
+			const float speedRate = 1.0f - (progress * progress);
+			const float currentSpeed = avoidSpeed_ * speedRate;
+			player->MoveJustAvoid(avoidDirection_, currentSpeed);
+		}
 	}
 	else
 	{
@@ -266,7 +366,7 @@ void PlayerJustAvoidState::Update(Player* player, const float& deltaTime)
 
 	if (timer_ >= waitDuration_ || isCounter_)
 	{
-		player->SetRotate(Vector3(0.0f, 0.0f, 0.0f));
+		player->SetVisualRotate(Vector3(0.0f, 0.0f, 0.0f));
 		//player->StopJustAvoid(0.05f);
 		/*player->ClearLockOn();*/
 		player->ChangeState(std::make_unique<PlayerIdleState>());
@@ -280,6 +380,7 @@ void PlayerJustAvoidState::Draw(Player * player)
 
 void PlayerJustAvoidState::Finalize(Player * player)
 {
+	player->SetVisualRotate({ 0.0f, 0.0f, 0.0f });
 	player->SetIsHit(true);
 }
 
@@ -287,6 +388,22 @@ void PlayerMeleeAttackState::Initialize(Player* player)
 {
 	comboIndex_ = 0;
 	player->SetMeleeHandVisible(true);
+	approachStartPosition_ = player->GetTranslate();
+	approachTargetPosition_ = approachStartPosition_;
+	approachTimer_ = 0.0f;
+
+	Vector3 targetLocalPosition{};
+	if (player->TryGetLockOnTargetLocalPosition(targetLocalPosition))
+	{
+		const Vector3 toTarget = targetLocalPosition - approachStartPosition_;
+		const float distance = Length(toTarget);
+		if (distance > 0.0001f)
+		{
+			approachTargetPosition_ = approachStartPosition_ +
+				Normalize(toTarget) * std::min(distance, kMaxApproachDistance_);
+			hasApproachTarget_ = true;
+		}
+	}
 	BeginAttack(player);
 }
 
@@ -357,6 +474,16 @@ void PlayerMeleeAttackState::Update(Player* player, const float& deltaTime)
 	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
 	const Vector3 windupPosition = GetWindupPosition();
 	const Vector3 attackEndPosition = GetAttackEndPosition();
+	if (hasApproachTarget_ && approachTimer_ < kApproachDuration_)
+	{
+		approachTimer_ += deltaTime;
+		const float approachProgress = std::min(
+			approachTimer_ / kApproachDuration_, 1.0f);
+		const float smoothApproach = approachProgress * approachProgress *
+			(3.0f - 2.0f * approachProgress);
+		player->SetTranslate(Lerp(
+			approachStartPosition_, approachTargetPosition_, smoothApproach));
+	}
 	timer_ += deltaTime;
 
 	switch (phase_)

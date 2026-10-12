@@ -26,6 +26,7 @@
 void Player::Initialize()
 {
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
+	playerRootWorldTransform_.Initialize();
 
 	selector_.GetKeyboardHandler()->AssignKey("shot", DIK_SPACE);
 	selector_.GetKeyboardHandler()->AssignKey("avoid", DIK_E);
@@ -38,13 +39,16 @@ void Player::Initialize()
 	selector_.GetGamepadHandler()->AssignKey("melee", XINPUT_GAMEPAD_B);
 
 	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
+	ModelManager::GetInstance()->LoadModel("player", "player.obj");
 	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
 	ModelManager::GetInstance()->LoadModel("playerBullet", "playerBullet.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize();
-	object3d_->SetModel("walk.gltf");
+	object3d_->SetModel("player.obj");
+	object3d_->SetEnvironmentCoefficient(0.2f);
+	object3d_->SetParent(&playerRootWorldTransform_);
 
 	objectMeleeHand_ = std::make_unique<Object3d>();
 	objectMeleeHand_->Initialize();
@@ -66,12 +70,12 @@ void Player::Initialize()
 	meleeFollowUpEffectTransform_.rotate = { 0.0f, 0.0f, 0.0f };
 	meleeFollowUpEffectTransform_.translate = {};
 
-	animation_ = LoadAnimationFile("Animation", "walk.gltf");
+	/*animation_ = LoadAnimationFile("Animation", "walk.gltf");
 	animationTime = 0.0f;
 
 	skeleton_ = CreateSkeleton(object3d_->GetModel()->GetRootNode(0));
 
-	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
+	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);*/
 
 	collider_ = std::make_unique<Collider>();
 	collider_->SetOwner(this);
@@ -92,7 +96,9 @@ void Player::Initialize()
 
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
-	transform_.translate = { 0.0f, -3.0f, -7.5f };
+	transform_.translate = { 0.0f, -3.0f, -10.0f };
+	visualRotation_ = { 0.0f, 0.0f, 0.0f };
+	UpdateRootWorldTransform();
 
 	hitPoint_ = kMaxHitPoint;
 
@@ -187,23 +193,11 @@ void Player::Update(const float& deltaTime)
 {
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Player);
 
-	IInputHandler* handler = selector_.GetHandler();
-	if (handler->IsActionPressed("lockOn"))
-	{
-		LockOn(); // 毎フレーム最近接を再評価（敵の入れ替わり・死亡に追従)
-		isLockOnHeld_ = true;
-	} else
-	{
-		ClearLockOn();
-		isLockOnHeld_ = false;
-	}
+	UpdateLockOn();
 
 	state_->Update(this, deltaTime_);
 
 	transform_.translate += velocity_ * deltaTime_;
-	/*transform_.rotate += (targetRoll_ - transform_.rotate) * 0.1f;*/
-
-	justAvoidEmitter_->SetTranslate(GetWorldPosition());
 
 #ifdef _DEBUG
 	ImGui::Begin("PlayerSetting");
@@ -225,6 +219,16 @@ void Player::Update(const float& deltaTime)
 	if (ImGui::DragFloat3("Translate", &transform.translate.x, 0.1f))
 	{
 		transform_ = transform;
+	}
+	ImGui::DragFloat3(
+		"MovementAreaCenter", &movementAreaCenter_.x, 0.1f);
+	if (ImGui::DragFloat3(
+		"MovementAreaHalfSize", &movementAreaHalfSize_.x, 0.1f,
+		0.01f, 100.0f))
+	{
+		movementAreaHalfSize_.x = std::max(movementAreaHalfSize_.x, 0.01f);
+		movementAreaHalfSize_.y = std::max(movementAreaHalfSize_.y, 0.01f);
+		movementAreaHalfSize_.z = std::max(movementAreaHalfSize_.z, 0.01f);
 	}
 	ImGui::InputFloat3 ("Velocity", &velocity_.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	Vector3 worldPosition = GetWorldPosition();
@@ -261,18 +265,24 @@ void Player::Update(const float& deltaTime)
 	ImGui::End();
 #endif
 
-	const WorldTransform* playerParent = object3d_->GetWorldTransform()->parent_;
-	CameraManager::GetInstance()->LimitPlayerInFrustum(
-		transform_.translate, playerParent ? &playerParent->worldMatrix_ : nullptr);
+	ClampToMovementArea();
+	UpdateFacingDirection();
+	UpdateRootWorldTransform();
+	justAvoidEmitter_->SetTranslate(GetWorldPosition());
 
-	animationTime += deltaTime;
+	/*animationTime += deltaTime;
 	animationTime = std::fmod(animationTime, animation_.duration);
 
 	ApplyAnimation(skeleton_, animation_, animationTime);
 	UpdateSkeleton(skeleton_);
-	UpdateSkinCluster(skinCluster_, skeleton_);
+	UpdateSkinCluster(skinCluster_, skeleton_);*/
 
-	object3d_->SetTransform(transform_);
+	// Playerの論理TransformはRootが保持し、回避回転はモデルだけへ適用する。
+	EulerTransform visualTransform{};
+	visualTransform.scale = { 1.0f, 1.0f, 1.0f };
+	visualTransform.rotate = visualRotation_;
+	visualTransform.translate = { 0.0f, 0.0f, 0.0f };
+	object3d_->SetTransform(visualTransform);
 	object3d_->Update(nullptr, nullptr, false);
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
@@ -324,16 +334,16 @@ void Player::Draw()
 	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
 	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	//SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
+	SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
 
-	//DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
-	//DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+	DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
+	DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
 
 	if (isDraw_)
 	{
 		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
 		{
-			object3d_->Draw(&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second);
+			object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 		}
 	}
 	if (isDraw_ && isMeleeHandVisible_)
@@ -382,12 +392,14 @@ void Player::Draw()
 				colliderAttack_->GetRadius(), { 0.0f, 1.0f, 1.0f, 1.0f }, 8);
 		}
 	}
+	DrawMovementAreaDebug();
 #endif
 }
 
 void Player::Finalize()
 {
 	eventSubscriber_.Finalize();
+	playerRootWorldTransform_.Finalize();
 }
 
 void Player::ChangeState(std::unique_ptr<IPlayerState> newState)
@@ -478,7 +490,18 @@ void Player::Damage(int damage)
 
 void Player::UpdateLockOn()
 {
-	
+	IInputHandler* handler = selector_.GetHandler();
+	if (handler->IsActionPressed("lockOn"))
+	{
+		// 毎フレーム最近接を再評価し、敵の入れ替わりや死亡に追従する。
+		LockOn();
+		isLockOnHeld_ = true;
+	}
+	else
+	{
+		ClearLockOn();
+		isLockOnHeld_ = false;
+	}
 }
 
 void Player::MoveHorizontal(const float& directionX, const float& directionY)
@@ -489,13 +512,13 @@ void Player::MoveHorizontal(const float& directionX, const float& directionY)
 	// 現在速度を目標速度へ線形補間
 	// → スティックの倒し具合に応じた速度に滑らかに追従する
 	velocity_.x += (targetVelocityX - velocity_.x) * lerpFactor_;
-	velocity_.y += (targetVelocityY - velocity_.y) * lerpFactor_;
+	velocity_.z += (targetVelocityY - velocity_.z) * lerpFactor_;
 }
 
 void Player::Decelerate()
 {
 	velocity_.x += (0.0f - velocity_.x) * lerpFactor_;
-	velocity_.y += (0.0f - velocity_.y) * lerpFactor_;
+	velocity_.z += (0.0f - velocity_.z) * lerpFactor_;
 }
 
 void Player::LockOn()
@@ -581,10 +604,51 @@ void Player::UpdateMeleeFollowUpEffect(float deltaTime)
 	}
 }
 
+void Player::UpdateFacingDirection()
+{
+	Vector3 targetLocalPosition{};
+	if (!TryGetLockOnTargetLocalPosition(targetLocalPosition))
+	{
+		// 非ロックオン時はRailRootローカル+Zを正面にする。
+		transform_.rotate = { 0.0f, 0.0f, 0.0f };
+		return;
+	}
+
+	const Vector3 toTarget = targetLocalPosition - transform_.translate;
+	const float horizontalLengthSquared =
+		toTarget.x * toTarget.x + toTarget.z * toTarget.z;
+	if (horizontalLengthSquared <= 0.000001f)
+	{
+		// 同位置では向きを決められないため、直前のY回転を維持する。
+		transform_.rotate.x = 0.0f;
+		transform_.rotate.z = 0.0f;
+		return;
+	}
+
+	transform_.rotate =
+	{
+		0.0f,
+		std::atan2(toTarget.x, toTarget.z),
+		0.0f
+	};
+}
+
+void Player::UpdateRootWorldTransform()
+{
+	playerRootWorldTransform_.scale_ = transform_.scale;
+	playerRootWorldTransform_.SetRotate(transform_.rotate);
+	playerRootWorldTransform_.translate_ = transform_.translate;
+	playerRootWorldTransform_.UpdateMatrix();
+	if (parentTransform_)
+	{
+		playerRootWorldTransform_.worldMatrix_ *= parentTransform_->worldMatrix_;
+	}
+}
+
 Vector3 Player::CalculateShotDirection()
 {
 	Vector3 forward = TransformNormal(
-		{ 0.0f, 0.0f, 1.0f }, object3d_->GetWorldTransform()->worldMatrix_);
+		{ 0.0f, 0.0f, 1.0f }, playerRootWorldTransform_.worldMatrix_);
 	if (Length(forward) <= 0.0001f)
 	{
 		forward = { 0.0f, 0.0f, 1.0f };
@@ -705,6 +769,29 @@ bool Player::CanApproachNearestEnemy() const
 	return availability != meleeApproachAvailability_.end() && availability->second;
 }
 
+bool Player::TryGetLockOnTargetLocalPosition(Vector3& outPosition) const
+{
+	if (lockOnEnemyID_ == 0)
+	{
+		return false;
+	}
+
+	const Enemy* target =
+		EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
+	if (!target || target->GetIsDead())
+	{
+		return false;
+	}
+
+	outPosition = target->GetWorldPosition();
+	if (parentTransform_)
+	{
+		outPosition = TransformPosition(
+			outPosition, Inverse(parentTransform_->worldMatrix_));
+	}
+	return true;
+}
+
 void Player::SetAttackColliderActive(bool active)
 {
 	if (active && !isAttackColliderActive_)
@@ -749,9 +836,78 @@ void Player::MoveJustAvoid(const Vector3 direction, float speed)
 	velocity_ = direction * speed;
 }
 
+void Player::ClampToMovementArea()
+{
+	const Vector3 minimum = movementAreaCenter_ - movementAreaHalfSize_;
+	const Vector3 maximum = movementAreaCenter_ + movementAreaHalfSize_;
+
+	const Vector3 positionBeforeClamp = transform_.translate;
+	transform_.translate.x = std::clamp(
+		transform_.translate.x, minimum.x, maximum.x);
+	transform_.translate.y = std::clamp(
+		transform_.translate.y, minimum.y, maximum.y);
+	transform_.translate.z = std::clamp(
+		transform_.translate.z, minimum.z, maximum.z);
+
+	// 境界の外へ向かう速度を残さず、入力を戻したときに素直に離れられるようにする。
+	if (positionBeforeClamp.x != transform_.translate.x)
+	{
+		velocity_.x = 0.0f;
+	}
+	if (positionBeforeClamp.y != transform_.translate.y)
+	{
+		velocity_.y = 0.0f;
+	}
+	if (positionBeforeClamp.z != transform_.translate.z)
+	{
+		velocity_.z = 0.0f;
+	}
+}
+
+void Player::DrawMovementAreaDebug() const
+{
+#ifdef _DEBUG
+	const Vector3 minimum = movementAreaCenter_ - movementAreaHalfSize_;
+	const Vector3 maximum = movementAreaCenter_ + movementAreaHalfSize_;
+	const Vector3 localCorners[8] =
+	{
+		{ minimum.x, minimum.y, minimum.z },
+		{ maximum.x, minimum.y, minimum.z },
+		{ maximum.x, maximum.y, minimum.z },
+		{ minimum.x, maximum.y, minimum.z },
+		{ minimum.x, minimum.y, maximum.z },
+		{ maximum.x, minimum.y, maximum.z },
+		{ maximum.x, maximum.y, maximum.z },
+		{ minimum.x, maximum.y, maximum.z },
+	};
+	constexpr uint32_t edges[12][2] =
+	{
+		{ 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+		{ 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+		{ 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
+	};
+
+	const Matrix4x4 parentWorldMatrix = parentTransform_
+		? parentTransform_->worldMatrix_
+		: MakeIdentity4x4();
+	Vector3 worldCorners[8]{};
+	for (uint32_t i = 0; i < 8; ++i)
+	{
+		worldCorners[i] = TransformPosition(
+			localCorners[i], parentWorldMatrix);
+	}
+	for (const auto& edge : edges)
+	{
+		DebugDrawManager::GetInstance()->AddLine(
+			worldCorners[edge[0]], worldCorners[edge[1]],
+			{ 1.0f, 1.0f, 1.0f, 1.0f });
+	}
+#endif
+}
+
 const Vector3 Player::GetWorldPosition() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	const Matrix4x4& worldMatrix = playerRootWorldTransform_.worldMatrix_;
 
 	// ワールド座標を入れる変数
 	Vector3 worldPos;
@@ -765,7 +921,7 @@ const Vector3 Player::GetWorldPosition() const
 
 const Vector3 Player::GetWorldRotate() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	const Matrix4x4& worldMatrix = playerRootWorldTransform_.worldMatrix_;
 
 	Vector3 worldRotEuler;
 	// 行列からエウラー角を計算する（一般的な公式に基づく抽出）
@@ -785,6 +941,14 @@ const Vector3 Player::GetWorldRotate() const
 void Player::SetParent(WorldTransform* worldTransform)
 {
 	parentTransform_ = worldTransform;
-	object3d_->SetParent(worldTransform);
+	playerRootWorldTransform_.parent_ = worldTransform;
+	object3d_->SetParent(&playerRootWorldTransform_);
+	UpdateRootWorldTransform();
+	EulerTransform visualTransform{};
+	visualTransform.scale = { 1.0f, 1.0f, 1.0f };
+	visualTransform.rotate = visualRotation_;
+	visualTransform.translate = { 0.0f, 0.0f, 0.0f };
+	object3d_->SetTransform(visualTransform);
+	object3d_->Update(nullptr, nullptr, false);
 }
 

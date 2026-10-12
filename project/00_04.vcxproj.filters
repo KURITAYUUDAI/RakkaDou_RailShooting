@@ -228,6 +228,12 @@
     <ClCompile Include="application\camera\DefaultCameraController.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="application\camera\FollowCameraController.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\object\RailRoot.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="Dict_Engine\math\WorldTransform.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -510,6 +516,9 @@
     <ClInclude Include="application\object\Terrain.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="application\object\RailRoot.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="application\object\player\Player.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -556,6 +565,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\camera\DefaultCameraController.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\camera\FollowCameraController.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Dict_Engine\math\WorldTransform.h">

@@ -172,6 +172,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\math\SplineCurve.cpp" />
     <ClCompile Include="application\tool\postEffect\Bloom.cpp" />
     <ClCompile Include="application\camera\DefaultCameraController.cpp" />
+    <ClCompile Include="application\camera\FollowCameraController.cpp" />
     <ClCompile Include="Dict_Engine\camera\CameraManager.cpp" />
     <ClCompile Include="Dict_Engine\io\JSONManager.cpp" />
     <ClCompile Include="application\tool\postEffect\Outline.cpp" />
@@ -235,6 +236,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\base\PSOManager.cpp" />
     <ClCompile Include="application\object\SkyBox.cpp" />
     <ClCompile Include="application\object\Terrain.cpp" />
+    <ClCompile Include="application\object\RailRoot.cpp" />
     <ClCompile Include="application\object\player\Player.cpp" />
     <ClCompile Include="Dict_Engine\3d\PrimitiveManager.cpp" />
     <ClCompile Include="Dict_Engine\base\OffscreenRender.cpp" />
@@ -462,6 +464,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\math\SplineCurve.h" />
     <ClInclude Include="application\tool\postEffect\Bloom.h" />
     <ClInclude Include="application\camera\DefaultCameraController.h" />
+    <ClInclude Include="application\camera\FollowCameraController.h" />
     <ClInclude Include="Dict_Engine\camera\CameraManager.h" />
     <ClInclude Include="Dict_Engine\3d\ModelUtility.h" />
     <ClInclude Include="Dict_Engine\io\JSONManager.h" />
@@ -501,6 +504,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\object\SkyBox.h" />
     <ClInclude Include="Dict_Engine\3d\LightManager.h" />
     <ClInclude Include="application\object\Terrain.h" />
+    <ClInclude Include="application\object\RailRoot.h" />
     <ClInclude Include="application\object\player\Player.h" />
     <ClInclude Include="Dict_Engine\3d\PrimitiveManager.h" />
     <ClInclude Include="Dict_Engine\base\OffscreenRender.h" />

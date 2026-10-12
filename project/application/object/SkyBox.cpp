@@ -106,9 +106,11 @@ void SkyBox::Initialize()
 	material_ = std::make_unique<MaterialInstance>();
 	material_->Initialize();
 	material_->SetMaterialAsset(modelData_->materialAssets[0]);
+	
+	// "qwantani_dusk_2_puresky_2k.dds"
 
-	TextureManager::GetInstance()->LoadTexture("output_skybox.dds");
-	material_->SetTexture("output_skybox.dds");
+	TextureManager::GetInstance()->LoadTexture("black.dds");
+	material_->SetTexture("black.dds");
 	
 
 	CreateVertexResource();

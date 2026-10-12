@@ -50,17 +50,14 @@ public:
 
 private:
 	void ChangePhase(Enemy* enemy, EnemyBattlePhase phase);
-	Vector3 GetHorizontalTrackingTarget(Enemy* enemy) const;
+	void RotateTowardPlayer(Enemy* enemy, float deltaTime) const;
 
 	EnemyBattlePhase phase_ = EnemyBattlePhase::MoveToRanged;
 	float timer_ = 0.0f;
 	uint32_t shotCount_ = 0;
-	Vector3 stageStartPosition_{};
 	Vector3 rangedPosition_{};
-	Vector3 closePosition_{};
 	Vector3 phaseStartPosition_{};
 	Vector3 handStartPosition_{};
-	Vector3 trackedPlayerPosition_{};
 
 	static constexpr float kRangedDuration_ = 8.0f;
 	static constexpr float kShotInterval_ = 1.0f;
@@ -72,12 +69,12 @@ private:
 	static constexpr float kCloseAttackWindupRate_ = 0.45f;
 	static constexpr float kCloseAttackHitEndRate_ = 0.75f;
 	static constexpr float kRecoveryDuration_ = 3.0f;
-	// 接近中は攻撃中より遅く追従させ、Playerの移動に少し遅れて左右へ動かす。
-	static constexpr float kApproachHomingSpeed_ = 4.0f;
-	static constexpr float kCloseAttackHomingSpeed_ = 8.0f;
-	static constexpr Vector3 kRangedOffset_ = { 0.0f, 0.0f, 20.0f };
-	// 2倍サイズの腕先だけがPlayer付近へ届く距離で止まり、モデルのめり込みを防ぐ。
-	static constexpr Vector3 kCloseOffset_ = { 0.0f, 0.0f, 7.0f };
+	// RailRoot原点へ到着後、Playerへ向くY回転の追従速度。
+	static constexpr float kTurnSpeed_ = 8.0f;
+	// 遠距離ターンではPlayerのローカルZから十分前方へ離れる。
+	static constexpr float kRangedDistanceFromPlayer_ = 40.0f;
+	// 近接攻撃はRailRootローカル原点を中心に行う。
+	static constexpr Vector3 kMeleePosition_ = { 0.0f, 0.0f, 0.0f };
 };
 
 class EnemyShotState : public IEnemyState

@@ -71,8 +71,7 @@ void CameraManager::Update(const float& deltaTime)
 	#endif
 
 		activeCameraController_->Update(mainCamera_.get(), deltaTime_);
-		// DebugCamera の表示中も、ゲーム用カメラはプレイヤーの移動範囲の
-		// 基準として使うため、毎フレーム行列を更新しておく。
+		// DebugCamera表示中もゲーム用カメラの行列は更新しておく。
 		mainCamera_->Update();
 
 		if (isDebugCamera_ && debugCamera_)
@@ -160,62 +159,6 @@ void CameraManager::SetActiveCameraController(const std::string& name)
 	#endif
 	}
 }
-
-void CameraManager::LimitPlayerInFrustum(
-	Vector3& playerLocalPos, const Matrix4x4* playerParentWorldMatrix)
-{
-	if (!mainCamera_)
-	{
-		return;
-	}
-
-	// プレイヤーの親子構造に依存せず、通常カメラのビュー空間で制限する。
-	// 表示が DebugCamera でも移動可能範囲は通常時と同一になる。
-	Vector3 playerWorldPos = playerLocalPos;
-	if (playerParentWorldMatrix)
-	{
-		playerWorldPos = TransformPosition(playerLocalPos, *playerParentWorldMatrix);
-	}
-	Vector3 playerViewPos = TransformPosition(playerWorldPos, mainCamera_->GetViewMatrix());
-
-	// プレイヤーの中心がクリップ面へ触れないよう、前後方向にも余白を設ける。
-	constexpr float kDepthMargin = 1.0f;
-	const float nearLimit = mainCamera_->GetNearClip() + kDepthMargin;
-	const float farLimit = mainCamera_->GetFarClip() - kDepthMargin;
-	playerViewPos.z = std::clamp(playerViewPos.z, nearLimit, farLimit);
-	const float distance = playerViewPos.z;
-
-	// 2. カメラのゲッターから視野角(fovY)とアスペクト比を取得
-	float fovY = mainCamera_->GetFovY();
-	float aspectRatio = mainCamera_->GetAspectRatio();
-
-	// 3. 現在の深さ（distance）における、視錐台の縦・横の限界サイズ（半分の値）を計算
-	// ※ fovY がラジアン単位であることを前提としています。度数法の場合は std::tan(fovY * 0.5f * (pi / 180.0f)) にしてください。
-	float frustumHeightHalf = distance * std::tan(fovY * 0.5f);
-	float frustumWidthHalf = frustumHeightHalf * aspectRatio;
-
-	// 4. 画面ぴったりだとプレイヤーの中心点しか残らないため、
-	//    プレイヤーのサイズ分（マージン）を考慮して内側に制限を設定します
-	float marginFactor = 0.85f; // 0.0〜1.0 で調整（小さいほど画面の内側に制限される）
-	float xLimit = frustumWidthHalf * marginFactor;
-	float yLimit = frustumHeightHalf * marginFactor;
-
-	// 5. 計算した限界値でビュー空間のXとYをクランプ（制限）する
-	playerViewPos.x = std::clamp(playerViewPos.x, -xLimit, xLimit);
-	playerViewPos.y = std::clamp(playerViewPos.y, -yLimit, yLimit);
-
-	playerWorldPos = TransformPosition(playerViewPos, mainCamera_->GetWorldMatrix());
-	if (playerParentWorldMatrix)
-	{
-		playerLocalPos = TransformPosition(playerWorldPos, Inverse(*playerParentWorldMatrix));
-	}
-	else
-	{
-		playerLocalPos = playerWorldPos;
-	}
-}
-
-
 
 void CameraManager::AddCamera(const std::string& name, Camera* camera)
 {

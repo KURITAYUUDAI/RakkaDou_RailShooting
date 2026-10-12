@@ -78,7 +78,13 @@ private:
 	float timer_ = 0.0f;
 	uint32_t comboIndex_ = 0;
 	Vector3 attackDirection_{ 0.0f, 0.0f, 1.0f };
+	Vector3 approachStartPosition_{};
+	Vector3 approachTargetPosition_{};
+	float approachTimer_ = 0.0f;
+	bool hasApproachTarget_ = false;
 
+	static constexpr float kMaxApproachDistance_ = 2.0f;
+	static constexpr float kApproachDuration_ = 0.12f;
 	static constexpr float kWindupDuration_ = 0.045f;
 	static constexpr float kAttackDuration_ = 0.075f;
 	// 近接終了直後の0.10秒だけ射撃追撃を受け付ける。
@@ -153,6 +159,13 @@ private:
 	Vector3 avoidDirection_ = { 0.0f, 0.0f, 0.0f };
 	Vector2 inputDirection_ = { 0.0f, 0.0f };
 	float avoidSpeed_ = 25.0f; // 回避の速度
+	Vector3 orbitCenter_{};
+	float orbitRadius_ = 0.0f;
+	float orbitStartAngle_ = 0.0f;
+	float orbitDirection_ = 1.0f;
+	float orbitLocalY_ = 0.0f;
+	bool hasOrbitTarget_ = false;
+	static constexpr float kOrbitTravelDistance_ = 5.0f;
 
 };
 
@@ -180,6 +193,13 @@ private:
 
 	Vector3 avoidDirection_ = { 0.0f, 0.0f, 0.0f };
 	float avoidSpeed_ = 15.0f; // 回避の速度
+	Vector3 orbitCenter_{};
+	float orbitRadius_ = 0.0f;
+	float orbitStartAngle_ = 0.0f;
+	float orbitDirection_ = 1.0f;
+	float orbitLocalY_ = 0.0f;
+	bool hasOrbitTarget_ = false;
+	static constexpr float kOrbitTravelDistance_ = 5.0f;
 
 	bool isCounter_ = false;
 

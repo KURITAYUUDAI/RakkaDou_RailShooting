@@ -9,7 +9,9 @@
 
 
 #include "DefaultCameraController.h"
+#include "FollowCameraController.h"
 #include "RailCameraController.h"
+#include "RailRoot.h"
 #include "SkyBox.h"
 #include "Terrain.h"
 #include "Player.h"
@@ -96,10 +98,13 @@ private:
 
 	/*std::unique_ptr<DebugCamera> debugCamera_;*/
 	bool isDebugCamera_ = false;
+	int cameraControllerIndex_ = 1;
 
 	std::unique_ptr<DefaultCameraController> defaultCameraController_ = nullptr;
 
 	std::unique_ptr<RailCameraController> railCameraController_ = nullptr;
+	std::unique_ptr<FollowCameraController> followCameraController_ = nullptr;
+	std::unique_ptr<RailRoot> railRoot_ = nullptr;
 	
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
@@ -107,6 +112,8 @@ private:
 	SkyBox* skyBox_ = nullptr;
 
 	std::unique_ptr<Terrain> terrain_ = nullptr;
+	std::unique_ptr<Object3d> inFieldObject_ = nullptr;
+	std::unique_ptr<Object3d> outFieldObject_ = nullptr;
 
 	std::unique_ptr<Player> player_ = nullptr;
 

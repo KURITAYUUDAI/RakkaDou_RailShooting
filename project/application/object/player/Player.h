@@ -74,6 +74,7 @@ public:	//外部入出力
 	
 	const Vector3& GetScale() const { return transform_.scale; }
 	const Vector3& GetRotate() const { return transform_.rotate; }
+	const Vector3& GetVisualRotate() const { return visualRotation_; }
 	const Vector3& GetTranslate() const { return transform_.translate; }
 	Vector3& GetLocalPositionReference() { return transform_.translate; }
 	const EulerTransform& GetTransform() const { return transform_; }
@@ -81,13 +82,18 @@ public:	//外部入出力
 
 	const Vector3 GetWorldPosition() const;
 	const Vector3 GetWorldRotate() const;
-	const Matrix4x4& GetWorldMatrix() const { return object3d_->GetWorldTransform()->worldMatrix_; }
+	const Matrix4x4& GetWorldMatrix() const
+	{
+		return playerRootWorldTransform_.worldMatrix_;
+	}
+	WorldTransform* GetWorldTransform() { return &playerRootWorldTransform_; }
 
 	Collider* GetCollider() { return collider_.get(); }
 	Collider* GetAttackCollider() { return colliderAttack_.get(); }
 	bool GetIsAttackColliderActive() const { return isAttackColliderActive_; }
 	bool HasNearestEnemy() const { return hasNearestEnemy_; }
 	const Vector3& GetNearestEnemyPosition() const { return cachedNearestEnemyPosition_; }
+	bool TryGetLockOnTargetLocalPosition(Vector3& outPosition) const;
 	bool CanApproachNearestEnemy() const;
 	WorldTransform* GetParentWorldTransform() const { return parentTransform_; }
 
@@ -104,6 +110,7 @@ public:	//外部入出力
 
 	void SetScale(const Vector3& scale) { transform_.scale = scale; }
 	void SetRotate(const Vector3& rotate) { transform_.rotate = rotate; }
+	void SetVisualRotate(const Vector3& rotate) { visualRotation_ = rotate; }
 	void SetTranslate(const Vector3& translate) { transform_.translate = translate; }
 	void SetTransform(const EulerTransform& transform) { transform_ = transform; }
 	void SetVelocity(const Vector3& velocity) { velocity_ = velocity; }
@@ -130,7 +137,11 @@ public:	//外部入出力
 
 private:
 	Vector3 CalculateShotDirection();
+	void UpdateFacingDirection();
+	void UpdateRootWorldTransform();
 	void UpdateMeleeFollowUpEffect(float deltaTime);
+	void ClampToMovementArea();
+	void DrawMovementAreaDebug() const;
 
 	// 入力ハンドル
 	InputHandlerSelector selector_;
@@ -145,7 +156,7 @@ private:
 	
 	float deltaTime_ = 0.0f;
 
-	std::string psoName_ = "Skinning";
+	std::string psoName_ = "Environment";
 	PSOManager::BlendMode blendMode_ = PSOManager::BlendMode::Normal;
 	PSOManager::FillMode fillMode_ = PSOManager::FillMode::kSolid;
 
@@ -153,6 +164,8 @@ private:
 	std::unique_ptr<Object3d> objectMeleeHand_;
 	std::unique_ptr<Object3d> objectChargeRing_;
 	std::unique_ptr<Object3d> objectMeleeFollowUpEffect_;
+	WorldTransform playerRootWorldTransform_;
+	Vector3 visualRotation_{};
 	EulerTransform meleeHandTransform_{};
 	EulerTransform chargeRingTransform_{};
 	EulerTransform meleeFollowUpEffectTransform_{};
@@ -183,6 +196,9 @@ private:
 	Vector3 maxSpeed_ = { 12.0f, 12.0f, 12.0f }; // スティック全倒し時の最高速度
 	float lerpFactor_ = 0.2f;                  // 追従の滑らかさ（0〜1）
 	Vector3 targetRoll_ = {0.0f, 0.0f, 0.0f};                   // 目標のロール角Z（回転の傾き）
+	// RailRootローカル座標上の移動可能範囲。
+	Vector3 movementAreaCenter_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 movementAreaHalfSize_ = { 5.0f, 1.0f, 5.0f };
 
 	// 環境テクスチャのsrvIndex
 	uint32_t environmentTextureIndex_ = 0;

@@ -12,9 +12,6 @@
 #include "SkyBox.h"
 #include "Terrain.h"
 
-#include "AnimationUtility.h"
-#include "SkeletonImGuiDebug.h"
-
 class TitleScene : public BaseScene
 {
 public:
@@ -103,21 +100,15 @@ private:
 
 	std::unique_ptr<ParticleEmitter> cylinderEmitter_;
 
-	std::unique_ptr<Object3d> glTFObject_;
+	std::unique_ptr<Object3d> playerObject_;
+	std::unique_ptr<Object3d> rightHandObject_;
+	std::unique_ptr<Object3d> inFieldObject_;
+	std::unique_ptr<Object3d> outFieldObject_;
 	float cameraOrbitAngle_ = 0.0f;
 	static constexpr float kCameraOrbitSpeed_ = 0.25f;
-	static constexpr float kCameraOrbitRadius_ = 20.0f;
+	static constexpr float kCameraOrbitRadius_ = 10.0f;
 	static constexpr float kCameraOrbitHeight_ = 2.0f;
-	static constexpr Vector3 kCameraLookTarget_ = { 0.0f, 0.0f, 0.0f };
-
-	Animation glTFAnimation_;
-	float animationTime = 0.0f;
-
-	Skeleton glTFSkeleton_;
-	SkeletonImGuiDebug skeletonImGuiDebug_;
-	SkinCluster glTFSkinCluster_;
-
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
+	static constexpr Vector3 kCameraLookTarget_ = { 15.0f, 0.0f, 15.0f };
 
 };
 

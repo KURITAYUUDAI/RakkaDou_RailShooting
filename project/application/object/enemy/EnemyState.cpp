@@ -2,6 +2,7 @@
 #include "Enemy.h"
 #include "EnemyCommand.h"
 #include "SplineCurve.h"
+#include <cmath>
 
 void EnemyIdleState::Initialize(Enemy* enemy)
 {
@@ -65,11 +66,8 @@ void EnemyBossBattleState::Initialize(Enemy* enemy)
 	phase_ = EnemyBattlePhase::MoveToRanged;
 	timer_ = 0.0f;
 	shotCount_ = 0;
-	stageStartPosition_ = enemy->GetTranslate();
-	rangedPosition_ = stageStartPosition_ + kRangedOffset_;
-	closePosition_ = stageStartPosition_;
-	phaseStartPosition_ = stageStartPosition_;
-	trackedPlayerPosition_ = GetHorizontalTrackingTarget(enemy);
+	rangedPosition_ = enemy->GetTranslate();
+	phaseStartPosition_ = enemy->GetTranslate();
 	handStartPosition_ = enemy->GetRightHandTransform().translate;
 	enemy->SetVelocity({ 0.0f, 0.0f, 0.0f });
 	enemy->SetAttackColliderActive(false);
@@ -83,6 +81,9 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 	switch (phase_)
 	{
 	case EnemyBattlePhase::MoveToRanged:
+		// Playerと同じRailRootローカル座標で、行動範囲より前方の位置を作る。
+		rangedPosition_.z =
+			enemy->GetPlayerLocalPosition().z + kRangedDistanceFromPlayer_;
 		enemy->SetTranslate(Lerp(
 			phaseStartPosition_, rangedPosition_,
 			std::min(timer_ / kMoveToRangedDuration_, 1.0f)));
@@ -106,13 +107,9 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 		break;
 
 	case EnemyBattlePhase::Approach:
-		// 奥へ接近しつつ、PlayerのX座標だけを少し遅れて追従する。
-		trackedPlayerPosition_ = Lerp(
-			trackedPlayerPosition_, GetHorizontalTrackingTarget(enemy),
-			std::min(deltaTime * kApproachHomingSpeed_, 1.0f));
-		closePosition_ = trackedPlayerPosition_ + kCloseOffset_;
+		// Playerの位置には寄らず、RailRootローカル原点へ移動する。
 		enemy->SetTranslate(Lerp(
-			phaseStartPosition_, closePosition_,
+			phaseStartPosition_, kMeleePosition_,
 			std::min(timer_ / kApproachDuration_, 1.0f)));
 		if (timer_ >= kApproachDuration_)
 		{
@@ -121,12 +118,9 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 		break;
 
 	case EnemyBattlePhase::CloseWait:
-		// 攻撃前の隙も間合いから外れないよう、接近時と同じ遅さで追従を続ける。
-		trackedPlayerPosition_ = Lerp(
-			trackedPlayerPosition_, GetHorizontalTrackingTarget(enemy),
-			std::min(deltaTime * kApproachHomingSpeed_, 1.0f));
-		closePosition_ = trackedPlayerPosition_ + kCloseOffset_;
-		enemy->SetTranslate(closePosition_);
+		// 原点に固定したまま、前方がPlayerへ向くようY軸回転だけを追従する。
+		enemy->SetTranslate(kMeleePosition_);
+		RotateTowardPlayer(enemy, deltaTime);
 		if (timer_ >= kCloseWaitDuration_)
 		{
 			ChangePhase(enemy, EnemyBattlePhase::CloseAttack);
@@ -135,14 +129,9 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 
 	case EnemyBattlePhase::CloseAttack:
 	{
-		// 近距離攻撃中もPlayerのX座標だけを追従する。
-		// 共通のbattleWorldTransform_上のローカル座標同士で計算する。
-		const Vector3 homingTarget =
-			GetHorizontalTrackingTarget(enemy) + kCloseOffset_;
-		closePosition_ = Lerp(
-			closePosition_, homingTarget,
-			std::min(deltaTime * kCloseAttackHomingSpeed_, 1.0f));
-		enemy->SetTranslate(closePosition_);
+		// 近距離攻撃中も原点から動かず、Playerへの向きだけを追従する。
+		enemy->SetTranslate(kMeleePosition_);
+		RotateTowardPlayer(enemy, deltaTime);
 		const float attackT = std::min(timer_ / kCloseAttackDuration_, 1.0f);
 		if (attackT < kCloseAttackWindupRate_)
 		{
@@ -174,8 +163,9 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 	}
 
 	case EnemyBattlePhase::Recovery:
-		// 近接位置を次の遠距離攻撃前のアイドリング位置として使う。
-		enemy->SetTranslate(closePosition_);
+		// 硬直中も原点を維持し、Playerへの向きを追従する。
+		enemy->SetTranslate(kMeleePosition_);
+		RotateTowardPlayer(enemy, deltaTime);
 		if (timer_ >= kRecoveryDuration_)
 		{
 			ChangePhase(enemy, EnemyBattlePhase::MoveToRanged);
@@ -205,8 +195,10 @@ void EnemyBossBattleState::ChangePhase(Enemy* enemy, EnemyBattlePhase phase)
 	if (phase_ == EnemyBattlePhase::Approach)
 	{
 		phaseStartPosition_ = enemy->GetTranslate();
-		trackedPlayerPosition_ = GetHorizontalTrackingTarget(enemy);
-		closePosition_ = trackedPlayerPosition_ + kCloseOffset_;
+	}
+	if (phase_ == EnemyBattlePhase::CloseWait)
+	{
+		enemy->SetTranslate(kMeleePosition_);
 	}
 	if (phase_ == EnemyBattlePhase::MoveToRanged)
 	{
@@ -223,12 +215,29 @@ void EnemyBossBattleState::ChangePhase(Enemy* enemy, EnemyBattlePhase phase)
 	}
 }
 
-Vector3 EnemyBossBattleState::GetHorizontalTrackingTarget(Enemy* enemy) const
+void EnemyBossBattleState::RotateTowardPlayer(
+	Enemy* enemy, float deltaTime) const
 {
-	Vector3 target = enemy->GetPlayerLocalPosition();
-	// 追尾で上下には動かさず、Enemyの初期Y座標を維持する。
-	target.y = stageStartPosition_.y;
-	return target;
+	const Vector3 toPlayer =
+		enemy->GetPlayerLocalPosition() - enemy->GetTranslate();
+	if (toPlayer.x * toPlayer.x + toPlayer.z * toPlayer.z <= 0.000001f)
+	{
+		return;
+	}
+
+	// Enemyの攻撃方向はローカル-Zなので、その軸をPlayerへ向ける。
+	const float targetYaw = std::atan2(-toPlayer.x, -toPlayer.z);
+	Vector3 rotation = enemy->GetRotate();
+	constexpr float kPi = 3.14159265358979323846f;
+	constexpr float kTwoPi = kPi * 2.0f;
+	float yawDelta = std::fmod(targetYaw - rotation.y + kPi, kTwoPi);
+	if (yawDelta < 0.0f)
+	{
+		yawDelta += kTwoPi;
+	}
+	yawDelta -= kPi;
+	rotation.y += yawDelta * std::min(deltaTime * kTurnSpeed_, 1.0f);
+	enemy->SetRotate(rotation);
 }
 
 
