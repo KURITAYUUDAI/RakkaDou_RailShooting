@@ -25,8 +25,13 @@
 class Player : public ICollisionObserver
 {
 public:
+	enum class Mode
+	{
+		Gameplay,
+		TitleFalling,
+	};
 
-	void Initialize();
+	void Initialize(Mode mode = Mode::Gameplay);
 	void EventDispatch();
 	void Update(const float& deltaTime);
 
@@ -131,6 +136,7 @@ public:	//外部入出力
 private:
 	Vector3 CalculateShotDirection();
 	void UpdateMeleeFollowUpEffect(float deltaTime);
+	void UpdateTitleFalling();
 
 	// 入力ハンドル
 	InputHandlerSelector selector_;
@@ -145,18 +151,21 @@ private:
 	
 	float deltaTime_ = 0.0f;
 
-	std::string psoName_ = "Skinning";
+	std::string psoName_ = "Environment";
 	PSOManager::BlendMode blendMode_ = PSOManager::BlendMode::Normal;
 	PSOManager::FillMode fillMode_ = PSOManager::FillMode::kSolid;
 
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Object3d> objectMeleeHand_;
+	std::unique_ptr<Object3d> objectLeftHand_;
 	std::unique_ptr<Object3d> objectChargeRing_;
 	std::unique_ptr<Object3d> objectMeleeFollowUpEffect_;
 	EulerTransform meleeHandTransform_{};
+	EulerTransform leftHandTransform_{};
 	EulerTransform chargeRingTransform_{};
 	EulerTransform meleeFollowUpEffectTransform_{};
 	bool isMeleeHandVisible_ = false;
+	Mode mode_ = Mode::Gameplay;
 	bool isMeleeFollowUpEffectActive_ = false;
 	float meleeFollowUpEffectTimer_ = 0.0f;
 	static constexpr float kMeleeFollowUpEffectDuration_ = 0.18f;
@@ -196,7 +205,7 @@ private:
 	// 最大HP
 	static inline const int kMaxHitPoint = 25;
 
-	float damageTimer_;
+	float damageTimer_ = 0.0f;
 	const float kDamageInvincible_ = 1.0f;
 
 	// デスフラグ

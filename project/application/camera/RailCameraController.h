@@ -16,6 +16,8 @@ public:
 	float GetTotalLength() const { return totalLength_; }
 	float GetCurrentDistance() const { return currentDistance_; }
 	float GetTravelledDistance() const { return travelledDistance_; }
+	void SetLoop(bool isLoop) { isLoop_ = isLoop; }
+	bool IsLoop() const { return isLoop_; }
 
 	WorldTransform* GetBattleWorldTransform() { return &battleWorldTransform_; }
 	const WorldTransform* GetBattleWorldTransform() const { return &battleWorldTransform_; }
@@ -35,6 +37,7 @@ private:
 	float currentDistance_ = 0.0f;          // 【重要】progress_の代わりに「進んだ距離(メートル)」で管理する
 	float travelledDistance_ = 0.0f;        // フェーズ内の出現判定用。ループしても巻き戻さない累積距離
 	float moveSpeed_ = 5.0f;                // 移動速度 (1秒間に進むメートル数)
+	bool isLoop_ = true;                    // 終端到達後に先頭へ戻って周回するか
 
 	float targetRange_ = 0.5f;
 	

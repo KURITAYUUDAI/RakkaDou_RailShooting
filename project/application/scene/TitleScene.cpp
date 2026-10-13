@@ -23,8 +23,8 @@ void TitleScene::Initialize()
 	// シーン初期化始め
 	/*camera_->SetRotate({ pi / 3.0f, pi, 0.0f });
 	camera_->SetTranslate({ 0.0f, 9.0f, 5.0f });*/
-	camera_->SetRotate({ 0.0f, pi, 0.0f });
-	camera_->SetTranslate({ 0.0f, 0.0f, 15.0f });
+	camera_->SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+	camera_->SetTranslate({ 0.0f, 15.0f, 0.0f });
 
 
 	/*object3dManager_->SetDefaultCamera(camera_.get());
@@ -42,8 +42,8 @@ void TitleScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	cameraOrbitAngle_ = 0.0f;
-	UpdateOrbitCamera(0.0f);
+	defaultCameraController_->GetWorldTransform()->translate_ = { 0.0f, 20.0f, 0.0f };
+	defaultCameraController_->GetWorldTransform()->SetRotate({ pi / 2.0f, 0.0f, 0.0f });
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
 	cameraManager_->SetActiveCameraController("Default");
@@ -58,7 +58,7 @@ void TitleScene::Initialize()
 	skyBox_->SetCamera(camera_.get());
 
 	terrain_ = std::make_unique<Terrain>();
-	terrain_->Initialize();
+	terrain_->Initialize(Terrain::Mode::TitleCave);
 
 	for (size_t i = 0; i < 1; i++)
 	{
@@ -178,26 +178,11 @@ void TitleScene::Initialize()
 
 
 
-	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
+	PSOManager::GetInstance()->RegisterEnvironmentPSO();
 
-	PSOManager::GetInstance()->RegisterSkinningPSO();
-
-	glTFObject_ = std::make_unique<Object3d>();
-	glTFObject_->Initialize();
-	glTFObject_->SetModel("walk.gltf");
-	glTFObject_->SetEnableLighting(false);
-	glTFObject_->SetPsoName("Skinning");
-	// モデルの高さ中心が画面中央に来るよう、足元基準の原点を少し下げる。
-	glTFObject_->SetTranslate({ 0.0f, -0.83f, 0.0f });
-	// モデル自身は回さず、タイトルカメラを周回させる。
-	glTFObject_->SetRotate({ 0.0f, pi, 0.0f });
-
-	glTFAnimation_ = LoadAnimationFile("Animation", "walk.gltf");
-	animationTime = 0.0f;
-
-	glTFSkeleton_ = CreateSkeleton(glTFObject_->GetModel()->GetRootNode(0));
-
-	glTFSkinCluster_ = CreateSkinCluster(glTFSkeleton_, glTFObject_->GetModel()->GetMesh(0), skinClusterHeap_);
+	player_ = std::make_unique<Player>();
+	player_->Initialize(Player::Mode::TitleFalling);
+	player_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
 
 	// シーン初期化終わり
 
@@ -222,6 +207,11 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	if (player_)
+	{
+		player_->Finalize();
+		player_.reset();
+	}
 	if (terrain_)
 	{
 		terrain_->Finalize();
@@ -325,16 +315,6 @@ void TitleScene::Update(const float& deltaTime)
 
 	ImGui::End();
 
-	ImGui::Begin("glTFObject Setting");
-
-	Vector3 glTFTanslate = glTFObject_->GetTranslate();
-	if (ImGui::DragFloat3("translate", &glTFTanslate.x, 0.1f))
-	{
-		glTFObject_->SetTranslate(glTFTanslate);
-	}
-
-	ImGui::End();
-
 #endif
 
 
@@ -363,10 +343,9 @@ void TitleScene::Update(const float& deltaTime)
 		cameraManager_->SetActiveCamera("Default");
 	}
 
-	UpdateOrbitCamera(deltaTime);
 	cameraManager_->Update(deltaTime);
 	skyBox_->Update();
-	terrain_->Update();
+	terrain_->Update(deltaTime);
 
 
 
@@ -398,27 +377,7 @@ void TitleScene::Update(const float& deltaTime)
 		cylinderEmitter_->Emit();
 	}
 
-	animationTime += deltaTime;
-	animationTime = std::fmod(animationTime, glTFAnimation_.duration);
-
-	ApplyAnimation(glTFSkeleton_, glTFAnimation_, animationTime);
-	UpdateSkeleton(glTFSkeleton_);
-	UpdateSkinCluster(glTFSkinCluster_, glTFSkeleton_);
-
-	glTFObject_->SetRotate({ 0.0f, pi, 0.0f });
-
-#ifdef USE_IMGUI
-	skeletonImGuiDebug_.Draw(
-		glTFSkeleton_,
-		glTFObject_->GetWorldTransform()->GetWorldMatrix(),
-		cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
-#endif
-
-	/*Matrix4x4 animationMatrix = PlayAnimation(glTFObject_->GetModel()->GetMesh(0), glTFAnimation_, animationTime, deltaTime);
-	
-	*/
-	
-	glTFObject_->Update(nullptr, nullptr, false);
+	player_->Update(deltaTime);
 
 	enterSprite_->Update();
 
@@ -451,9 +410,7 @@ void TitleScene::Draw()
 
 	}
 
-	glTFObject_->Draw(
-		&glTFSkinCluster_.influenceBufferView,
-		&glTFSkinCluster_.paletteSrvHandle.second);
+	player_->Draw();
 
 	/*particleManager_->Draw();*/
 
@@ -463,13 +420,13 @@ void TitleScene::Draw()
 	}*/
 
 
-	if (isDrawSprite_)
+	/*if (isDrawSprite_)
 	{
 		for (size_t i = 0; i < sprites_.size(); i++)
 		{
 			sprites_[i]->Draw();
 		}
-	}
+	}*/
 
 	enterSprite_->Draw();
 
@@ -485,7 +442,7 @@ void TitleScene::Draw()
 
 	}
 
-	titleText_->Draw();
+	/*titleText_->Draw();*/
 
 	cameraManager_->DrawDebugUI();
 
@@ -495,32 +452,3 @@ void TitleScene::Draw()
 
 }
 
-void TitleScene::UpdateOrbitCamera(float deltaTime)
-{
-	if (!defaultCameraController_)
-	{
-		return;
-	}
-
-	cameraOrbitAngle_ = std::fmod(
-		cameraOrbitAngle_ + kCameraOrbitSpeed_ * deltaTime, 2.0f * pi);
-
-	const Vector3 cameraPosition =
-	{
-		kCameraLookTarget_.x + std::sin(cameraOrbitAngle_) * kCameraOrbitRadius_,
-		kCameraLookTarget_.y + kCameraOrbitHeight_,
-		kCameraLookTarget_.z + std::cos(cameraOrbitAngle_) * kCameraOrbitRadius_,
-	};
-	const Vector3 forward = Normalize(kCameraLookTarget_ - cameraPosition);
-	const float horizontalLength = Length(Vector2{ forward.x, forward.z });
-	const Vector3 cameraRotate =
-	{
-		std::atan2(-forward.y, horizontalLength),
-		std::atan2(forward.x, forward.z),
-		0.0f,
-	};
-
-	WorldTransform* cameraTransform = defaultCameraController_->GetWorldTransform();
-	cameraTransform->translate_ = cameraPosition;
-	cameraTransform->SetRotate(cameraRotate);
-}

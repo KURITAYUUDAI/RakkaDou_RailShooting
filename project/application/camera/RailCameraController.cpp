@@ -53,6 +53,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 
 	ImGui::DragFloat2("Offset", &offset_.x, 0.1f);
 	ImGui::DragFloat("MoveSpeed", &moveSpeed_, 0.1f);
+	ImGui::Checkbox("Loop", &isLoop_);
 	ImGui::InputFloat3("RailPos", &railPos_.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::End();
@@ -63,11 +64,20 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 
 	// 1. 毎フレーム「時間 × 速度」で実際の移動距離を加算する
 	const float moveDistance = moveSpeed_ * deltaTime;
+	const float previousDistance = currentDistance_;
 	currentDistance_ += moveDistance;
-	travelledDistance_ += moveDistance;
-	if (currentDistance_ > totalLength_)
+	if (isLoop_)
 	{
-		currentDistance_ -= totalLength_; // ループ（外周を超えたら先頭へ戻る）
+		if (totalLength_ > 0.0f)
+		{
+			currentDistance_ = std::fmod(currentDistance_, totalLength_);
+		}
+		travelledDistance_ += moveDistance;
+	}
+	else
+	{
+		currentDistance_ = std::min(currentDistance_, totalLength_);
+		travelledDistance_ += currentDistance_ - previousDistance;
 	}
 
 	// 2. 現在の距離に対応する「正しいt」を逆引きする
@@ -78,6 +88,14 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	float targetDistance = currentDistance_ + targetRange_;
 	float targetT = GetTFromDistance(targetDistance);
 	target_ = GetLoopSplinePosition(controlPoints_, targetT);
+	if (!isLoop_ && currentDistance_ >= totalLength_ && totalLength_ > 0.0f)
+	{
+		// 終端では注視点と現在位置が一致するため、直前の接線方向を維持する。
+		const float previousT = GetTFromDistance(std::max(0.0f, totalLength_ - targetRange_));
+		const Vector3 previousPos = GetLoopSplinePosition(controlPoints_, previousT);
+		const Vector3 tangent = Normalize(railPos_ - previousPos);
+		target_ = railPos_ + tangent * targetRange_;
+	}
 
 	// --- 以降のベクトル計算やカメラ設定はそのまま流用 ---
 	Vector3 forward = target_ - railPos_;
@@ -232,11 +250,13 @@ float RailCameraController::GetTFromDistance(float distance)
 {
 	if (lengthTable_.empty()) return 0.0f;
 
-	// ループ対応: distance が全長の範囲内（0.0f ~ totalLength_）に収まるように循環させる
+	// 距離をレール全長の範囲に収める。周回時だけ終端から先頭へ循環させる。
 	if (distance < 0.0f) distance = 0.0f;
 	if (distance > totalLength_)
 	{
-		distance = std::fmod(distance, totalLength_);
+		distance = isLoop_ && totalLength_ > 0.0f
+			? std::fmod(distance, totalLength_)
+			: totalLength_;
 	}
 
 	// 二分探索で distance 以上の最初の要素（It）を検索

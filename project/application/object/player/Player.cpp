@@ -23,8 +23,9 @@
 #include "PrimitiveManager.h"
 #include "ParticleManager.h"
 
-void Player::Initialize()
+void Player::Initialize(Mode mode)
 {
+	mode_ = mode;
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
 
 	selector_.GetKeyboardHandler()->AssignKey("shot", DIK_SPACE);
@@ -41,6 +42,7 @@ void Player::Initialize()
 	ModelManager::GetInstance()->LoadModel("player", "player.obj");
 	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
+	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
 	ModelManager::GetInstance()->LoadModel("playerBullet", "playerBullet.obj");
 
 	object3d_ = std::make_unique<Object3d>();
@@ -57,6 +59,16 @@ void Player::Initialize()
 	meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
 	meleeHandTransform_.rotate = { 0.0f, pi, 0.0f };
 	meleeHandTransform_.translate = { 0.8f, 0.0f, 0.5f };
+
+	objectLeftHand_ = std::make_unique<Object3d>();
+	objectLeftHand_->Initialize();
+	objectLeftHand_->SetModel("LeftHand.obj");
+	objectLeftHand_->SetPsoName("Environment");
+	objectLeftHand_->SetEnvironmentCoefficient(0.2f);
+	objectLeftHand_->SetParent(object3d_->GetWorldTransform());
+	leftHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+	leftHandTransform_.rotate = { 0.0f, 0.0f, -pi / 2.0f };
+	leftHandTransform_.translate = { -1.4f, 0.0f, 0.0f };
 
 	objectMeleeFollowUpEffect_ = std::make_unique<Object3d>();
 	objectMeleeFollowUpEffect_->Initialize();
@@ -95,6 +107,14 @@ void Player::Initialize()
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
 	transform_.translate = { 0.0f, -3.0f, -7.5f };
+	if (mode_ == Mode::TitleFalling)
+	{
+		transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
+		transform_.translate = { 0.0f, 0.0f, 0.0f };
+		meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+		meleeHandTransform_.rotate = { 0.0f, 0.0f, pi / 2.0f };
+		meleeHandTransform_.translate = { 1.4f, 0.0f, 0.0f };
+	}
 
 	hitPoint_ = kMaxHitPoint;
 
@@ -187,6 +207,12 @@ void Player::EventDispatch()
 
 void Player::Update(const float& deltaTime)
 {
+	if (mode_ == Mode::TitleFalling)
+	{
+		UpdateTitleFalling();
+		return;
+	}
+
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Player);
 
 	IInputHandler* handler = selector_.GetHandler();
@@ -331,6 +357,32 @@ void Player::Update(const float& deltaTime)
 	colliderAttack_->SetWorldPosition(GetWorldPosition() + meleeAttackDirection_ * 4.0f);
 }
 
+void Player::UpdateTitleFalling()
+{
+#ifdef _DEBUG
+	ImGui::Begin("Title Player Setting");
+	ImGui::DragFloat3("Player Scale", &transform_.scale.x, 0.05f);
+	ImGui::DragFloat3("Player Rotate", &transform_.rotate.x, 0.01f);
+	ImGui::DragFloat3("Player Translate", &transform_.translate.x, 0.05f);
+	ImGui::Separator();
+	ImGui::DragFloat3("Right Hand Scale", &meleeHandTransform_.scale.x, 0.05f);
+	ImGui::DragFloat3("Right Hand Rotate", &meleeHandTransform_.rotate.x, 0.01f);
+	ImGui::DragFloat3("Right Hand Translate", &meleeHandTransform_.translate.x, 0.05f);
+	ImGui::Separator();
+	ImGui::DragFloat3("Left Hand Scale", &leftHandTransform_.scale.x, 0.05f);
+	ImGui::DragFloat3("Left Hand Rotate", &leftHandTransform_.rotate.x, 0.01f);
+	ImGui::DragFloat3("Left Hand Translate", &leftHandTransform_.translate.x, 0.05f);
+	ImGui::End();
+#endif
+
+	object3d_->SetTransform(transform_);
+	object3d_->Update(nullptr, nullptr, false);
+	objectMeleeHand_->SetTransform(meleeHandTransform_);
+	objectMeleeHand_->Update();
+	objectLeftHand_->SetTransform(leftHandTransform_);
+	objectLeftHand_->Update();
+}
+
 void Player::Draw()
 {
 	object3d_->SetPsoName(psoName_);
@@ -345,19 +397,19 @@ void Player::Draw()
 	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
 	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	////SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
+	SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
 
-	////DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
-	////DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+	DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
+	DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
 
 	if (isDraw_)
 	{
 		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
 		{
-			object3d_->Draw(&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second);
+			object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 		}
 	}
-	if (isDraw_ && isMeleeHandVisible_)
+	if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
 	{
 		auto environmentPso = PSOManager::GetInstance()->GetPSOData(
 			"Environment", blendMode_, fillMode_);
@@ -369,6 +421,10 @@ void Player::Draw()
 		DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
 		DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
 		objectMeleeHand_->Draw();
+	}
+	if (isDraw_ && mode_ == Mode::TitleFalling)
+	{
+		objectLeftHand_->Draw();
 	}
 	if (isDraw_ && isChargeEffectActive_)
 	{

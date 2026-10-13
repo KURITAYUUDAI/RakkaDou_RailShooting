@@ -22,12 +22,14 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 	PSOManager::GetInstance()->RegisterEnvironmentPSO();
 
 	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
+	ModelManager::GetInstance()->LoadModel("enemy", "enemy.obj");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
 	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize();
-	object3d_->SetModel("sphere.obj");
+	object3d_->SetModel(
+		config.type == EnemyType::Boss ? "sphere.obj" : "enemy.obj");
 	object3d_->SetEnvironmentCoefficient(0.2f);
 	object3d_->SetColor(config.color);
 

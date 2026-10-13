@@ -115,7 +115,7 @@ void GamePlayScene::Initialize()
 	outField_->Initialize();
 	outField_->SetModel("OutField.obj");
 	outField_->SetTransform({
-		{ 1.2f, 1.2f, 1.2f },
+		{ 1.5f, 1.5f, 1.5f },
 		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
 	});
@@ -212,7 +212,7 @@ void GamePlayScene::Initialize()
 	skyBox_->SetCamera(camera_.get());
 
 	terrain_ = std::make_unique<Terrain>();
-	terrain_->Initialize();
+	terrain_->Initialize(Terrain::Mode::Gameplay);
 
 	player_ = std::make_unique<Player>();
 	player_->Initialize();
@@ -479,7 +479,7 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	skyBox_->Update();
 
-	terrain_->Update();
+	terrain_->Update(deltaTime);
 	inField_->Update();
 	outField_->Update();
 
