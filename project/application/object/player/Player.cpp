@@ -38,13 +38,15 @@ void Player::Initialize()
 	selector_.GetGamepadHandler()->AssignKey("melee", XINPUT_GAMEPAD_B);
 
 	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
+	ModelManager::GetInstance()->LoadModel("player", "player.obj");
 	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
 	ModelManager::GetInstance()->LoadModel("playerBullet", "playerBullet.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize();
-	object3d_->SetModel("walk.gltf");
+	object3d_->SetModel("player.obj");
+	object3d_->SetEnvironmentCoefficient(0.2f);
 
 	objectMeleeHand_ = std::make_unique<Object3d>();
 	objectMeleeHand_->Initialize();
@@ -66,12 +68,12 @@ void Player::Initialize()
 	meleeFollowUpEffectTransform_.rotate = { 0.0f, 0.0f, 0.0f };
 	meleeFollowUpEffectTransform_.translate = {};
 
-	animation_ = LoadAnimationFile("Animation", "walk.gltf");
+	/*animation_ = LoadAnimationFile("Animation", "walk.gltf");
 	animationTime = 0.0f;
 
 	skeleton_ = CreateSkeleton(object3d_->GetModel()->GetRootNode(0));
 
-	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
+	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);*/
 
 	collider_ = std::make_unique<Collider>();
 	collider_->SetOwner(this);
@@ -343,10 +345,10 @@ void Player::Draw()
 	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
 	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	//SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
+	////SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
 
-	//DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
-	//DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+	////DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
+	////DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
 
 	if (isDraw_)
 	{
