@@ -5,6 +5,7 @@
 #include "SceneUIBase.h"
 #include "GameUIController.h"
 #include "GamePlayUIUtility.h"
+#include "Text.h"
 
 class GamePlaySceneUI : public SceneUIBase
 {
@@ -14,7 +15,11 @@ public:
     void Update(float deltaTime) override;
     void DrawLayer(const UILayer& layer) override;
 
-    void SetIsVisible(bool visible) override { uiManager_->SetIsVisible(visible); }
+    void SetIsVisible(bool visible) override
+    {
+        isVisible_ = visible;
+        uiManager_->SetIsVisible(visible);
+    }
 
 private:
     void SyncScreenBossHPGage();
@@ -29,6 +34,8 @@ private:
 
     std::unique_ptr<UIManager<GameUIViewModel>> uiManager_;
     std::unique_ptr<GameUIController> gameUIController_;
+    std::unique_ptr<Text> controlText_;
+    bool isVisible_ = true;
 
     UIID screenBossHPGageUIID_ = kInvalidUIID;
     EnemyID screenBossEnemyID_ = 0;

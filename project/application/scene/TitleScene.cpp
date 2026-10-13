@@ -140,10 +140,6 @@ void TitleScene::Initialize()
 		emitters_.push_back(std::move(emitter));
 	}*/
 
-	enterSprite_ = std::make_unique<Sprite>();
-	enterSprite_->Initialize("ENTER.png");
-	enterSprite_->SetPosition({ 20.0f, 540.0f });
-
 	openingFadeSprite_ = std::make_unique<Sprite>();
 	openingFadeSprite_->Initialize("white1x1.png");
 	openingFadeSprite_->SetSize({
@@ -237,14 +233,11 @@ void TitleScene::Initialize()
 	FreeTypeManager::GetInstance()->Initialize();
 	TextManager::GetInstance()->Initialize();
 
-	titleText_ = std::make_unique<Text>();
-	titleText_->InitializeRichText(
-		"fonts/x8y12pxTheStrongGamer.ttf",
-		32,
-		U"TITLE <b><color=#ff4040>SCENE</color></b>\n"
-		U"<i><color=#40a0ff>ITALIC</color></i> <u><color=#40ff80>UNDER</color></u> "
-		U"<b><i><u><color=#ffd040cc>BOTH</color></u></i></b>");
-	titleText_->SetPosition({ 120.0f, 320.0f });
+	spacePromptText_ = std::make_unique<Text>();
+	spacePromptText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 48, U"SPACE");
+	spacePromptText_->SetPosition({ 562.0f, 580.0f });
+	spacePromptText_->SetColor({ 0.9f, 0.9f, 0.9f, 1.0f });
 
 
 	debugManager_->Initialize();
@@ -312,8 +305,24 @@ void TitleScene::Finalize()
 void TitleScene::Update(const float& deltaTime)
 {
 	WorldTransform::AdvanceFrame();
-	UpdateEntranceSequence(deltaTime);
-	UpdateExitSequence(deltaTime);
+	bool skippedEntranceThisFrame = false;
+	if (entranceSequenceState_ != EntranceSequenceState::Complete &&
+		exitSequenceState_ == ExitSequenceState::WaitingForInput &&
+		inputManager_->TriggerKey(DIK_SPACE))
+	{
+		SkipEntranceSequence();
+		skippedEntranceThisFrame = true;
+	}
+	else
+	{
+		UpdateEntranceSequence(deltaTime);
+	}
+
+	// スキップに使ったSPACEを、同じフレームのゲーム開始入力には流用しない。
+	if (!skippedEntranceThisFrame)
+	{
+		UpdateExitSequence(deltaTime);
+	}
 
 #ifdef USE_IMGUI
 
@@ -463,7 +472,6 @@ void TitleScene::Update(const float& deltaTime)
 
 	player_->Update(deltaTime);
 
-	enterSprite_->Update();
 	openingFadeSprite_->Update();
 
 	particleManager_->Update(deltaTime);
@@ -471,7 +479,7 @@ void TitleScene::Update(const float& deltaTime)
 	//// ImGuiの内部コマンドを生成する
 	//ImGui::Render();
 
-	titleText_->Update();
+	spacePromptText_->Update();
 }
 
 void TitleScene::UpdateEntranceSequence(float deltaTime)
@@ -568,6 +576,18 @@ void TitleScene::UpdateEntranceSequence(float deltaTime)
 	}
 }
 
+void TitleScene::SkipEntranceSequence()
+{
+	player_->SetTranslate(entrancePlayerFinalPosition_);
+	player_->SetTitleOpacity(1.0f);
+	SetTitleCameraTransform(
+		entranceCameraFinalPosition_, entranceCameraFinalRotation_);
+	openingFadeSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+	sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	entranceSequenceTimer_ = 0.0f;
+	entranceSequenceState_ = EntranceSequenceState::Complete;
+}
+
 void TitleScene::SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate)
 {
 	defaultCameraController_->GetWorldTransform()->translate_ = translate;
@@ -582,7 +602,7 @@ void TitleScene::UpdateExitSequence(float deltaTime)
 	{
 	case ExitSequenceState::WaitingForInput:
 		if (entranceSequenceState_ == EntranceSequenceState::Complete &&
-			inputManager_->TriggerKey(DIK_RETURN) &&
+			inputManager_->TriggerKey(DIK_SPACE) &&
 			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
 		{
 			exitStartPlayerPosition_ = player_->GetTranslate();
@@ -742,7 +762,7 @@ void TitleScene::Draw()
 	if (entranceSequenceState_ == EntranceSequenceState::Complete &&
 		exitSequenceState_ == ExitSequenceState::WaitingForInput)
 	{
-		enterSprite_->Draw();
+		spacePromptText_->Draw();
 	}
 
 	particleManager_->Draw();
@@ -761,8 +781,6 @@ void TitleScene::Draw()
 		SoundManager::GetInstance()->SoundPlayWave("test.mp3");
 
 	}
-
-	/*titleText_->Draw();*/
 
 	cameraManager_->DrawDebugUI();
 

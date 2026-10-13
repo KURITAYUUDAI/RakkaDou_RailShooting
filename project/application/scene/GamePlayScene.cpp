@@ -14,6 +14,9 @@
 #include "SplineCurve.h"
 #include "HPGageUI.h"
 #include "DistanceFogManager.h"
+#include "freetype/FreeTypeManager.h"
+#include "FontManager.h"
+#include "TextManager.h"
 
 void GamePlayScene::Initialize()
 {
@@ -232,6 +235,9 @@ void GamePlayScene::Initialize()
 	soundManager_->SoundLoadFile("", "Alarm01.wav");
 	soundManager_->SoundLoadFile("", "test.mp3");
 
+	FreeTypeManager::GetInstance()->Initialize();
+	TextManager::GetInstance()->Initialize();
+
 	eventBus_ = std::make_unique<EventBus>();
 	sceneUI_ = std::make_unique<GamePlaySceneUI>();
 	sceneUI_->Initialize(eventBus_.get());
@@ -244,15 +250,29 @@ void GamePlayScene::Initialize()
 	
 	eventBus_->Dispatch();
 
-	controlSprite_ = std::make_unique<Sprite>();
-	controlSprite_->Initialize("Control.png");
-	controlSprite_->SetPosition({20.0f, 540.0f});
+	pauseMenu_ = std::make_unique<PauseMenu>();
+	pauseMenu_->Initialize();
+	isPaused_ = false;
 }
 
 void GamePlayScene::Finalize()
 {
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
 	DistanceFogManager::GetInstance()->SetEnabled(false);
+
+	if (pauseMenu_)
+	{
+		pauseMenu_->Finalize();
+		pauseMenu_.reset();
+	}
+	if (sceneUI_)
+	{
+		sceneUI_->Finalize();
+		sceneUI_.reset();
+	}
+	FontManager::GetInstance()->Finalize();
+	TextManager::GetInstance()->Finalize();
+	FreeTypeManager::GetInstance()->Finalize();
 
 	enemyManager_->Finalize();
 	player_->Finalize();
@@ -312,6 +332,31 @@ void GamePlayScene::Update(const float& deltaTime)
 	//	// シーン切り替え
 	//	SceneManager::GetInstance()->SetSceneRequest("TITLE");
 	//}
+
+	const bool isTransitionIdle =
+		SceneManager::GetInstance()->GetSceneTransition().GetState() ==
+		SceneTransition::SceneTransitionState::Idle;
+
+	if (isTransitionIdle && inputManager_->TriggerKey(DIK_TAB))
+	{
+		isPaused_ = !isPaused_;
+		pauseMenu_->SetVisible(isPaused_);
+	}
+
+	if (isPaused_)
+	{
+		const PauseMenu::Action action = pauseMenu_->Update();
+		if (isTransitionIdle && action == PauseMenu::Action::ContinueGame)
+		{
+			isPaused_ = false;
+			pauseMenu_->SetVisible(false);
+		}
+		else if (isTransitionIdle && action == PauseMenu::Action::ReturnToTitle)
+		{
+			SceneManager::GetInstance()->SetSceneRequest("TITLE");
+		}
+		return;
+	}
 
 	WorldTransform::AdvanceFrame();
 
@@ -518,8 +563,6 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 
 
-	controlSprite_->Update();
-
 	collisionManager_->Clear();
 	if (!player_->GetIsDead())
 	{
@@ -723,8 +766,6 @@ void GamePlayScene::Draw()
 		}
 	}
 
-	controlSprite_->Draw();
-
 	cameraManager_->DrawDebugUI();
 
 #ifdef _DEBUG
@@ -744,4 +785,6 @@ void GamePlayScene::Draw()
 	sceneUI_->DrawLayer(UILayer::World);
 	sceneUI_->DrawLayer(UILayer::Screen);
 	sceneUI_->DrawLayer(UILayer::Overlay);
+
+	pauseMenu_->Draw();
 }

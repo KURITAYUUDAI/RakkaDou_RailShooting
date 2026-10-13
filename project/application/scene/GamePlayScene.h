@@ -18,6 +18,7 @@
 
 #include "EventBus.h"
 #include "GamePlaySceneUI.h"
+#include "PauseMenu.h"
 
 #include "PostEffectController.h"
 
@@ -139,7 +140,8 @@ private:
 
 	std::unique_ptr<GamePlaySceneUI> sceneUI_;
 
-	std::unique_ptr<Sprite> controlSprite_;
+	std::unique_ptr<PauseMenu> pauseMenu_;
+	bool isPaused_ = false;
 
 	PostEffectHandle bloomHandle_;
 	PostEffectHandle glayscaleHandle_;

@@ -52,6 +52,7 @@ private:
 	};
 
 	void UpdateEntranceSequence(float deltaTime);
+	void SkipEntranceSequence();
 	void UpdateExitSequence(float deltaTime);
 	void SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate);
 	void StartExitBlur();
@@ -118,10 +119,9 @@ private:
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 
-	std::unique_ptr<Sprite> enterSprite_;
 	std::unique_ptr<Sprite> openingFadeSprite_;
 
-	std::unique_ptr<Text> titleText_;
+	std::unique_ptr<Text> spacePromptText_;
 
 	std::unique_ptr<ParticleEmitter> ringEmitter_;
 

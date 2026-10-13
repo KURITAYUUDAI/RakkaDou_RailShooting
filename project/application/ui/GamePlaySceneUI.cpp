@@ -13,6 +13,18 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
     gameUIController_ = std::make_unique<GameUIController>();
     gameUIController_->Initialize(eventBus);
 
+	controlText_ = std::make_unique<Text>();
+	controlText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf",
+		36,
+		U"WASD   : MOVE\n"
+		U"SPACE  : SHOT\n"
+		U"E      : AVOID\n"
+		U"LSHIFT : LOCKON\n"
+		U"TAB    : PAUSE");
+	controlText_->SetPosition({ 10.0f, 530.0f });
+	controlText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+
     auto playerHPGage = std::make_unique<HPGageUI>();
     HPGageUIConfig playerConfig{};
     playerConfig.backPos = { 32.0f, 32.0f };
@@ -65,6 +77,12 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
 
 void GamePlaySceneUI::Finalize()
 {
+    if (controlText_)
+    {
+        controlText_->Finalize();
+        controlText_.reset();
+    }
+
     if (gameUIController_)
     {
         gameUIController_->Finalize();
@@ -85,11 +103,17 @@ void GamePlaySceneUI::Update(float deltaTime)
     SyncLockOnUI();
 
     uiManager_->Update(gameUIController_->GetViewModel(), deltaTime_);
+	controlText_->Update();
 }
 
 void GamePlaySceneUI::DrawLayer(const UILayer& layer)
 {
     uiManager_->DrawLayer(layer);
+
+	if (isVisible_ && layer == UILayer::Screen)
+	{
+		controlText_->Draw();
+	}
 }
 
 void GamePlaySceneUI::SyncScreenBossHPGage()
