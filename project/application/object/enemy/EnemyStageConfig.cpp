@@ -84,7 +84,7 @@ namespace
 EnemyStageConfig EnemyStageConfig::CreateDefault()
 {
 	EnemyStageConfig config;
-	config.smallEnemyPhaseDuration = 35.0f;
+	config.smallEnemyPhaseDistance = 64.6188f;
 
 	EnemyCreateConfig smallDefault;
 	smallDefault.type = EnemyType::Stationary;
@@ -125,6 +125,12 @@ EnemyStageConfig EnemyStageConfig::CreateDefault()
 	add(0.30f, EnemyType::Stationary, { 5.0f, 1.0f, 10.0f }, 0.0f);
 	add(0.40f, EnemyType::Vertical, { -3.0f, 0.0f, 13.0f }, 1.57f);
 	add(0.50f, EnemyType::Horizontal, { 0.0f, -1.0f, 13.0f }, 1.57f);
+	add(0.55f, EnemyType::Stationary, { -5.0f, 0.0f, 10.0f }, 0.0f);
+	add(0.63f, EnemyType::Vertical, { 0.0f, 0.0f, 12.0f }, 0.0f);
+	add(0.71f, EnemyType::Horizontal, { 0.0f, 2.0f, 12.0f }, 0.0f);
+	add(0.79f, EnemyType::Stationary, { 5.0f, 1.0f, 10.0f }, 0.0f);
+	add(0.87f, EnemyType::Vertical, { -3.0f, 0.0f, 13.0f }, 1.57f);
+	add(0.95f, EnemyType::Horizontal, { 0.0f, -1.0f, 13.0f }, 1.57f);
 
 	config.boss = EnemyCreateConfig{};
 	return config;
@@ -145,8 +151,8 @@ bool EnemyStageConfig::Load(const std::string& relativePath)
 		input >> root;
 
 		EnemyStageConfig loaded = CreateDefault();
-		loaded.smallEnemyPhaseDuration =
-			std::max(root.value("smallEnemyPhaseDuration", loaded.smallEnemyPhaseDuration), 0.0f);
+		loaded.smallEnemyPhaseDistance =
+			std::max(root.value("smallEnemyPhaseDistance", loaded.smallEnemyPhaseDistance), 0.0f);
 
 		EnemyCreateConfig smallDefault = loaded.smallEnemies.front().enemy;
 		if (root.contains("smallEnemyDefaults"))

@@ -12,6 +12,7 @@
 #include "SkyBox.h"
 #include "Terrain.h"
 #include "player/Player.h"
+#include "PostEffectController.h"
 
 class TitleScene : public BaseScene
 {
@@ -53,6 +54,9 @@ private:
 	void UpdateEntranceSequence(float deltaTime);
 	void UpdateExitSequence(float deltaTime);
 	void SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate);
+	void StartExitBlur();
+	void UpdateExitBlur(float progress);
+	void StopExitBlur();
 
 private:
 	std::vector<std::unique_ptr<Sprite>> sprites_;
@@ -148,6 +152,8 @@ private:
 	float exitMoveDuration_ = 1.0f;
 	float exitMoveDistance_ = 260.0f;
 	float dissolveDelay_ = 0.5f;
+	float exitBlurMaxWidth_ = 0.015f;
+	PostEffectHandle exitBlurHandle_ = kInvalidPostEffectHandle;
 
 };
 

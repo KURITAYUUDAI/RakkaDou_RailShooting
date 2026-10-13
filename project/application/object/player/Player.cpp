@@ -156,6 +156,9 @@ void Player::Initialize(Mode mode)
 	ParticleManager::GetInstance()->SetModel("ring_avoid", "ring_avoid");
 	ParticleManager::GetInstance()->SetIsMoveAccelerationField("ring_avoid", false);
 	ParticleManager::GetInstance()->SetIsBillboard("ring_avoid", true);
+	ParticleManager::GetInstance()->SetScaleOverLife(
+		"ring_avoid", { 0.35f, 0.35f, 0.35f }, { 2.5f, 2.5f, 2.5f });
+	ParticleManager::GetInstance()->SetParticleLifeTime("ring_avoid", 0.35f);
 
 	justAvoidEmitter_ = std::make_unique<ParticleEmitter>();
 	justAvoidEmitter_->Initialize("ring_avoid",
@@ -829,6 +832,8 @@ void Player::SetAttackColliderActive(bool active)
 
 void Player::Avoid(const Vector2& direction)
 {
+	justAvoidEmitter_->SetTranslate(GetWorldPosition());
+	justAvoidEmitter_->Emit();
 	ChangeState(std::make_unique<PlayerAvoidState>(direction));
 }
 

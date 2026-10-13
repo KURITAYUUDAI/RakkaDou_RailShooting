@@ -13,7 +13,7 @@ struct SmallEnemySpawnConfig
 
 struct EnemyStageConfig
 {
-	float smallEnemyPhaseDuration = 35.0f;
+	float smallEnemyPhaseDistance = 64.6188f;
 	std::vector<SmallEnemySpawnConfig> smallEnemies;
 	EnemyCreateConfig boss;
 

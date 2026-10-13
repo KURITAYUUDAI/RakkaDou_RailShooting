@@ -8,22 +8,34 @@
 
 void RailCameraController::Initialize()
 {
-	controlPoints_ =
+	Initialize(Mode::Loop);
+}
+
+void RailCameraController::Initialize(Mode mode)
+{
+	mode_ = mode;
+	controlPoints_.clear();
+	if (mode_ == Mode::Loop)
 	{
-		{-10, 0,  0 },
-		{-7.5, 0, 7.5 },
-		{  0, 0, 10 },
-		{ 7.5, 0, 7.5 },
-		{ 10, 0,  0 },
-		{ 7.5, 0,-7.5 },
-		{  0, 0,-10 },
-		{ -7.5, 0,-7.5 },
-	};
+		controlPoints_ =
+		{
+			{-10, 0,  0 },
+			{-7.5, 0, 7.5 },
+			{  0, 0, 10 },
+			{ 7.5, 0, 7.5 },
+			{ 10, 0,  0 },
+			{ 7.5, 0,-7.5 },
+			{  0, 0,-10 },
+			{ -7.5, 0,-7.5 },
+		};
+	}
 
-
-	moveSpeed_ = 1.0f;
+	moveSpeed_ = mode_ == Mode::VerticalDescent ? 100.0f : 1.0f;
+	stageProgressSpeed_ = 1.0f;
+	isMovementEnabled_ = true;
 	currentDistance_ = 0.0f;
 	travelledDistance_ = 0.0f;
+	isLoop_ = mode_ == Mode::Loop;
 
 	worldTransform_.Initialize();
 	worldTransform_.scale_ = { 1.0f, 1.0f, 1.0f };
@@ -36,10 +48,23 @@ void RailCameraController::Initialize()
 	battleWorldTransform_.translate_ = { 0.0f, 0.0f, 22.5f };
 	battleWorldTransform_.UpdateMatrix();
 
-	BuildLenghthTable();
-
-	worldTransform_.translate_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_));
-	target_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_ + targetRange_));
+	if (mode_ == Mode::VerticalDescent)
+	{
+		lengthTable_.clear();
+		totalLength_ = 0.0f;
+		railPos_ = { 0.0f, 0.0f, 0.0f };
+		target_ = { 0.0f, -targetRange_, 0.0f };
+		worldTransform_.translate_ =
+			{ railPos_.x + offset_.x, railPos_.y, railPos_.z + offset_.y };
+		worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+	}
+	else
+	{
+		BuildLenghthTable();
+		railPos_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_));
+		target_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_ + targetRange_));
+		worldTransform_.translate_ = railPos_;
+	}
 	// GamePlayScene::Initialize() で戦闘空間の親として即座に使われるため、
 	// 最初のフレームを待たずにレールカメラの行列を確定する。
 	worldTransform_.UpdateMatrix();
@@ -51,9 +76,19 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 
 	ImGui::Begin("ReilCamera");
 
+	ImGui::Text("Mode: %s", mode_ == Mode::VerticalDescent ? "VerticalDescent" : "Loop");
 	ImGui::DragFloat2("Offset", &offset_.x, 0.1f);
 	ImGui::DragFloat("MoveSpeed", &moveSpeed_, 0.1f);
-	ImGui::Checkbox("Loop", &isLoop_);
+	ImGui::Checkbox("MovementEnabled", &isMovementEnabled_);
+	if (mode_ == Mode::VerticalDescent)
+	{
+		ImGui::DragFloat("StageProgressSpeed", &stageProgressSpeed_, 0.1f, 0.0f);
+	}
+	if (mode_ == Mode::Loop)
+	{
+		ImGui::Checkbox("Loop", &isLoop_);
+	}
+	ImGui::InputFloat("StageProgressDistance", &travelledDistance_, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("RailPos", &railPos_.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::End();
@@ -63,38 +98,53 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	if (!mainCamera) return;
 
 	// 1. 毎フレーム「時間 × 速度」で実際の移動距離を加算する
-	const float moveDistance = moveSpeed_ * deltaTime;
-	const float previousDistance = currentDistance_;
-	currentDistance_ += moveDistance;
-	if (isLoop_)
+	const float moveDistance = isMovementEnabled_
+		? std::max(0.0f, moveSpeed_) * deltaTime
+		: 0.0f;
+	if (mode_ == Mode::VerticalDescent)
 	{
-		if (totalLength_ > 0.0f)
+		currentDistance_ += moveDistance;
+		if (isMovementEnabled_)
 		{
-			currentDistance_ = std::fmod(currentDistance_, totalLength_);
+			travelledDistance_ += std::max(0.0f, stageProgressSpeed_) * deltaTime;
 		}
-		travelledDistance_ += moveDistance;
+		railPos_ = { 0.0f, -currentDistance_, 0.0f };
+		target_ = { 0.0f, -(currentDistance_ + targetRange_), 0.0f };
 	}
 	else
 	{
-		currentDistance_ = std::min(currentDistance_, totalLength_);
-		travelledDistance_ += currentDistance_ - previousDistance;
-	}
+		const float previousDistance = currentDistance_;
+		currentDistance_ += moveDistance;
+		if (isLoop_)
+		{
+			if (totalLength_ > 0.0f)
+			{
+				currentDistance_ = std::fmod(currentDistance_, totalLength_);
+			}
+			travelledDistance_ += moveDistance;
+		}
+		else
+		{
+			currentDistance_ = std::min(currentDistance_, totalLength_);
+			travelledDistance_ += currentDistance_ - previousDistance;
+		}
 
-	// 2. 現在の距離に対応する「正しいt」を逆引きする
-	float equalT = GetTFromDistance(currentDistance_);
-	railPos_ = GetLoopSplinePosition(controlPoints_, equalT);
+		// 2. 現在の距離に対応する「正しいt」を逆引きする
+		float equalT = GetTFromDistance(currentDistance_);
+		railPos_ = GetLoopSplinePosition(controlPoints_, equalT);
 
-	// 3. ターゲット（注視点）の位置も「現在の距離 + 〇〇メートル先」から取得する
-	float targetDistance = currentDistance_ + targetRange_;
-	float targetT = GetTFromDistance(targetDistance);
-	target_ = GetLoopSplinePosition(controlPoints_, targetT);
-	if (!isLoop_ && currentDistance_ >= totalLength_ && totalLength_ > 0.0f)
-	{
-		// 終端では注視点と現在位置が一致するため、直前の接線方向を維持する。
-		const float previousT = GetTFromDistance(std::max(0.0f, totalLength_ - targetRange_));
-		const Vector3 previousPos = GetLoopSplinePosition(controlPoints_, previousT);
-		const Vector3 tangent = Normalize(railPos_ - previousPos);
-		target_ = railPos_ + tangent * targetRange_;
+		// 3. ターゲット（注視点）の位置も「現在の距離 + 〇〇メートル先」から取得する
+		float targetDistance = currentDistance_ + targetRange_;
+		float targetT = GetTFromDistance(targetDistance);
+		target_ = GetLoopSplinePosition(controlPoints_, targetT);
+		if (!isLoop_ && currentDistance_ >= totalLength_ && totalLength_ > 0.0f)
+		{
+			// 終端では注視点と現在位置が一致するため、直前の接線方向を維持する。
+			const float previousT = GetTFromDistance(std::max(0.0f, totalLength_ - targetRange_));
+			const Vector3 previousPos = GetLoopSplinePosition(controlPoints_, previousT);
+			const Vector3 tangent = Normalize(railPos_ - previousPos);
+			target_ = railPos_ + tangent * targetRange_;
+		}
 	}
 
 	// --- 以降のベクトル計算やカメラ設定はそのまま流用 ---
@@ -212,7 +262,18 @@ void RailCameraController::DrawDebugUI(const Camera* mainCamera, bool& isDebugCa
 		DebugDrawManager::GetInstance()->AddSphere(target_, 0.2f, { 0.0f, 1.0f, 1.0f, 1.0f }, 12);
 	}
 	
-	DebugDrawManager::GetInstance()->AddLoopSpline(controlPoints_, { 1.0f, 0.0f, 0.0f, 1.0f }, 300);
+	if (mode_ == Mode::VerticalDescent)
+	{
+		DebugDrawManager::GetInstance()->AddLine(
+			{ 0.0f, railPos_.y + 100.0f, 0.0f },
+			{ 0.0f, railPos_.y - 100.0f, 0.0f },
+			{ 1.0f, 0.0f, 0.0f, 1.0f });
+	}
+	else
+	{
+		DebugDrawManager::GetInstance()->AddLoopSpline(
+			controlPoints_, { 1.0f, 0.0f, 0.0f, 1.0f }, 300);
+	}
 }
 
 void RailCameraController::BuildLenghthTable()

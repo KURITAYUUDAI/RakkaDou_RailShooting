@@ -1,5 +1,5 @@
 {
-    "smallEnemyPhaseDuration": 35.0,
+    "smallEnemyPhaseDistance": 64.6188,
     "smallEnemyDefaults": {
         "scale": [1.0, 1.0, 1.0],
         "hitPoint": 10,
@@ -45,6 +45,44 @@
         },
         {
             "railRatio": 0.5,
+            "type": "horizontal",
+            "position": [0.0, -1.0, 13.0],
+            "movePhase": 1.57,
+            "color": [0.35, 0.55, 1.0, 1.0]
+        },
+        {
+            "railRatio": 0.55,
+            "type": "stationary",
+            "position": [-5.0, 0.0, 10.0],
+            "color": [1.0, 0.35, 0.35, 1.0]
+        },
+        {
+            "railRatio": 0.63,
+            "type": "vertical",
+            "position": [0.0, 0.0, 12.0],
+            "color": [0.35, 1.0, 0.45, 1.0]
+        },
+        {
+            "railRatio": 0.71,
+            "type": "horizontal",
+            "position": [0.0, 2.0, 12.0],
+            "color": [0.35, 0.55, 1.0, 1.0]
+        },
+        {
+            "railRatio": 0.79,
+            "type": "stationary",
+            "position": [5.0, 1.0, 10.0],
+            "color": [1.0, 0.35, 0.35, 1.0]
+        },
+        {
+            "railRatio": 0.87,
+            "type": "vertical",
+            "position": [-3.0, 0.0, 13.0],
+            "movePhase": 1.57,
+            "color": [0.35, 1.0, 0.45, 1.0]
+        },
+        {
+            "railRatio": 0.95,
             "type": "horizontal",
             "position": [0.0, -1.0, 13.0],
             "movePhase": 1.57,

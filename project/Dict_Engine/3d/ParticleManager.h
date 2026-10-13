@@ -116,6 +116,11 @@ public:
 
 		bool isMoveAccelerationField = true;						// 加速場の影響を受けるかどうか
 		bool isBillboard = true;
+		bool isScaleOverLife = false;
+		bool useFixedLifeTime = false;
+		Vector3 startScale = { 1.0f, 1.0f, 1.0f };
+		Vector3 endScale = { 1.0f, 1.0f, 1.0f };
+		float fixedLifeTime = 1.0f;
 
 		std::string psoName_;										// PSOの名前
 		PSOManager::BlendMode blendMode_;							// ブレンドモード
@@ -157,6 +162,9 @@ public: // 外部入出力
 	void SetModel(const std::string& name, std::string filePath);
 	void SetIsMoveAccelerationField(const std::string& name, bool isMove);
 	void SetIsBillboard(const std::string& name, bool isBillboard);
+	void SetScaleOverLife(
+		const std::string& name, const Vector3& startScale, const Vector3& endScale);
+	void SetParticleLifeTime(const std::string& name, float lifeTime);
 
 	// ゲッター
 	DirectXBase* GetDxBase() const { return dxBase_; }

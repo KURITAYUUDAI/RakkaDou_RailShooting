@@ -3,6 +3,7 @@
 #include "LightManager.h"
 #include "CameraManager.h"
 #include "DistanceFogManager.h"
+#include "RadialBlur.h"
 
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
@@ -152,33 +153,29 @@ void TitleScene::Initialize()
 
 	PrimitiveManager::GetInstance()->Initialize();
 	PrimitiveManager::RingConfig ringConfig;
-	ringConfig.segments = 32;
-	ringConfig.innerRadius = 0.0f;
-	ringConfig.outerRadius = 1.5f;
-	ringConfig.innerColor = { 0.0f, 0.0f, 1.0f, 1.0f };
-	ringConfig.outerColor = { 0.0f, 0.5f, 0.0f, 1.0f };
+	ringConfig.segments = 48;
+	ringConfig.doubleSided = true;
+	ringConfig.innerRadius = 1.5f;
+	ringConfig.outerRadius = 2.0f;
+	ringConfig.innerColor = { 0.0f, 0.4f, 2.0f, 0.8f };
+	ringConfig.outerColor = { 0.0f, 2.0f, 5.0f, 1.0f };
 	ringConfig.uvScaleU = 2.0f;
 	ringConfig.uvScaleV = 0.1f;
-	ringConfig.startAngle = 1.0f / 5.0f * pi;
-	ringConfig.endAngle = 9.0f / 5.0f * pi;
-	ringConfig.radiusPoints =
-	{
-		{ 0.0f, 0.5f, 0.5f },   // 開始：inner=0.2, outer=1.0
-		{ 0.5f, 0.5f, 1.0f },   // 中間：inner=0.1, outer=0.6
-		{ 1.0f, 0.5f, 0.5f },   // 終了：inner=0.2, outer=0.2
-	};
-	ringConfig.alphaFade.startFadeRange = 0.15f;
-	ringConfig.alphaFade.endFadeRange = 0.15f;
-	PrimitiveManager::GetInstance()->CreateRing("ring_primitive", ringConfig);
+	ringConfig.startAngle = 0.0f;
+	ringConfig.endAngle = 2.0f * pi;
+	PrimitiveManager::GetInstance()->CreateRing("title_shockwave", ringConfig);
 
-	particleManager_->CreateParticleGroup("ring", "gradationLine.png");
-	particleManager_->SetModel("ring", "ring_primitive");
-	particleManager_->SetIsMoveAccelerationField("ring", false);
-	particleManager_->SetIsBillboard("ring", false);
+	particleManager_->CreateParticleGroup("title_shockwave", "gradationLine.png");
+	particleManager_->SetModel("title_shockwave", "title_shockwave");
+	particleManager_->SetIsMoveAccelerationField("title_shockwave", false);
+	particleManager_->SetIsBillboard("title_shockwave", true);
+	particleManager_->SetScaleOverLife(
+		"title_shockwave", { 0.75f, 0.75f, 0.75f }, { 8.0f, 8.0f, 8.0f });
+	particleManager_->SetParticleLifeTime("title_shockwave", 0.5f);
 
 	ringEmitter_ = std::make_unique<ParticleEmitter>();
-	ringEmitter_->Initialize("ring",
-		{ {1.0f, 2.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.2f);
+	ringEmitter_->Initialize("title_shockwave",
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.2f);
 
 	PrimitiveManager::CylinderConfig cylinderConfig;
 	cylinderConfig.segments = 32;
@@ -255,6 +252,8 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	StopExitBlur();
+
 	// 次のシーンへタイトル専用フォグを持ち越さない。
 	DistanceFogManager::GetInstance()->SetEnabled(false);
 
@@ -604,6 +603,9 @@ void TitleScene::UpdateExitSequence(float deltaTime)
 		if (progress >= 1.0f)
 		{
 			sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+			ringEmitter_->SetTranslate(player_->GetWorldPosition());
+			ringEmitter_->Emit();
+			StartExitBlur();
 			exitSequenceTimer_ = 0.0f;
 			exitSequenceState_ = ExitSequenceState::MovingPlayer;
 		}
@@ -617,6 +619,7 @@ void TitleScene::UpdateExitSequence(float deltaTime)
 		const float progress = std::clamp(exitSequenceTimer_ / moveDuration, 0.0f, 1.0f);
 		// 落下が加速して見えるように、移動量へEase-Inを適用する。
 		const float easedProgress = progress * progress;
+		UpdateExitBlur(easedProgress);
 
 		Vector3 playerPosition = exitStartPlayerPosition_;
 		playerPosition.y -= exitMoveDistance_ * easedProgress;
@@ -646,6 +649,53 @@ void TitleScene::UpdateExitSequence(float deltaTime)
 	case ExitSequenceState::Dissolving:
 		break;
 	}
+}
+
+void TitleScene::StartExitBlur()
+{
+	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
+	if (controller->IsActive(exitBlurHandle_))
+	{
+		return;
+	}
+
+	exitBlurHandle_ = controller->Emit<RadialBlur>(
+		"RadialBlur", std::nullopt, nullptr);
+	controller->Edit<RadialBlur>(
+		exitBlurHandle_,
+		[](RadialBlur& blur)
+		{
+			blur.SetCenter({ 0.5f, 0.5f });
+			blur.SetBlurWidth(0.0f);
+		});
+}
+
+void TitleScene::UpdateExitBlur(float progress)
+{
+	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
+	if (!controller->IsActive(exitBlurHandle_))
+	{
+		return;
+	}
+
+	const float blurWidth = exitBlurMaxWidth_ * std::clamp(progress, 0.0f, 1.0f);
+	controller->Edit<RadialBlur>(
+		exitBlurHandle_,
+		[blurWidth](RadialBlur& blur)
+		{
+			blur.SetBlurWidth(blurWidth);
+		});
+}
+
+void TitleScene::StopExitBlur()
+{
+	if (exitBlurHandle_ == kInvalidPostEffectHandle)
+	{
+		return;
+	}
+
+	SceneManager::GetInstance()->GetPostEffectController()->Cancel(exitBlurHandle_);
+	exitBlurHandle_ = kInvalidPostEffectHandle;
 }
 
 void TitleScene::FinishFadeIn()

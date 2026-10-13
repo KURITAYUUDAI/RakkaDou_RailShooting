@@ -117,9 +117,6 @@ private:
 
 	std::unique_ptr<Terrain> terrain_ = nullptr;
 
-	std::unique_ptr<Object3d> inField_ = nullptr;
-	std::unique_ptr<Object3d> outField_ = nullptr;
-
 	std::unique_ptr<Player> player_ = nullptr;
 
 	EnemyStageConfig enemyStageConfig_;
@@ -129,7 +126,6 @@ private:
 		Boss,
 	};
 	EnemyStagePhase enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
-	float enemyStageTimer_ = 0.0f;
 	size_t nextSmallEnemyIndex_ = 0;
 	EnemyID bossEnemyID_ = 0;
 

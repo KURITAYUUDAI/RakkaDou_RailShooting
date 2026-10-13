@@ -13,6 +13,7 @@
 #include "BulletManager.h"
 #include "SplineCurve.h"
 #include "HPGageUI.h"
+#include "DistanceFogManager.h"
 
 void GamePlayScene::Initialize()
 {
@@ -33,6 +34,7 @@ void GamePlayScene::Initialize()
 
 	camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	camera_->SetTranslate({ 0.0f, 0.0f, -15.0f });
+	camera_->SetFarClip(300.0f);
 
 	/*debugCamera_ = std::make_unique<DebugCamera>();
 	debugCamera_->Initialize();
@@ -48,7 +50,7 @@ void GamePlayScene::Initialize()
 	defaultCameraController_->Initialize();
 
 	railCameraController_ = std::make_unique<RailCameraController>();
-	railCameraController_->Initialize();
+	railCameraController_->Initialize(RailCameraController::Mode::VerticalDescent);
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
 	cameraManager_->AddCameraController("Rail", railCameraController_.get());
@@ -76,6 +78,12 @@ void GamePlayScene::Initialize()
 	lightManager_->SetSpotLightCosAngle(0, std::cosf(pi / 3.0f));
 	lightManager_->SetSpotLightCosFalloff(0, std::cosf(pi / 4.0f));
 
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	distanceFog->SetStartDistance(20.0f);
+	distanceFog->SetEndDistance(260.0f);
+	distanceFog->SetColor({ 0.005f, 0.008f, 0.015f, 1.0f });
+	distanceFog->SetEnabled(true);
+
 	for (size_t i = 0; i < 1; i++)
 	{
 		std::unique_ptr<Sprite> newSprite = std::make_unique<Sprite>();
@@ -92,34 +100,6 @@ void GamePlayScene::Initialize()
 	modelManager_->LoadModel("", "axis.obj");
 	modelManager_->LoadModel("", "sphere.obj");
 	modelManager_->LoadModel("", "multiMaterial.obj");
-	modelManager_->LoadModel("Field", "InField.obj");
-	modelManager_->LoadModel("Field", "OutField.obj");
-
-	const EulerTransform fieldTransform =
-	{
-		{1.0f, 1.0f, 1.0f},
-		{0.0f, 0.0f, 0.0f},
-		{0.0f, 0.0f, 0.0f},
-	};
-
-	inField_ = std::make_unique<Object3d>();
-	inField_->Initialize();
-	inField_->SetModel("InField.obj");
-	inField_->SetTransform({
-		{ 0.6f, 0.6f, 0.6f },
-		{ 0.0f, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, 0.0f },
-	});
-
-	outField_ = std::make_unique<Object3d>();
-	outField_->Initialize();
-	outField_->SetModel("OutField.obj");
-	outField_->SetTransform({
-		{ 1.5f, 1.5f, 1.5f },
-		{ 0.0f, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, 0.0f },
-	});
-
 	for (size_t i = 0; i < 1; i++)
 	{
 		std::unique_ptr<Object3d> newObject3d = std::make_unique<Object3d>();
@@ -212,7 +192,7 @@ void GamePlayScene::Initialize()
 	skyBox_->SetCamera(camera_.get());
 
 	terrain_ = std::make_unique<Terrain>();
-	terrain_->Initialize(Terrain::Mode::Gameplay);
+	terrain_->Initialize(Terrain::Mode::GameplayCave);
 
 	player_ = std::make_unique<Player>();
 	player_->Initialize();
@@ -272,6 +252,7 @@ void GamePlayScene::Initialize()
 void GamePlayScene::Finalize()
 {
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
+	DistanceFogManager::GetInstance()->SetEnabled(false);
 
 	enemyManager_->Finalize();
 	player_->Finalize();
@@ -298,6 +279,12 @@ void GamePlayScene::Finalize()
 		object3d.reset();
 	}*/
 	object3ds_.clear();
+
+	if (terrain_)
+	{
+		terrain_->Finalize();
+		terrain_.reset();
+	}
 
 	skyBox_->Finalize();
 	delete skyBox_;
@@ -342,6 +329,30 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 	ImGui::Checkbox("DrawSprite", &isDrawSprite_);
 	ImGui::Checkbox("DrawObject3d", &isDrawObject3d_);
+	ImGui::End();
+
+	ImGui::Begin("DistanceFogSetting");
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	bool fogEnabled = distanceFog->IsEnabled();
+	float fogStart = distanceFog->GetStartDistance();
+	float fogEnd = distanceFog->GetEndDistance();
+	Vector4 fogColor = distanceFog->GetColor();
+	if (ImGui::Checkbox("EnableDistanceFog", &fogEnabled))
+	{
+		distanceFog->SetEnabled(fogEnabled);
+	}
+	if (ImGui::DragFloat("FogStartDistance", &fogStart, 0.5f, 0.0f))
+	{
+		distanceFog->SetStartDistance(fogStart);
+	}
+	if (ImGui::DragFloat("FogEndDistance", &fogEnd, 0.5f, 0.0f))
+	{
+		distanceFog->SetEndDistance(fogEnd);
+	}
+	if (ImGui::ColorEdit4("FogColor", &fogColor.x))
+	{
+		distanceFog->SetColor(fogColor);
+	}
 	ImGui::End();
 
 
@@ -479,9 +490,7 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	skyBox_->Update();
 
-	terrain_->Update(deltaTime);
-	inField_->Update();
-	outField_->Update();
+	terrain_->Update(deltaTime, cameraManager_->GetCameraWorldPosition());
 
 	player_->Update(deltaTime);
 	// 敵の接近先計算で、同じフレームのPlayer位置を使えるよう先に配信する。
@@ -573,7 +582,6 @@ void GamePlayScene::InitializeEnemyStage()
 	enemyStageConfig_ = EnemyStageConfig::CreateDefault();
 	enemyStageConfig_.Load("enemy/enemy_stage.json");
 	enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
-	enemyStageTimer_ = 0.0f;
 	nextSmallEnemyIndex_ = 0;
 	bossEnemyID_ = 0;
 
@@ -588,15 +596,15 @@ void GamePlayScene::UpdateEnemyStage(const float& deltaTime)
 		return;
 	}
 
-	enemyStageTimer_ += deltaTime;
-	const float totalLength = railCameraController_->GetTotalLength();
+	static_cast<void>(deltaTime);
+	const float phaseDistance = enemyStageConfig_.smallEnemyPhaseDistance;
 	const float travelledDistance = railCameraController_->GetTravelledDistance();
 
 	while (nextSmallEnemyIndex_ < enemyStageConfig_.smallEnemies.size())
 	{
 		const SmallEnemySpawnConfig& spawn =
 			enemyStageConfig_.smallEnemies[nextSmallEnemyIndex_];
-		const float spawnDistance = spawn.railRatio * totalLength;
+		const float spawnDistance = spawn.railRatio * phaseDistance;
 		if (travelledDistance < spawnDistance)
 		{
 			break;
@@ -605,7 +613,7 @@ void GamePlayScene::UpdateEnemyStage(const float& deltaTime)
 		++nextSmallEnemyIndex_;
 	}
 
-	if (enemyStageTimer_ >= enemyStageConfig_.smallEnemyPhaseDuration)
+	if (travelledDistance >= phaseDistance)
 	{
 		StartBossPhase();
 	}
@@ -619,6 +627,10 @@ void GamePlayScene::SpawnSmallEnemy(const SmallEnemySpawnConfig& spawnConfig)
 
 void GamePlayScene::StartBossPhase()
 {
+	// ボス戦では戦闘空間を固定し、洞窟側を流して無限落下を表現する。
+	railCameraController_->SetMovementEnabled(false);
+	terrain_->SetGameplayCaveScrolling(true);
+
 	enemyManager_->RemoveSmallEnemies();
 	bossEnemyID_ = enemyManager_->AddEnemy(enemyStageConfig_.boss);
 	ConfigureEnemy(bossEnemyID_, true);
@@ -667,8 +679,6 @@ void GamePlayScene::Draw()
 		}*/
 
 		terrain_->Draw();
-		inField_->Draw();
-		outField_->Draw();
 		player_->Draw();
 		/*enemy_->Draw();*/
 		enemyManager_->Draw();

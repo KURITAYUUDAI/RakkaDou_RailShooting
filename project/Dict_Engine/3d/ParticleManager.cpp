@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "ParticleManager.h"
 #include "Logger.h"
 #include "SrvManager.h"
@@ -160,6 +161,22 @@ void ParticleManager::Update(const float& deltaTime)
 			}
 
 			particle.transform.translate += particle.velocity * deltaTime_;
+
+			if (particleGroup.second.isScaleOverLife)
+			{
+				const float progress = std::clamp(
+					particle.currentTime / std::max(particle.lifeTime, 0.001f), 0.0f, 1.0f);
+				const float inverseProgress = 1.0f - progress;
+				const float easedProgress = 1.0f - inverseProgress * inverseProgress * inverseProgress;
+				const Vector3& startScale = particleGroup.second.startScale;
+				const Vector3& endScale = particleGroup.second.endScale;
+				particle.transform.scale =
+				{
+					startScale.x + (endScale.x - startScale.x) * easedProgress,
+					startScale.y + (endScale.y - startScale.y) * easedProgress,
+					startScale.z + (endScale.z - startScale.z) * easedProgress,
+				};
+			}
 
 			particle.color.w =
 				1.0f - (particle.currentTime / particle.lifeTime);
@@ -324,10 +341,13 @@ void ParticleManager::RandomEmit(const std::string name, const Vector3& position
 	for (uint32_t index = 0; index < count; ++index)
 	{
 		Particle particle;
+		const ParticleGroup& particleGroup = particleGroups_[name];
 
 		particle.transform =
 		{
-			{ 1.0f, 1.0f, 1.0f },
+			particleGroup.isScaleOverLife
+				? particleGroup.startScale
+				: Vector3{ 1.0f, 1.0f, 1.0f },
 			{ 0.0f, 0.0f, 0.0f },
 			position +
 			Vector3{
@@ -352,7 +372,9 @@ void ParticleManager::RandomEmit(const std::string name, const Vector3& position
 			1.0f
 		};
 
-		particle.lifeTime = SeedManager::GetInstance()->GenerateFloat(1.0f, 3.0f);
+		particle.lifeTime = particleGroup.useFixedLifeTime
+			? particleGroup.fixedLifeTime
+			: SeedManager::GetInstance()->GenerateFloat(1.0f, 3.0f);
 
 		particle.currentTime = 0.0f;
 
@@ -394,12 +416,17 @@ void ParticleManager::Emit(const std::string name, const Vector3& position, uint
 	for (uint32_t index = 0; index < count; ++index)
 	{
 		Particle particle;
-		particle.transform.scale = {1.0f, 1.0f, 1.0f};
+		const ParticleGroup& particleGroup = particleGroups_[name];
+		particle.transform.scale = particleGroup.isScaleOverLife
+			? particleGroup.startScale
+			: Vector3{ 1.0f, 1.0f, 1.0f };
 		particle.transform.rotate = { 0.0f, 0.0f, 0.0f };
 		particle.transform.translate = position;
 		particle.velocity = { 0.0f, 0.0f, 0.0f };
 		particle.color = { 1.0f, 1.0f, 1.0f, 1.0f };
-		particle.lifeTime = 1.0f;
+		particle.lifeTime = particleGroup.useFixedLifeTime
+			? particleGroup.fixedLifeTime
+			: 1.0f;
 		particle.currentTime = 0.0f;
 
 		particleGroups_[name].particles.push_back(particle);
@@ -452,6 +479,34 @@ void ParticleManager::SetIsBillboard(const std::string& name, bool isBillboard)
 	}
 
 	particleGroups_[name].isBillboard = isBillboard;
+}
+
+void ParticleManager::SetScaleOverLife(
+	const std::string& name, const Vector3& startScale, const Vector3& endScale)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	ParticleGroup& particleGroup = particleGroups_[name];
+	particleGroup.isScaleOverLife = true;
+	particleGroup.startScale = startScale;
+	particleGroup.endScale = endScale;
+}
+
+void ParticleManager::SetParticleLifeTime(const std::string& name, float lifeTime)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	ParticleGroup& particleGroup = particleGroups_[name];
+	particleGroup.useFixedLifeTime = true;
+	particleGroup.fixedLifeTime = std::max(lifeTime, 0.001f);
 }
 
 const std::list<std::string> ParticleManager::GetParticleGroupName()

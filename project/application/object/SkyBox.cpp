@@ -120,7 +120,7 @@ void SkyBox::Initialize()
 	CreateIndexResource();
 	
 	worldTransform_.Initialize();
-	worldTransform_.scale_ = { 1000.0f, 1000.0f, 1000.0f };
+	worldTransform_.scale_ = { 10000.0f, 10000.0f, 10000.0f };
 	worldTransform_.SetRotate({0.0f, 0.0f, 0.0f});
 	worldTransform_.translate_ = {0.0f, 0.0f, 0.0f};
 }
