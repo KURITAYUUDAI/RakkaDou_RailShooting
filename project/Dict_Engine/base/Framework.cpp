@@ -32,6 +32,8 @@ void Dict_Framework::Initialize()
 
 	dxBase_->Initialize(winAPI_.get());
 
+	distanceFogManager_->Initialize();
+
 	srvManager_->Initialize(dxBase_);
 
 	psoManager_->Initialize();
@@ -103,6 +105,10 @@ void Dict_Framework::Finalize()
 {
 	// ポインタ解放
 	object3dManager_->Finalize();
+
+	distanceFogManager_->Finalize();
+	distanceFogManager_ = nullptr;
+
 	// ポインタ解放
 	spriteManager_->Finalize();
 

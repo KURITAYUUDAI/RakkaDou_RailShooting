@@ -6,6 +6,7 @@
 #include "Camera.h"
 #include "LightManager.h"
 #include "CameraManager.h"
+#include "DistanceFogManager.h"
 
 void Object3d::Initialize()
 {
@@ -95,6 +96,14 @@ void Object3d::Draw(const D3D12_VERTEX_BUFFER_VIEW* additionalVBV,
 
 	// カメラ用のCBufferをバインド（rootParameter[4] = b2）
 	CameraManager::GetInstance()->SetCbufferCameraResource(4);
+
+	// rootParameter[5] はPSOごとに用途が異なる。
+	// 距離フォグCBVを持つ標準Object3d PSOでのみバインドする。
+	// Environment PSOでは同じ番号が環境テクスチャのDescriptorTableになる。
+	if (psoName_ == object3dManager_->GetDefaultPsoName())
+	{
+		DistanceFogManager::GetInstance()->SetCBufferResource(5);
+	}
 
 	// 3Dモデルが割り当てられていれば描画する
 	if (model_)

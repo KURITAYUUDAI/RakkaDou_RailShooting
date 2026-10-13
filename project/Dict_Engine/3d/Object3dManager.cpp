@@ -22,7 +22,7 @@ void Object3dManager::Initialize(DirectXBase* dxBase)
 	PSOManager::PSOConfig config{};
 	config.vertexShaderPath = L"resources/shaders/Object3d/Object3d.VS.hlsl";
 	config.geometryShaderPath = L"resources/shaders/Object3d/Object3d.GS.hlsl";
-	config.pixelShaderPath = L"resources/shaders/Object3d/Object3d.PS.hlsl";
+	config.pixelShaderPath = L"resources/shaders/Object3d/Object3dFog.PS.hlsl";
 
 	// RootSignatureの設定
 	config.rootSignatureGenerator = []()
@@ -39,11 +39,11 @@ void Object3dManager::Initialize(DirectXBase* dxBase)
 		descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		rootParameters.resize(5);
+		rootParameters.resize(6);
 
 		// Enum定義 (可読性のため)
 		enum {
-			kMaterial, kTransform, kTexture, kLight, kCamera, kEnvironmentTexture
+			kMaterial, kTransform, kTexture, kLight, kCamera, kFog
 		};
 
 		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
@@ -66,6 +66,10 @@ void Object3dManager::Initialize(DirectXBase* dxBase)
 		rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
 		rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
 		rootParameters[4].Descriptor.ShaderRegister = 2;	// レジスタ番号2を使う
+
+		rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootParameters[5].Descriptor.ShaderRegister = 3;	// 距離フォグ b3
 
 		// シリアライズ
 		static D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};

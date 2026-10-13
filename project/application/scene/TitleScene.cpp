@@ -2,6 +2,7 @@
 #include "SceneManager.h"
 #include "LightManager.h"
 #include "CameraManager.h"
+#include "DistanceFogManager.h"
 
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
@@ -55,6 +56,12 @@ void TitleScene::Initialize()
 	lightManager_->SetDirectionalLightColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 	lightManager_->SetDirectionalLightDirection({ 0.0f, -1.0f, 0.0f });
 	lightManager_->SetDirectionalLightIntensity(1.0f);
+
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	distanceFog->SetStartDistance(20.0f);
+	distanceFog->SetEndDistance(260.0f);
+	distanceFog->SetColor({ 0.005f, 0.008f, 0.015f, 1.0f });
+	distanceFog->SetEnabled(true);
 
 	skyBox_ = std::make_unique<SkyBox>();
 	skyBox_->Initialize();
@@ -210,6 +217,9 @@ void TitleScene::Initialize()
 
 void TitleScene::Finalize()
 {
+	// 次のシーンへタイトル専用フォグを持ち越さない。
+	DistanceFogManager::GetInstance()->SetEnabled(false);
+
 	if (player_)
 	{
 		player_->Finalize();
@@ -288,6 +298,31 @@ void TitleScene::Update(const float& deltaTime)
 	ImGui::Checkbox("DrawSprite", &isDrawSprite_);
 	ImGui::Checkbox("DrawObject3d", &isDrawObject3d_);
 	ImGui::Checkbox("DebugCamera", &isDebugCamera_);
+	ImGui::End();
+
+	ImGui::Begin("DistanceFogSetting");
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	bool fogEnabled = distanceFog->IsEnabled();
+	float fogStart = distanceFog->GetStartDistance();
+	float fogEnd = distanceFog->GetEndDistance();
+	Vector4 fogColor = distanceFog->GetColor();
+
+	if (ImGui::Checkbox("EnableDistanceFog", &fogEnabled))
+	{
+		distanceFog->SetEnabled(fogEnabled);
+	}
+	if (ImGui::DragFloat("FogStartDistance", &fogStart, 0.5f, 0.0f))
+	{
+		distanceFog->SetStartDistance(fogStart);
+	}
+	if (ImGui::DragFloat("FogEndDistance", &fogEnd, 0.5f, 0.0f))
+	{
+		distanceFog->SetEndDistance(fogEnd);
+	}
+	if (ImGui::ColorEdit4("FogColor", &fogColor.x))
+	{
+		distanceFog->SetColor(fogColor);
+	}
 	ImGui::End();
 
 	ImGui::Begin("LightSetting");

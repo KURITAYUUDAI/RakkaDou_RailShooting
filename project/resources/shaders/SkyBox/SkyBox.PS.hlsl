@@ -17,6 +17,16 @@ struct Material
 };
 ConstantBuffer<Material> gMaterial : register(b0);
 
+struct DistanceFog
+{
+    float4 color;
+    float startDistance;
+    float endDistance;
+    int enabled;
+    float padding;
+};
+ConstantBuffer<DistanceFog> gDistanceFog : register(b1);
+
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
@@ -36,6 +46,12 @@ PixelShaderOutput main(VertexShaderOutput input)
     PixelShaderOutput output;
     
     output.color = textureColor * gMaterial.color;
+
+    // Skyboxは無限遠として扱い、フォグ有効時は洞窟奥の色で完全に塞ぐ。
+    if (gDistanceFog.enabled != 0)
+    {
+        output.color.rgb = gDistanceFog.color.rgb;
+    }
 
     return output;
 }

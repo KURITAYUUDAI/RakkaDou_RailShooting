@@ -110,10 +110,15 @@ void Player::Initialize(Mode mode)
 	if (mode_ == Mode::TitleFalling)
 	{
 		transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
-		transform_.translate = { 0.0f, 0.0f, 0.0f };
+		transform_.translate = { 0.0f, 0.0f, -1.85f };
+
 		meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
-		meleeHandTransform_.rotate = { 0.0f, 0.0f, pi / 2.0f };
-		meleeHandTransform_.translate = { 1.4f, 0.0f, 0.0f };
+		meleeHandTransform_.rotate = { 0.0f, -1.84f, 0.05f };
+		meleeHandTransform_.translate = { 1.2f, 0.0f, 0.0f };
+
+		leftHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+		leftHandTransform_.rotate = { 0.0f, 1.84f, -0.05f };
+		leftHandTransform_.translate = { -1.2f, 0.0f, 0.0f };
 	}
 
 	hitPoint_ = kMaxHitPoint;

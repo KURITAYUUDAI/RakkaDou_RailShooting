@@ -68,6 +68,18 @@ struct Camera
 };
 ConstantBuffer<Camera> gCamera : register(b2);
 
+#ifdef ENABLE_DISTANCE_FOG
+struct DistanceFog
+{
+    float4 color;
+    float startDistance;
+    float endDistance;
+    int enabled;
+    float padding;
+};
+ConstantBuffer<DistanceFog> gDistanceFog : register(b3);
+#endif
+
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
@@ -204,6 +216,19 @@ PixelShaderOutput main(GeometryShaderOutput input)
     //float3 N = normalize(input.normal);
     
     //output.color = float4(N * 0.5f + 0.5f, 1.0f);
+
+#ifdef ENABLE_DISTANCE_FOG
+    if (gDistanceFog.enabled != 0)
+    {
+        float distanceFromCamera = length(gCamera.worldPosition - input.worldPosition);
+        float fogRange = max(gDistanceFog.endDistance - gDistanceFog.startDistance, 0.001f);
+        float fogFactor = saturate(
+            (distanceFromCamera - gDistanceFog.startDistance) / fogRange);
+        fogFactor = smoothstep(0.0f, 1.0f, fogFactor);
+
+        output.color.rgb = lerp(output.color.rgb, gDistanceFog.color.rgb, fogFactor);
+    }
+#endif
 
     return output;
 }

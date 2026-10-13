@@ -5,6 +5,7 @@
 #include "SrvManager.h"
 #include "Camera.h"
 #include "CameraManager.h"
+#include "DistanceFogManager.h"
 
 void SkyBox::Initialize()
 {
@@ -27,11 +28,11 @@ void SkyBox::Initialize()
 		descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		rootParameters.resize(3);
+		rootParameters.resize(4);
 
 		// Enum定義 (可読性のため)
 		enum {
-			kMaterial, kTransform, kTexture, DirLight, PointLight, SpotLight, Count, kCamera
+			kMaterial, kTransform, kTexture, kFog
 		};
 
 		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
@@ -46,6 +47,10 @@ void SkyBox::Initialize()
 		rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
 		rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
 		rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
+
+		rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootParameters[3].Descriptor.ShaderRegister = 1;	// 距離フォグ b1
 
 		//rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
 		//rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
@@ -146,6 +151,8 @@ void SkyBox::Draw()
 	DirectXBase::GetInstance()->GetCommandList()->IASetIndexBuffer(&modelData_->meshes[0].indexBufferView);
 	// マテリアルのCBufferの場所を設定
 	material_->Draw(0, 2);
+	// 距離フォグ用CBufferの場所を設定
+	DistanceFogManager::GetInstance()->SetCBufferResource(3);
 
 	// 描画
 	DirectXBase::GetInstance()->GetCommandList()->DrawIndexedInstanced(36, 1, 0, 0, 0);

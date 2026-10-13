@@ -59,6 +59,7 @@ using namespace DirectX;
 
 #include "Object3dManager.h"
 #include "Object3d.h"
+#include "DistanceFogManager.h"
 
 #include "ModelManager.h"
 #include "Model.h"
@@ -141,6 +142,9 @@ protected:
 
 	// 3Dオブジェクトの共通処理を生成
 	Object3dManager* object3dManager_ = Object3dManager::GetInstance();
+
+	// 距離フォグの共通パラメータ
+	DistanceFogManager* distanceFogManager_ = DistanceFogManager::GetInstance();
 
 	// SRVマネージャー
 	SrvManager* srvManager_ = SrvManager::GetInstance();
