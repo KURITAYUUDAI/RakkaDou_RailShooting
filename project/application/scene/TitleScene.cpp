@@ -8,6 +8,26 @@
 #include "FontManager.h"
 #include "TextManager.h"
 
+#include <algorithm>
+
+namespace
+{
+	float SmoothStep01(float value)
+	{
+		const float t = std::clamp(value, 0.0f, 1.0f);
+		return t * t * (3.0f - 2.0f * t);
+	}
+
+	Vector3 LerpVector3(const Vector3& start, const Vector3& end, float t)
+	{
+		return {
+			start.x + (end.x - start.x) * t,
+			start.y + (end.y - start.y) * t,
+			start.z + (end.z - start.z) * t,
+		};
+	}
+}
+
 void TitleScene::Initialize()
 {
 	camera_ = std::make_unique<Camera>();
@@ -24,8 +44,8 @@ void TitleScene::Initialize()
 	// シーン初期化始め
 	/*camera_->SetRotate({ pi / 3.0f, pi, 0.0f });
 	camera_->SetTranslate({ 0.0f, 9.0f, 5.0f });*/
-	camera_->SetRotate({ pi / 2.0f, 0.0f, 0.0f });
-	camera_->SetTranslate({ 0.0f, 15.0f, 0.0f });
+	camera_->SetRotate(entranceCameraSideRotation_);
+	camera_->SetTranslate(entranceCameraStartPosition_);
 
 
 	/*object3dManager_->SetDefaultCamera(camera_.get());
@@ -46,8 +66,8 @@ void TitleScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	defaultCameraController_->GetWorldTransform()->translate_ = { 0.0f, 20.0f, 0.0f };
-	defaultCameraController_->GetWorldTransform()->SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+	defaultCameraController_->GetWorldTransform()->translate_ = entranceCameraStartPosition_;
+	defaultCameraController_->GetWorldTransform()->SetRotate(entranceCameraSideRotation_);
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
 	cameraManager_->SetActiveCameraController("Default");
@@ -79,8 +99,9 @@ void TitleScene::Initialize()
 	}
 
 	sprites_[0]->SetTexture("title.png");
-	sprites_[0]->SetPosition(Vector2{ 100.0f, 100.0f });
+	sprites_[0]->SetPosition(Vector2{ 640.0f, 200.0f });
 	sprites_[0]->AdjustTextureSize();
+	sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
 
 
 
@@ -121,6 +142,13 @@ void TitleScene::Initialize()
 	enterSprite_ = std::make_unique<Sprite>();
 	enterSprite_->Initialize("ENTER.png");
 	enterSprite_->SetPosition({ 20.0f, 540.0f });
+
+	openingFadeSprite_ = std::make_unique<Sprite>();
+	openingFadeSprite_->Initialize("white1x1.png");
+	openingFadeSprite_->SetSize({
+		static_cast<float>(WindowsAPI::kClientWidth),
+		static_cast<float>(WindowsAPI::kClientHeight) });
+	openingFadeSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 1.0f });
 
 	PrimitiveManager::GetInstance()->Initialize();
 	PrimitiveManager::RingConfig ringConfig;
@@ -193,6 +221,16 @@ void TitleScene::Initialize()
 	player_ = std::make_unique<Player>();
 	player_->Initialize(Player::Mode::TitleFalling);
 	player_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
+	entrancePlayerFinalPosition_ = player_->GetTranslate();
+	entrancePlayerStartPosition_ = entrancePlayerFinalPosition_;
+	entrancePlayerStartPosition_.y += entrancePlayerStartHeight_;
+	player_->SetTranslate(entrancePlayerStartPosition_);
+	player_->SetTitleOpacity(0.0f);
+	entranceSequenceState_ = EntranceSequenceState::PlayerFalling;
+	entranceSequenceTimer_ = 0.0f;
+	exitSequenceState_ = ExitSequenceState::WaitingForInput;
+	exitSequenceTimer_ = 0.0f;
+	exitStartPlayerPosition_ = player_->GetTranslate();
 
 	// シーン初期化終わり
 
@@ -274,14 +312,9 @@ void TitleScene::Finalize()
 
 void TitleScene::Update(const float& deltaTime)
 {
-	if (inputManager_->TriggerKey(DIK_RETURN))
-	{
-		// シーン切り替え
-		SceneManager::GetInstance()->SetSceneRequest("GAMEPLAY");
-		return;
-	}
-
 	WorldTransform::AdvanceFrame();
+	UpdateEntranceSequence(deltaTime);
+	UpdateExitSequence(deltaTime);
 
 #ifdef USE_IMGUI
 
@@ -323,6 +356,20 @@ void TitleScene::Update(const float& deltaTime)
 	{
 		distanceFog->SetColor(fogColor);
 	}
+	ImGui::End();
+
+	ImGui::Begin("Title Exit Sequence");
+	ImGui::Text("Entrance State: %d", static_cast<int>(entranceSequenceState_));
+	ImGui::DragFloat("Opening Fade Duration", &openingFadeDuration_, 0.05f, 0.0f, 5.0f);
+	ImGui::DragFloat("Player Fall Duration", &entranceFallDuration_, 0.05f, 0.01f, 10.0f);
+	ImGui::DragFloat("Camera Wait Duration", &entranceCameraDelay_, 0.05f, 0.0f, 10.0f);
+	ImGui::DragFloat("Camera Move Duration", &entranceCameraMoveDuration_, 0.05f, 0.01f, 10.0f);
+	ImGui::DragFloat("Title Fade Duration", &titleFadeDuration_, 0.05f, 0.01f, 10.0f);
+	ImGui::Separator();
+	ImGui::DragFloat("Title Fade Out Duration", &titleFadeOutDuration_, 0.01f, 0.01f, 2.0f);
+	ImGui::DragFloat("Player Move Duration", &exitMoveDuration_, 0.05f, 0.01f, 10.0f);
+	ImGui::DragFloat("Player Move Distance", &exitMoveDistance_, 1.0f, 1.0f, 1000.0f);
+	ImGui::DragFloat("Dissolve Delay", &dissolveDelay_, 0.05f, 0.0f, 10.0f);
 	ImGui::End();
 
 	ImGui::Begin("LightSetting");
@@ -418,6 +465,7 @@ void TitleScene::Update(const float& deltaTime)
 	player_->Update(deltaTime);
 
 	enterSprite_->Update();
+	openingFadeSprite_->Update();
 
 	particleManager_->Update(deltaTime);
 
@@ -425,6 +473,179 @@ void TitleScene::Update(const float& deltaTime)
 	//ImGui::Render();
 
 	titleText_->Update();
+}
+
+void TitleScene::UpdateEntranceSequence(float deltaTime)
+{
+	switch (entranceSequenceState_)
+	{
+	case EntranceSequenceState::PlayerFalling:
+	{
+		entranceSequenceTimer_ += deltaTime;
+		const float fallDuration =
+			entranceFallDuration_ > 0.001f ? entranceFallDuration_ : 0.001f;
+		const float progress = std::clamp(entranceSequenceTimer_ / fallDuration, 0.0f, 1.0f);
+		const float fallProgress = progress * progress;
+		const float fadeProgress = SmoothStep01(progress);
+
+		player_->SetTranslate(LerpVector3(
+			entrancePlayerStartPosition_, entrancePlayerFinalPosition_, fallProgress));
+		player_->SetTitleOpacity(fadeProgress);
+		SetTitleCameraTransform(
+			LerpVector3(entranceCameraStartPosition_, entranceCameraSidePosition_, progress),
+			entranceCameraSideRotation_);
+
+		const float fadeDuration = openingFadeDuration_ > 0.001f ? openingFadeDuration_ : 0.001f;
+		const float screenFadeProgress =
+			std::clamp(entranceSequenceTimer_ / fadeDuration, 0.0f, 1.0f);
+		openingFadeSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 1.0f - screenFadeProgress });
+
+		if (progress >= 1.0f)
+		{
+			player_->SetTranslate(entrancePlayerFinalPosition_);
+			player_->SetTitleOpacity(1.0f);
+			SetTitleCameraTransform(
+				entranceCameraSidePosition_, entranceCameraSideRotation_);
+			openingFadeSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+			entranceSequenceTimer_ = 0.0f;
+			entranceSequenceState_ = EntranceSequenceState::WaitingForCamera;
+		}
+		break;
+	}
+
+	case EntranceSequenceState::WaitingForCamera:
+	{
+		entranceSequenceTimer_ += deltaTime;
+		const float cameraDelay = entranceCameraDelay_ > 0.0f ? entranceCameraDelay_ : 0.0f;
+		if (entranceSequenceTimer_ >= cameraDelay)
+		{
+			entranceSequenceTimer_ = 0.0f;
+			entranceSequenceState_ = EntranceSequenceState::MovingCamera;
+		}
+		break;
+	}
+
+	case EntranceSequenceState::MovingCamera:
+	{
+		entranceSequenceTimer_ += deltaTime;
+		const float moveDuration =
+			entranceCameraMoveDuration_ > 0.001f ? entranceCameraMoveDuration_ : 0.001f;
+		const float progress = std::clamp(entranceSequenceTimer_ / moveDuration, 0.0f, 1.0f);
+		const float cameraProgress = SmoothStep01(progress);
+
+		SetTitleCameraTransform(
+			LerpVector3(entranceCameraSidePosition_, entranceCameraFinalPosition_, cameraProgress),
+			LerpVector3(entranceCameraSideRotation_, entranceCameraFinalRotation_, cameraProgress));
+
+		if (progress >= 1.0f)
+		{
+			SetTitleCameraTransform(
+				entranceCameraFinalPosition_, entranceCameraFinalRotation_);
+			entranceSequenceTimer_ = 0.0f;
+			entranceSequenceState_ = EntranceSequenceState::FadingTitle;
+		}
+		break;
+	}
+
+	case EntranceSequenceState::FadingTitle:
+	{
+		entranceSequenceTimer_ += deltaTime;
+		const float fadeDuration = titleFadeDuration_ > 0.001f ? titleFadeDuration_ : 0.001f;
+		const float progress = std::clamp(entranceSequenceTimer_ / fadeDuration, 0.0f, 1.0f);
+		const float titleAlpha = SmoothStep01(progress);
+		sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, titleAlpha });
+
+		if (progress >= 1.0f)
+		{
+			sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+			entranceSequenceTimer_ = 0.0f;
+			entranceSequenceState_ = EntranceSequenceState::Complete;
+		}
+		break;
+	}
+
+	case EntranceSequenceState::Complete:
+		break;
+	}
+}
+
+void TitleScene::SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate)
+{
+	defaultCameraController_->GetWorldTransform()->translate_ = translate;
+	defaultCameraController_->GetWorldTransform()->SetRotate(rotate);
+	camera_->SetTranslate(translate);
+	camera_->SetRotate(rotate);
+}
+
+void TitleScene::UpdateExitSequence(float deltaTime)
+{
+	switch (exitSequenceState_)
+	{
+	case ExitSequenceState::WaitingForInput:
+		if (entranceSequenceState_ == EntranceSequenceState::Complete &&
+			inputManager_->TriggerKey(DIK_RETURN) &&
+			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+		{
+			exitStartPlayerPosition_ = player_->GetTranslate();
+			exitSequenceTimer_ = 0.0f;
+			exitSequenceState_ = ExitSequenceState::FadingTitle;
+		}
+		break;
+
+	case ExitSequenceState::FadingTitle:
+	{
+		exitSequenceTimer_ += deltaTime;
+		const float fadeDuration =
+			titleFadeOutDuration_ > 0.001f ? titleFadeOutDuration_ : 0.001f;
+		const float progress = std::clamp(exitSequenceTimer_ / fadeDuration, 0.0f, 1.0f);
+		const float titleAlpha = 1.0f - SmoothStep01(progress);
+		sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, titleAlpha });
+
+		if (progress >= 1.0f)
+		{
+			sprites_[0]->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+			exitSequenceTimer_ = 0.0f;
+			exitSequenceState_ = ExitSequenceState::MovingPlayer;
+		}
+		break;
+	}
+
+	case ExitSequenceState::MovingPlayer:
+	{
+		exitSequenceTimer_ += deltaTime;
+		const float moveDuration = exitMoveDuration_ > 0.001f ? exitMoveDuration_ : 0.001f;
+		const float progress = std::clamp(exitSequenceTimer_ / moveDuration, 0.0f, 1.0f);
+		// 落下が加速して見えるように、移動量へEase-Inを適用する。
+		const float easedProgress = progress * progress;
+
+		Vector3 playerPosition = exitStartPlayerPosition_;
+		playerPosition.y -= exitMoveDistance_ * easedProgress;
+		player_->SetTranslate(playerPosition);
+
+		if (progress >= 1.0f)
+		{
+			exitSequenceTimer_ = 0.0f;
+			exitSequenceState_ = ExitSequenceState::WaitingForDissolve;
+		}
+		break;
+	}
+
+	case ExitSequenceState::WaitingForDissolve:
+	{
+		exitSequenceTimer_ += deltaTime;
+		const float dissolveDelay = dissolveDelay_ > 0.0f ? dissolveDelay_ : 0.0f;
+		if (exitSequenceTimer_ >= dissolveDelay &&
+			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+		{
+			SceneManager::GetInstance()->SetSceneRequest("GAMEPLAY");
+			exitSequenceState_ = ExitSequenceState::Dissolving;
+		}
+		break;
+	}
+
+	case ExitSequenceState::Dissolving:
+		break;
+	}
 }
 
 void TitleScene::FinishFadeIn()
@@ -458,17 +679,28 @@ void TitleScene::Draw()
 	}*/
 
 
-	/*if (isDrawSprite_)
+	if (isDrawSprite_ &&
+		(entranceSequenceState_ == EntranceSequenceState::FadingTitle ||
+		 entranceSequenceState_ == EntranceSequenceState::Complete))
 	{
 		for (size_t i = 0; i < sprites_.size(); i++)
 		{
 			sprites_[i]->Draw();
 		}
-	}*/
+	}
 
-	enterSprite_->Draw();
+	if (entranceSequenceState_ == EntranceSequenceState::Complete &&
+		exitSequenceState_ == ExitSequenceState::WaitingForInput)
+	{
+		enterSprite_->Draw();
+	}
 
 	particleManager_->Draw();
+
+	if (openingFadeSprite_->GetColor().w > 0.0f)
+	{
+		openingFadeSprite_->Draw();
+	}
 
 	if (inputManager_->TriggerKey(DIK_0))
 	{

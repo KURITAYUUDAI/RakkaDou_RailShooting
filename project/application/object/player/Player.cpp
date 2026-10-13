@@ -388,6 +388,26 @@ void Player::UpdateTitleFalling()
 	objectLeftHand_->Update();
 }
 
+void Player::SetTitleOpacity(float opacity)
+{
+	if (mode_ != Mode::TitleFalling)
+	{
+		return;
+	}
+
+	opacity = opacity < 0.0f ? 0.0f : (opacity > 1.0f ? 1.0f : opacity);
+	auto setOpacity = [opacity](Object3d* object)
+	{
+		Vector4 color = object->GetColor();
+		color.w = opacity;
+		object->SetColor(color);
+	};
+
+	setOpacity(object3d_.get());
+	setOpacity(objectMeleeHand_.get());
+	setOpacity(objectLeftHand_.get());
+}
+
 void Player::Draw()
 {
 	object3d_->SetPsoName(psoName_);

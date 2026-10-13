@@ -72,6 +72,16 @@ ConstantBuffer<Camera> gCamera : register(b2);
 Texture2D<float> gMaskTexture : register(t2);
 ConstantBuffer<DissolveParams> gDissolve : register(b3);
 
+struct DistanceFog
+{
+    float4 color;
+    float startDistance;
+    float endDistance;
+    int enabled;
+    float padding;
+};
+ConstantBuffer<DistanceFog> gDistanceFog : register(b4);
+
 struct PixelShaderOutput
 {
     float4 color : SV_TARGET0;
@@ -212,6 +222,17 @@ PixelShaderOutput main(VertexShaderOutput input)
     
     float mask = gMaskTexture.Sample(gSampler, input.texcoord);
     ApplyDissolve(mask, gDissolve.threshold, gDissolve.edgeColor, output.color);
+
+    if (gDistanceFog.enabled != 0)
+    {
+        float distanceFromCamera = length(gCamera.worldPosition - input.worldPosition);
+        float fogRange = max(gDistanceFog.endDistance - gDistanceFog.startDistance, 0.001f);
+        float fogFactor = saturate(
+            (distanceFromCamera - gDistanceFog.startDistance) / fogRange);
+        fogFactor = smoothstep(0.0f, 1.0f, fogFactor);
+
+        output.color.rgb = lerp(output.color.rgb, gDistanceFog.color.rgb, fogFactor);
+    }
     
     //float3 N = normalize(input.normal);
     

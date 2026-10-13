@@ -104,6 +104,10 @@ void Object3d::Draw(const D3D12_VERTEX_BUFFER_VIEW* additionalVBV,
 	{
 		DistanceFogManager::GetInstance()->SetCBufferResource(5);
 	}
+	else if (psoName_ == "Environment")
+	{
+		DistanceFogManager::GetInstance()->SetCBufferResource(8);
+	}
 
 	// 3Dモデルが割り当てられていれば描画する
 	if (model_)

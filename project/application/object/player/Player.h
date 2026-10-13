@@ -132,6 +132,7 @@ public:	//外部入出力
 	void SetMeleeAttackDirection(const Vector3& direction) { meleeAttackDirection_ = direction; }
 	void SetMeleeHandVisible(bool visible) { isMeleeHandVisible_ = visible; }
 	void SetMeleeHandTranslate(const Vector3& translate) { meleeHandTransform_.translate = translate; }
+	void SetTitleOpacity(float opacity);
 
 private:
 	Vector3 CalculateShotDirection();

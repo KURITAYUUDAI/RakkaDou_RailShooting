@@ -32,6 +32,29 @@ public:
 	void Draw() override;
 
 private:
+	enum class EntranceSequenceState
+	{
+		PlayerFalling,
+		WaitingForCamera,
+		MovingCamera,
+		FadingTitle,
+		Complete,
+	};
+
+	enum class ExitSequenceState
+	{
+		WaitingForInput,
+		FadingTitle,
+		MovingPlayer,
+		WaitingForDissolve,
+		Dissolving,
+	};
+
+	void UpdateEntranceSequence(float deltaTime);
+	void UpdateExitSequence(float deltaTime);
+	void SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate);
+
+private:
 	std::vector<std::unique_ptr<Sprite>> sprites_;
 
 	std::vector<std::unique_ptr<Object3d>> object3ds_;
@@ -92,6 +115,7 @@ private:
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 
 	std::unique_ptr<Sprite> enterSprite_;
+	std::unique_ptr<Sprite> openingFadeSprite_;
 
 	std::unique_ptr<Text> titleText_;
 
@@ -100,6 +124,30 @@ private:
 	std::unique_ptr<ParticleEmitter> cylinderEmitter_;
 
 	std::unique_ptr<Player> player_;
+
+	EntranceSequenceState entranceSequenceState_ = EntranceSequenceState::PlayerFalling;
+	float entranceSequenceTimer_ = 0.0f;
+	float entranceFallDuration_ = 4.0f;
+	float entranceCameraDelay_ = 1.5f;
+	float entranceCameraMoveDuration_ = 0.5f;
+	float titleFadeDuration_ = 1.5f;
+	float openingFadeDuration_ = 0.75f;
+	Vector3 entrancePlayerStartPosition_{};
+	Vector3 entrancePlayerFinalPosition_{};
+	Vector3 entranceCameraStartPosition_ = { 0.0f, 15.0f, -12.0f };
+	Vector3 entranceCameraSidePosition_ = { 0.0f, 0.0f, -12.0f };
+	Vector3 entranceCameraFinalPosition_ = { 0.0f, 20.0f, 0.0f };
+	Vector3 entranceCameraSideRotation_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 entranceCameraFinalRotation_ = { 1.57079632679f, 0.0f, 0.0f };
+	float entrancePlayerStartHeight_ = 16.0f;
+
+	ExitSequenceState exitSequenceState_ = ExitSequenceState::WaitingForInput;
+	Vector3 exitStartPlayerPosition_{};
+	float exitSequenceTimer_ = 0.0f;
+	float titleFadeOutDuration_ = 0.25f;
+	float exitMoveDuration_ = 1.0f;
+	float exitMoveDistance_ = 260.0f;
+	float dissolveDelay_ = 0.5f;
 
 };
 

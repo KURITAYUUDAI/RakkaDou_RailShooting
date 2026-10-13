@@ -130,7 +130,7 @@ void SceneManager::SetSceneRequest(const std::string& sceneRequest)
 	setting.edgeWidth = 0.08f;
 	setting.noiseScale = 45.0f;
 	setting.fadeColor = { 0, 0, 0, 1 };
-	setting.edgeColor = { 1, 0.8f, 0.2f, 1 };
+	setting.edgeColor = { 0.2, 0.2f, 0.2f, 1 };
 
 	dissolveTransition->SetSetting(setting);
 
