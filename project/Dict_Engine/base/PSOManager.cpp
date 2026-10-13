@@ -333,7 +333,10 @@ void PSOManager::CreatePipeLineState(const std::string& name, BlendMode blend, F
 	CompileShader(name, vertexShaderBlob, pixelShaderBlob, geometryShaderBlob);
 	
 	// 5. RasterizerStateの設定
-	D3D12_RASTERIZER_DESC rasterizerDesc{};
+	// ゼロ初期化すると DepthClipEnable まで FALSE になり、far clip より奥の
+	// ジオメトリが深度値1.0へ潰れて後続描画に上書きされる。
+	// PSOConfig のD3D12既定値を引き継いだ上で、描画モードだけを上書きする。
+	D3D12_RASTERIZER_DESC rasterizerDesc = psoConfig.rasterizerDesc;
 	rasterizerDesc.CullMode = psoConfig.rasterizerDesc.CullMode;		// 裏面（時計回り）を表示しない
 	if (fill == PSOManager::FillMode::kSolid)
 	{
@@ -343,7 +346,7 @@ void PSOManager::CreatePipeLineState(const std::string& name, BlendMode blend, F
 	{
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME; // 三角形の中を塗りつぶさない
 	}
-	//rasterizerDesc.DepthClipEnable = true;			// 深度クリッピングを有効にする
+	rasterizerDesc.DepthClipEnable = TRUE;			// near/far範囲外を正しくクリップする
 
 	// 6. DepthStencilStateの設定
 	D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};

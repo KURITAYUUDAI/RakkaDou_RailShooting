@@ -36,6 +36,9 @@ void TitleScene::Initialize()
 	//debugCamera_->SetTranslate(camera_->GetTranslate());
 
 	cameraManager_->Initialize();
+	// Object3dのWVP生成に使われるのはCameraManagerのmainCamera_。
+	// 洞窟の最奥セグメントまで正しい深度値を確保する。
+	cameraManager_->GetMainCamera()->SetFarClip(300.0f);
 	cameraManager_->AddCamera("Default", camera_.get());
 	/*cameraManager_->AddCamera("Debug", debugCamera_.get());*/
 	cameraManager_->SetActiveCamera("Default");

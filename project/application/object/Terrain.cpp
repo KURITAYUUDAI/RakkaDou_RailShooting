@@ -17,8 +17,8 @@ void Terrain::Initialize(Mode mode)
 			auto object = std::make_unique<Object3d>();
 			object->Initialize();
 			object->SetModel("OutField.obj");
-			object->SetEnableLighting(false);
-			object->SetEnvironmentCoefficient(0.0f);
+			/*object->SetEnableLighting(false);
+			object->SetEnvironmentCoefficient(0.0f);*/
 
 			EulerTransform transform{};
 			transform.scale = { 1.0f, 1.0f, 1.0f };
