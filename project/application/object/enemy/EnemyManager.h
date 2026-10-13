@@ -57,7 +57,9 @@ public:
 
 	void RegisterPSO();
 
-	EnemyID AddEnemy();
+	EnemyID AddEnemy(const EnemyCreateConfig& config = {});
+	void RemoveSmallEnemies();
+	std::vector<EnemyID> GetEnemyIDs() const;
 
 	Enemy* FindEnemy(EnemyID id);
 	const Enemy* FindEnemy(EnemyID id) const;

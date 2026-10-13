@@ -18,11 +18,28 @@
 
 #include "Dict_Engine/tool/effect/DissolveUtility.h"
 
+struct EnemyCreateConfig
+{
+	EnemyType type = EnemyType::Boss;
+	Vector3 scale = { 2.0f, 2.0f, 2.0f };
+	Vector3 position = { 0.0f, 0.0f, 7.5f };
+	Vector4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
+	int hitPoint = 500;
+	float colliderRadius = 2.0f;
+	float moveAmplitude = 0.0f;
+	float moveSpeed = 0.0f;
+	float movePhase = 0.0f;
+	float fadeNearDistance = 2.0f;
+	float fadeFarDistance = 7.0f;
+	float minimumAlpha = 0.15f;
+};
+
 class Enemy : public ICollisionObserver
 {
 public:
+	~Enemy() { Finalize(); }
 
-	void Initialize();
+	void Initialize(const EnemyCreateConfig& config = {});
 	void EventDispatch();
 	void Update(const float& deltaTime);
 
@@ -77,6 +94,8 @@ public:	//外部入出力
 	bool GetIsAttackColliderActive() const { return isAttackColliderActive_; }
 	EnemyBattlePhase GetBattlePhase() const { return battlePhase_; }
 	bool CanReceiveMeleeApproach() const;
+	EnemyType GetEnemyType() const { return enemyType_; }
+	bool GetIsBoss() const { return enemyType_ == EnemyType::Boss; }
 
 	// HP
 	const int& GetHitPoint() const { return hitPoint_; }
@@ -134,6 +153,9 @@ public:	//外部入出力
 
 private:
 
+	void UpdateSmallEnemy(const float& deltaTime);
+	void UpdateCameraFade();
+
 	// AI入力ハンドル
 	AIHandler handler_;
 
@@ -174,6 +196,16 @@ private:
 	uint32_t environmentTextureIndex_ = 0;
 
 	bool isDraw_ = true;
+	EnemyType enemyType_ = EnemyType::Boss;
+	Vector3 basePosition_{};
+	Vector4 baseColor_ = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float movementElapsedTime_ = 0.0f;
+	float moveAmplitude_ = 0.0f;
+	float moveSpeed_ = 0.0f;
+	float movePhase_ = 0.0f;
+	float fadeNearDistance_ = 2.0f;
+	float fadeFarDistance_ = 7.0f;
+	float minimumAlpha_ = 0.15f;
 
 	float bulletSpeed_ = 15.0f;
 
@@ -185,11 +217,12 @@ private:
 	EnemyBattlePhase battlePhase_ = EnemyBattlePhase::Ranged;
 
 	// HP
-	int hitPoint_;
+	int hitPoint_ = 0;
 	// 最大HP
 	static inline const int kMaxHitPoint = 500;
+	int maxHitPoint_ = kMaxHitPoint;
 
-	float damageTimer_;
+	float damageTimer_ = 0.0f;
 	const float kDamageInvincible_ = 0.1f;
 
 	// デスフラグ

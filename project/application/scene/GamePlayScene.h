@@ -14,6 +14,7 @@
 #include "Terrain.h"
 #include "Player.h"
 #include "Enemy/EnemyManager.h"
+#include "Enemy/EnemyStageConfig.h"
 
 #include "EventBus.h"
 #include "GamePlaySceneUI.h"
@@ -37,6 +38,14 @@ public:
 	void FinishFadeIn() override;
 
 	void Draw() override;
+
+private:
+
+	void InitializeEnemyStage();
+	void UpdateEnemyStage(const float& deltaTime);
+	void SpawnSmallEnemy(const SmallEnemySpawnConfig& spawnConfig);
+	void StartBossPhase();
+	void ConfigureEnemy(EnemyID id, bool isBoss);
 
 private:
 
@@ -108,10 +117,21 @@ private:
 
 	std::unique_ptr<Terrain> terrain_ = nullptr;
 
+	std::unique_ptr<Object3d> inField_ = nullptr;
+	std::unique_ptr<Object3d> outField_ = nullptr;
+
 	std::unique_ptr<Player> player_ = nullptr;
 
-	std::unique_ptr<Enemy> enemy_ = nullptr;
-	std::vector<EnemyID> enemyIDs_;
+	EnemyStageConfig enemyStageConfig_;
+	enum class EnemyStagePhase
+	{
+		SmallEnemies,
+		Boss,
+	};
+	EnemyStagePhase enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
+	float enemyStageTimer_ = 0.0f;
+	size_t nextSmallEnemyIndex_ = 0;
+	EnemyID bossEnemyID_ = 0;
 
 	std::unique_ptr<ParticleEmitter> slashEmitter_ = nullptr;
 

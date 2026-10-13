@@ -41,7 +41,7 @@ public:
 
 	void Damage(int damage);
 
-	void UpdateLockOn();              // 追加: 最近接の敵を探して保持する
+	void UpdateLockOn();              // 選択済みのロックオン対象が有効か確認する
 	void ClearLockOn() { lockOnEnemyID_ = 0; }
 	EnemyID GetLockOnEnemyID() const { return lockOnEnemyID_; } // 追加
 

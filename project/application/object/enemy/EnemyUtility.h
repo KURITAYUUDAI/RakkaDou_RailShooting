@@ -3,6 +3,14 @@
 
 using EnemyID = std::uint32_t;
 
+enum class EnemyType
+{
+	Boss,
+	Stationary,
+	Vertical,
+	Horizontal,
+};
+
 enum class EnemyBattlePhase
 {
 	MoveToRanged,

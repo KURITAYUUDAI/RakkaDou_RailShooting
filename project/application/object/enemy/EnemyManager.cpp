@@ -16,6 +16,7 @@ EnemyManager* EnemyManager::GetInstance()
 
 void EnemyManager::Finalize()
 {
+	eventSubscriber_.Finalize();
 	enemies_.clear();
 	instance_.reset();
 }
@@ -91,16 +92,35 @@ void EnemyManager::RegisterPSO()
 	PSOManager::GetInstance()->RegisterEnvironmentPSO();
 }
 
-EnemyID EnemyManager::AddEnemy()
+EnemyID EnemyManager::AddEnemy(const EnemyCreateConfig& config)
 {
 	std::unique_ptr<Enemy> enemy;
 	enemy = std::make_unique<Enemy>();
-	enemy->Initialize();
+	enemy->Initialize(config);
 	enemy->SetEnemyID(nextEnemyID_);
 	EnemyID id = nextEnemyID_;
 	nextEnemyID_++;
 	enemies_.push_back(std::move(enemy));
 	return id;
+}
+
+void EnemyManager::RemoveSmallEnemies()
+{
+	enemies_.remove_if([](const std::unique_ptr<Enemy>& enemy)
+		{
+			return !enemy->GetIsBoss();
+		});
+}
+
+std::vector<EnemyID> EnemyManager::GetEnemyIDs() const
+{
+	std::vector<EnemyID> ids;
+	ids.reserve(enemies_.size());
+	for (const auto& enemy : enemies_)
+	{
+		ids.push_back(enemy->GetEnemyID());
+	}
+	return ids;
 }
 
 Enemy* EnemyManager::FindEnemy(EnemyID id)

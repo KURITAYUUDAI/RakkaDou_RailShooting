@@ -204,6 +204,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\ui\EventBus.cpp" />
     <ClCompile Include="application\ui\GamePlaySceneUI.cpp" />
     <ClCompile Include="application\object\enemy\EnemyManager.cpp" />
+    <ClCompile Include="application\object\enemy\EnemyStageConfig.cpp" />
     <ClCompile Include="application\ui\LockOnUI.cpp" />
     <ClCompile Include="application\tool\postEffect\Dissolve.cpp" />
     <ClCompile Include="Dict_Engine\tool\effect\DissolveManager.cpp" />
@@ -528,6 +529,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\ui\SceneUIBase.h" />
     <ClInclude Include="application\ui\GamePlaySceneUI.h" />
     <ClInclude Include="application\object\enemy\EnemyManager.h" />
+    <ClInclude Include="application\object\enemy\EnemyStageConfig.h" />
     <ClInclude Include="application\ui\LockOnUI.h" />
     <ClInclude Include="application\tool\postEffect\RadialBlur.h" />
     <ClInclude Include="application\tool\postEffect\Dissolve.h" />

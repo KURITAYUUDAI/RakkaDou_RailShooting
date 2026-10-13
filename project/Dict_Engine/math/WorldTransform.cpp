@@ -6,6 +6,9 @@ uint32_t WorldTransform::currentFrame_ = 0;
 void WorldTransform::Initialize()
 {
 	CreateTransformationMatrixResource();
+	// Update() 前に親行列や座標取得から参照されてもゼロ行列にならないよう、
+	// メンバーの初期値から有効なワールド行列を作っておく。
+	UpdateMatrix();
 
 	lastUpdateFrame_ = 0;
 }

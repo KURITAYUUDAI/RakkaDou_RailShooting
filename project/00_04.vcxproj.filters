@@ -300,6 +300,9 @@
     <ClCompile Include="application\object\enemy\EnemyManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="application\object\enemy\EnemyStageConfig.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="application\ui\LockOnUI.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -640,6 +643,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\object\enemy\EnemyManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\object\enemy\EnemyStageConfig.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\object\enemy\EnemyUtility.h">

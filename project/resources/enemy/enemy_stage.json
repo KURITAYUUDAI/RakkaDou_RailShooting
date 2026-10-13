@@ -1,0 +1,61 @@
+{
+    "smallEnemyPhaseDuration": 35.0,
+    "smallEnemyDefaults": {
+        "scale": [1.0, 1.0, 1.0],
+        "hitPoint": 10,
+        "colliderRadius": 1.25,
+        "moveAmplitude": 3.0,
+        "moveSpeed": 2.0,
+        "movePhase": 0.0,
+        "fadeNearDistance": 2.0,
+        "fadeFarDistance": 7.0,
+        "minimumAlpha": 0.15
+    },
+    "smallEnemies": [
+        {
+            "railRatio": 0.0,
+            "type": "stationary",
+            "position": [-5.0, 0.0, 10.0],
+            "color": [1.0, 0.35, 0.35, 1.0]
+        },
+        {
+            "railRatio": 0.1,
+            "type": "vertical",
+            "position": [0.0, 0.0, 12.0],
+            "color": [0.35, 1.0, 0.45, 1.0]
+        },
+        {
+            "railRatio": 0.2,
+            "type": "horizontal",
+            "position": [0.0, 2.0, 12.0],
+            "color": [0.35, 0.55, 1.0, 1.0]
+        },
+        {
+            "railRatio": 0.3,
+            "type": "stationary",
+            "position": [5.0, 1.0, 10.0],
+            "color": [1.0, 0.35, 0.35, 1.0]
+        },
+        {
+            "railRatio": 0.4,
+            "type": "vertical",
+            "position": [-3.0, 0.0, 13.0],
+            "movePhase": 1.57,
+            "color": [0.35, 1.0, 0.45, 1.0]
+        },
+        {
+            "railRatio": 0.5,
+            "type": "horizontal",
+            "position": [0.0, -1.0, 13.0],
+            "movePhase": 1.57,
+            "color": [0.35, 0.55, 1.0, 1.0]
+        }
+    ],
+    "boss": {
+        "position": [0.0, 0.0, 7.5],
+        "scale": [2.0, 2.0, 2.0],
+        "hitPoint": 500,
+        "colliderRadius": 2.0,
+        "color": [1.0, 1.0, 1.0, 1.0]
+    }
+}

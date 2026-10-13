@@ -92,6 +92,33 @@ void GamePlayScene::Initialize()
 	modelManager_->LoadModel("", "axis.obj");
 	modelManager_->LoadModel("", "sphere.obj");
 	modelManager_->LoadModel("", "multiMaterial.obj");
+	modelManager_->LoadModel("Field", "InField.obj");
+	modelManager_->LoadModel("Field", "OutField.obj");
+
+	const EulerTransform fieldTransform =
+	{
+		{1.0f, 1.0f, 1.0f},
+		{0.0f, 0.0f, 0.0f},
+		{0.0f, 0.0f, 0.0f},
+	};
+
+	inField_ = std::make_unique<Object3d>();
+	inField_->Initialize();
+	inField_->SetModel("InField.obj");
+	inField_->SetTransform({
+		{ 0.6f, 0.6f, 0.6f },
+		{ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+	});
+
+	outField_ = std::make_unique<Object3d>();
+	outField_->Initialize();
+	outField_->SetModel("OutField.obj");
+	outField_->SetTransform({
+		{ 1.2f, 1.2f, 1.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+	});
 
 	for (size_t i = 0; i < 1; i++)
 	{
@@ -233,18 +260,7 @@ void GamePlayScene::Initialize()
 	player_->EventDispatch();
 
 	enemyManager_->Initialize(eventBus_.get());
-	enemyIDs_.push_back(enemyManager_->AddEnemy());
-	for (EnemyID id : enemyIDs_)
-	{
-		Enemy* enemy = enemyManager_->FindEnemy(id);
-		enemy->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
-		enemy->SetParent(railCameraController_->GetBattleWorldTransform());
-		enemy->SetEventBus(eventBus_.get());
-		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss |
-			EnemyHPGageDisplayType::OverHead);
-		enemy->SetScreenBossPriority(50);
-		enemy->EventDispatch();
-	}
+	InitializeEnemyStage();
 	
 	eventBus_->Dispatch();
 
@@ -464,11 +480,14 @@ void GamePlayScene::Update(const float& deltaTime)
 	skyBox_->Update();
 
 	terrain_->Update();
+	inField_->Update();
+	outField_->Update();
 
 	player_->Update(deltaTime);
 	// 敵の接近先計算で、同じフレームのPlayer位置を使えるよう先に配信する。
 	eventBus_->Dispatch();
 
+	UpdateEnemyStage(deltaTime);
 	/*enemy_->Update(deltaTime);*/
 	enemyManager_->Update(deltaTime);
 
@@ -502,7 +521,7 @@ void GamePlayScene::Update(const float& deltaTime)
 		}
 	}
 	
-	for (EnemyID id : enemyIDs_)
+	for (EnemyID id : enemyManager_->GetEnemyIDs())
 	{
 		if (enemyManager_->FindEnemy(id))
 		{
@@ -535,12 +554,10 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	if (SceneManager::GetInstance()->GetSceneTransition().GetState() == SceneTransition::SceneTransitionState::Idle)
 	{
-		for (EnemyID id : enemyIDs_)
+		if (enemyStagePhase_ == EnemyStagePhase::Boss && bossEnemyID_ != 0 &&
+			enemyManager_->GetIsDead(bossEnemyID_))
 		{
-			if (enemyManager_->GetIsDead(id))
-			{
-				SceneManager::GetInstance()->SetSceneRequest("RESULT");
-			}
+			SceneManager::GetInstance()->SetSceneRequest("RESULT");
 		}
 
 		if (player_->GetIsDead())
@@ -549,12 +566,87 @@ void GamePlayScene::Update(const float& deltaTime)
 		}
 	}
 
-	enemyIDs_.erase(
-	std::remove_if(enemyIDs_.begin(), enemyIDs_.end(),
-		[this](EnemyID id){ return enemyManager_->FindEnemy(id) == nullptr; }),
-	enemyIDs_.end());
+}
 
-	
+void GamePlayScene::InitializeEnemyStage()
+{
+	enemyStageConfig_ = EnemyStageConfig::CreateDefault();
+	enemyStageConfig_.Load("enemy/enemy_stage.json");
+	enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
+	enemyStageTimer_ = 0.0f;
+	nextSmallEnemyIndex_ = 0;
+	bossEnemyID_ = 0;
+
+	// railRatio == 0 の敵はゲーム開始時に出現させる。
+	UpdateEnemyStage(0.0f);
+}
+
+void GamePlayScene::UpdateEnemyStage(const float& deltaTime)
+{
+	if (enemyStagePhase_ != EnemyStagePhase::SmallEnemies)
+	{
+		return;
+	}
+
+	enemyStageTimer_ += deltaTime;
+	const float totalLength = railCameraController_->GetTotalLength();
+	const float travelledDistance = railCameraController_->GetTravelledDistance();
+
+	while (nextSmallEnemyIndex_ < enemyStageConfig_.smallEnemies.size())
+	{
+		const SmallEnemySpawnConfig& spawn =
+			enemyStageConfig_.smallEnemies[nextSmallEnemyIndex_];
+		const float spawnDistance = spawn.railRatio * totalLength;
+		if (travelledDistance < spawnDistance)
+		{
+			break;
+		}
+		SpawnSmallEnemy(spawn);
+		++nextSmallEnemyIndex_;
+	}
+
+	if (enemyStageTimer_ >= enemyStageConfig_.smallEnemyPhaseDuration)
+	{
+		StartBossPhase();
+	}
+}
+
+void GamePlayScene::SpawnSmallEnemy(const SmallEnemySpawnConfig& spawnConfig)
+{
+	const EnemyID id = enemyManager_->AddEnemy(spawnConfig.enemy);
+	ConfigureEnemy(id, false);
+}
+
+void GamePlayScene::StartBossPhase()
+{
+	enemyManager_->RemoveSmallEnemies();
+	bossEnemyID_ = enemyManager_->AddEnemy(enemyStageConfig_.boss);
+	ConfigureEnemy(bossEnemyID_, true);
+	enemyStagePhase_ = EnemyStagePhase::Boss;
+}
+
+void GamePlayScene::ConfigureEnemy(EnemyID id, bool isBoss)
+{
+	Enemy* enemy = enemyManager_->FindEnemy(id);
+	if (!enemy)
+	{
+		return;
+	}
+
+	enemy->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
+	enemy->SetParent(railCameraController_->GetBattleWorldTransform());
+	enemy->SetEventBus(eventBus_.get());
+	if (isBoss)
+	{
+		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss |
+			EnemyHPGageDisplayType::OverHead);
+		enemy->SetScreenBossPriority(50);
+	}
+	else
+	{
+		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::None);
+	}
+	enemy->EventDispatch();
 }
 
 void GamePlayScene::FinishFadeIn()
@@ -575,6 +667,8 @@ void GamePlayScene::Draw()
 		}*/
 
 		terrain_->Draw();
+		inField_->Draw();
+		outField_->Draw();
 		player_->Draw();
 		/*enemy_->Draw();*/
 		enemyManager_->Draw();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "myMath.h"
+
 struct PlayerHPChangeEvent
 {
 	int currentHitPoint = 0;
@@ -14,7 +16,8 @@ struct PlayerWorldPositionEvent
 
 struct PlayerLockOnEvent
 {
-	bool isLockOn;
+	bool isLockOn = false;
+	Vector3 targetWorldPosition{};
 };
 
 //struct PlayerRockOnEvent

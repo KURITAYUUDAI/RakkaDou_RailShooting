@@ -16,6 +16,10 @@ void Camera::Initialize()
 {	
 	rotate_ = {0.0f, 0.0f, 0.0f};
 	translate_ = {0.0f, 0.0f, 0.0f};
+	// DebugCamera::Initialize() からも呼ばれるため、仮想関数呼び出しにはしない。
+	// 基底Cameraの行列計算だけを行い、ImGuiを使うDebugCamera::Update()は
+	// 通常のフレーム更新まで呼ばない。
+	Camera::Update();
 }
 
 void Camera::Update()

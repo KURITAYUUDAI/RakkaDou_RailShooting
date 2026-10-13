@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "Enemy.h"
 #include "Logger.h"
 #include "TextureManager.h"
@@ -11,7 +12,10 @@
 
 #include "Dict_Engine/tool/effect/DissolveManager.h"
 
-void Enemy::Initialize()
+#include <algorithm>
+#include <cmath>
+
+void Enemy::Initialize(const EnemyCreateConfig& config)
 {
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
 
@@ -25,10 +29,11 @@ void Enemy::Initialize()
 	object3d_->Initialize();
 	object3d_->SetModel("sphere.obj");
 	object3d_->SetEnvironmentCoefficient(0.2f);
+	object3d_->SetColor(config.color);
 
 	collider_ = std::make_unique<Collider>();
 	collider_->SetOwner(this);
-	collider_->SetRadius(2.0f);
+	collider_->SetRadius(config.colliderRadius);
 	collider_->SetAttribute(CollisionAttribute::Enemy);
 	collider_->SetMask(CollisionAttribute::Enemy);
 	collider_->SetDamage(1);
@@ -56,15 +61,29 @@ void Enemy::Initialize()
 	colliderAttack_->SetParent(objectRightHand_->GetWorldTransform());
 	colliderAttack_->SetLocalPosition({ 0.0f, 0.0f, -3.0f });
 
-	transform_.scale = { 2.0f, 2.0f, 2.0f };
+	transform_.scale = config.scale;
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
-	transform_.translate = { 0.0f, 0.0f, 7.5f };
+	transform_.translate = config.position;
+	basePosition_ = config.position;
+	baseColor_ = config.color;
+	enemyType_ = config.type;
+	moveAmplitude_ = config.moveAmplitude;
+	moveSpeed_ = config.moveSpeed;
+	movePhase_ = config.movePhase;
+	fadeNearDistance_ = config.fadeNearDistance;
+	fadeFarDistance_ = config.fadeFarDistance;
+	minimumAlpha_ = std::clamp(config.minimumAlpha, 0.0f, 1.0f);
+	if (!GetIsBoss())
+	{
+		object3d_->SetAlphaReference(0.0f);
+	}
 
 	rightHandTransform_.scale = { 1.0f, 1.0f, 1.0f };
 	rightHandTransform_.rotate = { -40.0f / 180.0f * pi, 0.0f, 0.0f };
 	rightHandTransform_.translate = { -2.5f, 0.0, 0.0f };
 
-	hitPoint_ = kMaxHitPoint;
+	maxHitPoint_ = std::max(config.hitPoint, 1);
+	hitPoint_ = maxHitPoint_;
 
 	slashEmitter_ = std::make_unique<ParticleEmitter>();
 	slashEmitter_->Initialize("slash",
@@ -73,7 +92,10 @@ void Enemy::Initialize()
 	dissolveParams_.threshold = 0.0f;
 	dissolveParams_.edgeColor = { 2.0f, 0.3f, 0.3f, 1.0f };
 
-	ChangeState(std::make_unique<EnemyBossBattleState>());
+	if (GetIsBoss())
+	{
+		ChangeState(std::make_unique<EnemyBossBattleState>());
+	}
 }
 
 void Enemy::EventDispatch()
@@ -93,7 +115,7 @@ void Enemy::EventDispatch()
 
 			.currentHitPoint = hitPoint_,
 			.previousHitPoint = hitPoint_,
-			.maxHitPoint = kMaxHitPoint,
+			.maxHitPoint = maxHitPoint_,
 
 			.screenPosition = GetScreenPosition(),
 
@@ -112,9 +134,15 @@ void Enemy::Update(const float& deltaTime)
 	deltaTime_ = deltaTime;
 	const Vector3 previousWorldPosition = GetWorldPosition();
 
-	state_->Update(this, deltaTime);
-
-	transform_.translate += velocity_ * deltaTime;
+	if (GetIsBoss())
+	{
+		state_->Update(this, deltaTime);
+		transform_.translate += velocity_ * deltaTime;
+	}
+	else
+	{
+		UpdateSmallEnemy(deltaTime);
+	}
 
 #ifdef _DEBUG
 	ImGui::Begin("EnemySetting");
@@ -167,9 +195,16 @@ void Enemy::Update(const float& deltaTime)
 		worldVelocity_ = {};
 	}
 	hasWorldVelocitySample_ = true;
+	if (!GetIsBoss())
+	{
+		UpdateCameraFade();
+	}
 
-	objectRightHand_->SetTransform(rightHandTransform_);
-	objectRightHand_->Update();
+	if (GetIsBoss())
+	{
+		objectRightHand_->SetTransform(rightHandTransform_);
+		objectRightHand_->Update();
+	}
 
 	if (damageTimer_ > 0.0f)
 	{
@@ -226,7 +261,10 @@ void Enemy::Draw()
 		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
 		{
 			object3d_->Draw();
-			objectRightHand_->Draw();
+			if (GetIsBoss())
+			{
+				objectRightHand_->Draw();
+			}
 		}
 	}
 
@@ -322,7 +360,7 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 				.enemyID = enemyID_,
 				.currentHitPoint = hitPoint_,
 				.previousHitPoint = previousHP,
-				.maxHitPoint = kMaxHitPoint
+				.maxHitPoint = maxHitPoint_
 			}
 		);
 	}
@@ -370,9 +408,44 @@ void Enemy::Attack()
 
 bool Enemy::CanReceiveMeleeApproach() const
 {
+	if (!GetIsBoss())
+	{
+		return true;
+	}
 	return battlePhase_ == EnemyBattlePhase::CloseWait ||
 		battlePhase_ == EnemyBattlePhase::CloseAttack ||
 		battlePhase_ == EnemyBattlePhase::Recovery;
+}
+
+void Enemy::UpdateSmallEnemy(const float& deltaTime)
+{
+	movementElapsedTime_ += deltaTime;
+	transform_.translate = basePosition_;
+	const float movement =
+		std::sin(movementElapsedTime_ * moveSpeed_ + movePhase_) * moveAmplitude_;
+
+	if (enemyType_ == EnemyType::Vertical)
+	{
+		transform_.translate.y += movement;
+	}
+	else if (enemyType_ == EnemyType::Horizontal)
+	{
+		transform_.translate.x += movement;
+	}
+}
+
+void Enemy::UpdateCameraFade()
+{
+	const Vector3 cameraPosition =
+		CameraManager::GetInstance()->GetCameraWorldPosition();
+	const float distance = Length(GetWorldPosition() - cameraPosition);
+	const float nearDistance = std::min(fadeNearDistance_, fadeFarDistance_);
+	const float farDistance = std::max(fadeNearDistance_, fadeFarDistance_);
+	const float range = std::max(farDistance - nearDistance, 0.0001f);
+	const float fade = std::clamp((distance - nearDistance) / range, 0.0f, 1.0f);
+	Vector4 color = baseColor_;
+	color.w *= minimumAlpha_ + (1.0f - minimumAlpha_) * fade;
+	object3d_->SetColor(color);
 }
 
 const Vector3 Enemy::GetWorldPosition() const
@@ -411,9 +484,22 @@ const Vector2 Enemy::GetScreenPosition() const
 	Matrix4x4 viewport = DirectXBase::GetInstance()->GetViewportMatrix();
 	Matrix4x4 screenMatrix = vpMatrix * viewport;
 
-	// スクリーン座標を入れる変数
-	Vector3 screenPos = TransformPosition(worldPos, screenMatrix);
-	return {screenPos.x, screenPos.y};
+	// カメラ平面上では透視除算の w が0になる。UI座標のためにゲームを
+	// 停止させず、画面外として扱う。
+	const float screenX = worldPos.x * screenMatrix.m[0][0] +
+		worldPos.y * screenMatrix.m[1][0] +
+		worldPos.z * screenMatrix.m[2][0] + screenMatrix.m[3][0];
+	const float screenY = worldPos.x * screenMatrix.m[0][1] +
+		worldPos.y * screenMatrix.m[1][1] +
+		worldPos.z * screenMatrix.m[2][1] + screenMatrix.m[3][1];
+	const float w = worldPos.x * screenMatrix.m[0][3] +
+		worldPos.y * screenMatrix.m[1][3] +
+		worldPos.z * screenMatrix.m[2][3] + screenMatrix.m[3][3];
+	if (w <= 0.000001f)
+	{
+		return { -10000.0f, -10000.0f };
+	}
+	return { screenX / w, screenY / w };
 }
 
 const Vector3 Enemy::GetWorldRotate() const
@@ -438,4 +524,7 @@ const Vector3 Enemy::GetWorldRotate() const
 void Enemy::SetParent(WorldTransform* worldTransform)
 {
 	object3d_->SetParent(worldTransform);
+	// EventDispatch() の画面座標計算より先にワールド行列を確定する。
+	object3d_->SetTransform(transform_);
+	object3d_->Update();
 }

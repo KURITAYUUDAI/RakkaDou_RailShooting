@@ -300,9 +300,21 @@ void GamePlaySceneUI::SyncLockOnUI()
             Matrix4x4 viewport = DirectXBase::GetInstance()->GetViewportMatrix();
             Matrix4x4 screenMatrix = vpMatrix * viewport;
 
-            // スクリーン座標を入れる変数
-            Vector3 screenPos = TransformPosition(viewModel.targetEnemyWorldPosition, screenMatrix);
-            return { screenPos.x, screenPos.y };
+			const Vector3& worldPosition = viewModel.targetEnemyWorldPosition;
+			const float screenX = worldPosition.x * screenMatrix.m[0][0] +
+				worldPosition.y * screenMatrix.m[1][0] +
+				worldPosition.z * screenMatrix.m[2][0] + screenMatrix.m[3][0];
+			const float screenY = worldPosition.x * screenMatrix.m[0][1] +
+				worldPosition.y * screenMatrix.m[1][1] +
+				worldPosition.z * screenMatrix.m[2][1] + screenMatrix.m[3][1];
+			const float w = worldPosition.x * screenMatrix.m[0][3] +
+				worldPosition.y * screenMatrix.m[1][3] +
+				worldPosition.z * screenMatrix.m[2][3] + screenMatrix.m[3][3];
+			if (w <= 0.000001f)
+			{
+				return { -10000.0f, -10000.0f };
+			}
+			return { screenX / w, screenY / w };
         }
     );
 

@@ -112,10 +112,18 @@ void GameUIController::OnEnemyHPChanged(const EnemyHPChangeEvent& event)
 
 void GameUIController::OnNearestEnemyInfo(const NearestEnemyInfoEvent& event)
 {
-    viewModel_.targetEnemyWorldPosition = event.worldPosition;
+	// ロックオン中の表示位置は、選択済みの敵に固定する。
+	if (!viewModel_.isLockOn)
+	{
+		viewModel_.targetEnemyWorldPosition = event.worldPosition;
+	}
 }
 
 void GameUIController::OnPlayerLockOn(const PlayerLockOnEvent& event)
 {
     viewModel_.isLockOn = event.isLockOn;
+	if (event.isLockOn)
+	{
+		viewModel_.targetEnemyWorldPosition = event.targetWorldPosition;
+	}
 }

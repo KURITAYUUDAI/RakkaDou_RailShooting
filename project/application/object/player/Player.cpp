@@ -190,8 +190,14 @@ void Player::Update(const float& deltaTime)
 	IInputHandler* handler = selector_.GetHandler();
 	if (handler->IsActionPressed("lockOn"))
 	{
-		LockOn(); // 毎フレーム最近接を再評価（敵の入れ替わり・死亡に追従)
+		// 押した瞬間だけ対象を決定する。
+		// 押し続けている間は最近敵が変わっても対象を切り替えない。
+		if (!isLockOnHeld_)
+		{
+			LockOn();
+		}
 		isLockOnHeld_ = true;
+		UpdateLockOn();
 	} else
 	{
 		ClearLockOn();
@@ -288,9 +294,22 @@ void Player::Update(const float& deltaTime)
 		}
 	);
 
+	Vector3 lockOnTargetPosition{};
+	bool isLockOnActive = false;
+	if (lockOnEnemyID_ != 0)
+	{
+		Enemy* lockOnTarget = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
+		if (lockOnTarget && !lockOnTarget->GetIsDead())
+		{
+			lockOnTargetPosition = lockOnTarget->GetWorldPosition();
+			isLockOnActive = true;
+		}
+	}
+
 	eventBus_->Publish(PlayerLockOnEvent
 		{
-			.isLockOn = isLockOnHeld_,
+			.isLockOn = isLockOnActive,
+			.targetWorldPosition = lockOnTargetPosition,
 		}
 	);
 
@@ -478,7 +497,18 @@ void Player::Damage(int damage)
 
 void Player::UpdateLockOn()
 {
-	
+	if (lockOnEnemyID_ == 0)
+	{
+		return;
+	}
+
+	Enemy* target = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
+	if (!target || target->GetIsDead())
+	{
+		// ボタンが押されたままなら対象を失うだけにする。
+		// 別の敵の選択は、ボタンを離して再度押したときに行う。
+		ClearLockOn();
+	}
 }
 
 void Player::MoveHorizontal(const float& directionX, const float& directionY)
@@ -786,5 +816,8 @@ void Player::SetParent(WorldTransform* worldTransform)
 {
 	parentTransform_ = worldTransform;
 	object3d_->SetParent(worldTransform);
+	// EventDispatch() は最初の Update() より前にワールド座標を配信する。
+	object3d_->SetTransform(transform_);
+	object3d_->Update(nullptr, nullptr, false);
 }
 

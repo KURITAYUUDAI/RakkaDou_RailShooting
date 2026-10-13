@@ -23,6 +23,7 @@ void RailCameraController::Initialize()
 
 	moveSpeed_ = 1.0f;
 	currentDistance_ = 0.0f;
+	travelledDistance_ = 0.0f;
 
 	worldTransform_.Initialize();
 	worldTransform_.scale_ = { 1.0f, 1.0f, 1.0f };
@@ -39,6 +40,9 @@ void RailCameraController::Initialize()
 
 	worldTransform_.translate_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_));
 	target_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_ + targetRange_));
+	// GamePlayScene::Initialize() で戦闘空間の親として即座に使われるため、
+	// 最初のフレームを待たずにレールカメラの行列を確定する。
+	worldTransform_.UpdateMatrix();
 }
 
 void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
@@ -58,7 +62,9 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	if (!mainCamera) return;
 
 	// 1. 毎フレーム「時間 × 速度」で実際の移動距離を加算する
-	currentDistance_ += moveSpeed_ * deltaTime;
+	const float moveDistance = moveSpeed_ * deltaTime;
+	currentDistance_ += moveDistance;
+	travelledDistance_ += moveDistance;
 	if (currentDistance_ > totalLength_)
 	{
 		currentDistance_ -= totalLength_; // ループ（外周を超えたら先頭へ戻る）
