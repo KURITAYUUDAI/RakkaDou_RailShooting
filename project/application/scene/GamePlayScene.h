@@ -47,6 +47,7 @@ private:
 	void SpawnSmallEnemy(const SmallEnemySpawnConfig& spawnConfig);
 	void StartBossPhase();
 	void ConfigureEnemy(EnemyID id, bool isBoss);
+	void DrawEnemyStageDebugUI();
 
 private:
 

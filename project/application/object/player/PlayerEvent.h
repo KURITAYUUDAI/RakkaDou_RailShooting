@@ -1,6 +1,7 @@
 #pragma once
 
 #include "myMath.h"
+#include "enemy/EnemyUtility.h"
 
 struct PlayerHPChangeEvent
 {
@@ -17,6 +18,7 @@ struct PlayerWorldPositionEvent
 struct PlayerLockOnEvent
 {
 	bool isLockOn = false;
+	EnemyID targetEnemyID = 0;
 	Vector3 targetWorldPosition{};
 };
 

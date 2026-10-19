@@ -110,7 +110,7 @@ void Player::Initialize(Mode mode)
 	if (mode_ == Mode::TitleFalling)
 	{
 		transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
-		transform_.translate = { 0.0f, 0.0f, -1.85f };
+		transform_.translate = { 0.0f, 0.0f, -2.00f };
 
 		meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
 		meleeHandTransform_.rotate = { 0.0f, -1.84f, 0.05f };
@@ -345,6 +345,7 @@ void Player::Update(const float& deltaTime)
 	eventBus_->Publish(PlayerLockOnEvent
 		{
 			.isLockOn = isLockOnActive,
+			.targetEnemyID = isLockOnActive ? lockOnEnemyID_ : 0,
 			.targetWorldPosition = lockOnTargetPosition,
 		}
 	);
@@ -464,27 +465,30 @@ void Player::Draw()
 	}
 
 #ifdef _DEBUG
-	if (collider_->GetShape() == ColliderShape::AABB)
+	if (DebugDrawManager::GetInstance()->IsCollisionDebugDrawEnabled())
 	{
-		DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
-			collider_->GetSize(), { 1.0f, 1.0f, 1.0f, 1.0f });
-	}
-	else
-	{
-		DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
-			collider_->GetRadius(), { 1.0f, 1.0f, 1.0f, 1.0f }, 8);
-	}
-	if (isAttackColliderActive_)
-	{
-		if (colliderAttack_->GetShape() == ColliderShape::AABB)
+		if (collider_->GetShape() == ColliderShape::AABB)
 		{
-			DebugDrawManager::GetInstance()->AddBox(colliderAttack_->GetWorldPosition(),
-				colliderAttack_->GetSize(), { 0.0f, 1.0f, 1.0f, 1.0f });
+			DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
+				collider_->GetSize(), { 1.0f, 1.0f, 1.0f, 1.0f });
 		}
 		else
 		{
-			DebugDrawManager::GetInstance()->AddSphere(colliderAttack_->GetWorldPosition(),
-				colliderAttack_->GetRadius(), { 0.0f, 1.0f, 1.0f, 1.0f }, 8);
+			DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
+				collider_->GetRadius(), { 1.0f, 1.0f, 1.0f, 1.0f }, 8);
+		}
+		if (isAttackColliderActive_)
+		{
+			if (colliderAttack_->GetShape() == ColliderShape::AABB)
+			{
+				DebugDrawManager::GetInstance()->AddBox(colliderAttack_->GetWorldPosition(),
+					colliderAttack_->GetSize(), { 0.0f, 1.0f, 1.0f, 1.0f });
+			}
+			else
+			{
+				DebugDrawManager::GetInstance()->AddSphere(colliderAttack_->GetWorldPosition(),
+					colliderAttack_->GetRadius(), { 0.0f, 1.0f, 1.0f, 1.0f }, 8);
+			}
 		}
 	}
 #endif

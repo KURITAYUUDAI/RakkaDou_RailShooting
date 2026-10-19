@@ -2,10 +2,8 @@
 #include "DirectXBase.h"
 #include "object3d.h"
 #include "myMath.h"
-#include "AIHandler.h"
 #include "Model.h"
 #include <memory>
-#include "EnemyState.h"
 
 #include "collision/CollisionObserver.h"
 #include "collision/Collider.h"
@@ -17,6 +15,7 @@
 #include "GamePlayUIUtility.h"
 
 #include "Dict_Engine/tool/effect/DissolveUtility.h"
+#include "EnemyUtility.h"
 
 struct EnemyCreateConfig
 {
@@ -26,18 +25,38 @@ struct EnemyCreateConfig
 	Vector4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	int hitPoint = 500;
 	float colliderRadius = 2.0f;
-	float moveAmplitude = 0.0f;
-	float moveSpeed = 0.0f;
-	float movePhase = 0.0f;
+	float spawnFogMargin = 20.0f;
+	float spawnApproachSpeed = 100.0f;
+	float spawnSettleDuration = 0.5f;
+	float forwardSpeed = 2.0f;
+	float escapeHorizontalSpeed = 10.0f;
+	float despawnHorizontalX = 12.0f;
 	float fadeNearDistance = 2.0f;
 	float fadeFarDistance = 7.0f;
 	float minimumAlpha = 0.15f;
+	SmallEnemyRole role = SmallEnemyRole::Basic;
+	float shotInterval = 2.0f;
+	float burstShotInterval = 0.2f;
+	float bulletSpeed = 15.0f;
+	float chargeDuration = 1.5f;
+	float chargeSpeed = 20.0f;
+	float rushDuration = 0.75f;
+	float maxRushDistance = 30.0f;
+	float approachDelay = 4.0f;
+	float approachDuration = 1.5f;
+	float approachStepDistance = 10.0f;
+	float nearDuration = 4.0f;
+	float escapeSpeed = 12.0f;
+	float farLineZ = 12.0f;
+	float nearLineZ = -2.0f;
+	float despawnLineZ = -15.0f;
+	int contactDamage = 1;
 };
 
 class Enemy : public ICollisionObserver
 {
 public:
-	~Enemy() { Finalize(); }
+	virtual ~Enemy() { Finalize(); }
 
 	void Initialize(const EnemyCreateConfig& config = {});
 	void EventDispatch();
@@ -47,19 +66,9 @@ public:
 	void Draw();
 	void Finalize();
 
-	void ChangeState(std::unique_ptr<IEnemyState> newState);
-
 	void OnCollision(
 		Collider* self, Collider* other, const CollisionContact& contact) override;
 	void Damage(int damage, const Vector3& hitPosition);
-
-public:	// Command
-
-	void Move(const float& directionX, const float& directionY);
-	void Decelerate();
-	void Shot();
-	void FireProjectile();
-	void Attack();
 
 public: // Command対応
 
@@ -70,7 +79,6 @@ public:	//外部入出力
 
 // Getter
 
-	AIHandler* GetAIHandler() { return &handler_; }
 	const float& GetDeltaTime() const { return deltaTime_; }
 
 	// transform設定
@@ -79,26 +87,27 @@ public:	//外部入出力
 	const Vector3& GetTranslate() const { return transform_.translate; }
 	Vector3& GetLocalPositionReference() { return transform_.translate; }
 	const EulerTransform& GetTransform() const { return transform_; }
-	const Vector3& GetVelocity() const { return velocity_; }
 	const Vector3& GetWorldVelocity() const { return worldVelocity_; }
 
 	const Vector3 GetWorldPosition() const;
 	const Vector2 GetScreenPosition() const;
 	const Vector3 GetWorldRotate() const;
 
-	const EulerTransform& GetRightHandTransform() const { return rightHandTransform_; }
-	
 	// Collider設定
 	Collider* GetCollider() { return collider_.get(); }
-	Collider* GetAttackCollider() { return colliderAttack_.get(); }
-	bool GetIsAttackColliderActive() const { return isAttackColliderActive_; }
-	EnemyBattlePhase GetBattlePhase() const { return battlePhase_; }
-	bool CanReceiveMeleeApproach() const;
+	virtual Collider* GetAttackCollider() { return nullptr; }
+	virtual bool GetIsAttackColliderActive() const { return false; }
+	virtual EnemyBattlePhase GetBattlePhase() const { return EnemyBattlePhase::Ranged; }
+	virtual bool CanReceiveMeleeApproach() const { return true; }
 	EnemyType GetEnemyType() const { return enemyType_; }
-	bool GetIsBoss() const { return enemyType_ == EnemyType::Boss; }
+	virtual bool GetIsBoss() const { return false; }
+	virtual const char* GetRoleName() const { return "Enemy"; }
+	virtual const char* GetBehaviorStateName() const { return "Common"; }
 
 	// HP
 	const int& GetHitPoint() const { return hitPoint_; }
+	int GetMaxHitPoint() const { return maxHitPoint_; }
+	const Vector3& GetSpawnPosition() const { return basePosition_; }
 	// デスフラグ
 	bool GetIsDead() const { return isDead_; }
 
@@ -123,24 +132,15 @@ public:	//外部入出力
 	void SetTransform(const EulerTransform& transform) { transform_ = transform; }
 	void SetParent(WorldTransform* worldTransform);
 
-	// 右腕transform設定
-	void SetRightHandScale(const Vector3& scale) { rightHandTransform_.scale = scale; }
-	void SetRightHandRotate(const Vector3& rotate) { rightHandTransform_.rotate = rotate; }
-	void SetRightHandTranslate(const Vector3& translate) { rightHandTransform_.translate = translate; }
-	void SetRightHandTransform(const EulerTransform& transform) { rightHandTransform_ = transform; }
-
-	// Collider設定
-	void SetAttackColliderActive(bool isActive) { isAttackColliderActive_ = isActive; }
-	void SetBattlePhase(EnemyBattlePhase phase) { battlePhase_ = phase; }
-	
 	// 描画設定
 	void SetEnvironmentTextureIndex(const uint32_t& srvIndex){ environmentTextureIndex_ = srvIndex; }
 	// イベント設定
 	void SetEventBus(EventBus* eventBus) { eventBus_ = eventBus; }
 
 	// その他変数設定
-	void SetVelocity(const Vector3& velocity) { velocity_ = velocity; }
 	void SetIsHPChanged(const int isHPChanged){ isHPChanged_ = isHPChanged; }
+	void SetAttackChargeProgress(float progress);
+	float GetAttackChargeProgress() const { return attackChargeProgress_; }
 
 	// HPゲージUI設定
 	void SetEnemyID(EnemyID id) { enemyID_ = id; }
@@ -151,16 +151,26 @@ public:	//外部入出力
 	void SetThreshold(const float threshold) { dissolveParams_.threshold = threshold; }
 	void SetEdgeColor(const Vector4 edgeColor) { dissolveParams_.edgeColor = edgeColor; }
 
-private:
+protected:
+	virtual void InitializeSpecific(const EnemyCreateConfig& config);
+	virtual void UpdateBehavior(const float& deltaTime);
+	virtual void UpdateAfterTransform();
+	virtual void UpdateDebugUI();
+	virtual void DrawAdditional();
+	virtual void DrawAdditionalDebug();
+	virtual void OnPlayerCollision();
 
-	void UpdateSmallEnemy(const float& deltaTime);
+	Object3d* GetObject3d() { return object3d_.get(); }
+	WorldTransform* GetParentWorldTransform() const
+	{
+		return object3d_->GetWorldTransform()->parent_;
+	}
 	void UpdateCameraFade();
+	void ApplyVisualColor(float alphaScale = 1.0f);
+	void MarkForRemoval() { isDead_ = true; }
+	void SetBodyCollisionDamage(int damage) { collider_->SetDamage(damage); }
 
-	// AI入力ハンドル
-	AIHandler handler_;
-
-	// 現在の状態
-	std::unique_ptr<IEnemyState> state_;
+private:
 
 	EnemyID enemyID_ = 0;
 
@@ -185,12 +195,8 @@ private:
 
 	EulerTransform transform_;
 
-	Vector3 velocity_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 worldVelocity_ = { 0.0f, 0.0f, 0.0f };
 	bool hasWorldVelocitySample_ = false;
-	Vector3 maxSpeed_ = { 12.0f, 12.0f, 12.0f }; // スティック全倒し時の最高速度
-	float lerpFactor_ = 0.2f;                  // 追従の滑らかさ（0〜1）
-	Vector3 targetRoll_ = { 0.0f, 0.0f, 0.0f };                   // 目標のロール角Z（回転の傾き）
 
 	// 環境テクスチャのsrvIndex
 	uint32_t environmentTextureIndex_ = 0;
@@ -199,22 +205,10 @@ private:
 	EnemyType enemyType_ = EnemyType::Boss;
 	Vector3 basePosition_{};
 	Vector4 baseColor_ = { 1.0f, 1.0f, 1.0f, 1.0f };
-	float movementElapsedTime_ = 0.0f;
-	float moveAmplitude_ = 0.0f;
-	float moveSpeed_ = 0.0f;
-	float movePhase_ = 0.0f;
 	float fadeNearDistance_ = 2.0f;
 	float fadeFarDistance_ = 7.0f;
 	float minimumAlpha_ = 0.15f;
-
-	float bulletSpeed_ = 15.0f;
-
-	std::unique_ptr<Object3d> objectRightHand_;
-	EulerTransform rightHandTransform_;
-
-	std::unique_ptr<Collider> colliderAttack_;
-	bool isAttackColliderActive_ = false;
-	EnemyBattlePhase battlePhase_ = EnemyBattlePhase::Ranged;
+	float attackChargeProgress_ = 0.0f;
 
 	// HP
 	int hitPoint_ = 0;

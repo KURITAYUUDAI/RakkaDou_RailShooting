@@ -59,6 +59,7 @@ struct GameUIViewModel
     std::vector<EnemyHPViewModel> enemyHitPoints;
 
     Vector3 targetEnemyWorldPosition;
+	EnemyID targetEnemyID = 0;
     bool isLockOn = false;
 
 };

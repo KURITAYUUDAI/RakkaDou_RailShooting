@@ -22,7 +22,9 @@
 //	id_ = id;
 //}
 
-void Bullet::Initialize(const Vector3& position, const Vector3& velocity, const ID& id, const std::string& modelName)
+void Bullet::Initialize(
+	const Vector3& position, const Vector3& velocity, const ID& id,
+	const std::string& modelName, WorldTransform* parent)
 {
 	OutputDebugStringA(("Bullet::Initialize position: " +
 		std::to_string(position.x) + ", " +
@@ -34,12 +36,12 @@ void Bullet::Initialize(const Vector3& position, const Vector3& velocity, const 
 	object3d_->SetModel(modelName);
 	object3d_->SetEnableLighting(false);
 	object3d_->SetColor({2.0f, 2.0f, 2.0f, 1.0f});
+	object3d_->SetParent(parent);
 
 	collider_ = std::make_unique<Collider>();
 	collider_->SetOwner(this);
 	collider_->SetRadius(0.4f);
 	collider_->SetContinuousCollisionEnabled(true);
-	collider_->SetWorldPosition(position);
 	if (id == ID::kPlayer)
 	{
 		collider_->SetAttribute(CollisionAttribute::PlayerAttack);
@@ -64,8 +66,8 @@ void Bullet::Initialize(const Vector3& position, const Vector3& velocity, const 
 	transform_.translate = position;
 	velocity_ = velocity;
 	id_ = id;
-
-	
+	parent_ = parent;
+	UpdateObjectAndCollider();
 }
 
 void Bullet::Update(const float& deltaTime)
@@ -74,13 +76,7 @@ void Bullet::Update(const float& deltaTime)
 
 	transform_.translate += velocity_ * deltaTime;
 
-	Matrix4x4 billboard = CameraManager::GetInstance()->GetMainCamera()->
-		GetBillboardWorldMatrix(transform_.scale, transform_.rotate, transform_.translate);
-
-	object3d_->SetTransform(transform_);
-	object3d_->Update(&billboard);
-
-	collider_->SetWorldPosition(GetWorldPosition());
+	UpdateObjectAndCollider();
 
 	if (--deathTimer_ <= 0)
 	{
@@ -88,23 +84,50 @@ void Bullet::Update(const float& deltaTime)
 	}
 }
 
+void Bullet::UpdateObjectAndCollider()
+{
+	Vector3 worldPosition = transform_.translate;
+	if (parent_)
+	{
+		worldPosition = TransformPosition(transform_.translate, parent_->worldMatrix_);
+	}
+
+	const Matrix4x4 worldBillboard =
+		CameraManager::GetInstance()->GetMainCamera()->GetBillboardWorldMatrix(
+			transform_.scale, transform_.rotate, worldPosition);
+	if (parent_)
+	{
+		const Matrix4x4 localBillboard = worldBillboard * Inverse(parent_->worldMatrix_);
+		object3d_->Update(&localBillboard);
+	}
+	else
+	{
+		object3d_->Update(&worldBillboard);
+	}
+
+	collider_->SetWorldPosition(GetWorldPosition());
+}
+
 void Bullet::Draw()
 {
 	object3d_->Draw();
 
 #ifdef _DEBUG
-	DebugDrawManager::GetInstance()->AddLine(
-		collider_->GetPreviousWorldPosition(), collider_->GetWorldPosition(),
-		{ 1.0f, 0.5f, 0.0f, 1.0f });
-	if (collider_->GetShape() == ColliderShape::AABB)
+	if (DebugDrawManager::GetInstance()->IsCollisionDebugDrawEnabled())
 	{
-		DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
-			collider_->GetSize(), { 0.0f, 0.0f, 0.0f, 1.0f });
-	}
-	else
-	{
-		DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
-			collider_->GetRadius(), { 0.0f, 0.0f, 0.0f, 1.0f }, 6);
+		DebugDrawManager::GetInstance()->AddLine(
+			collider_->GetPreviousWorldPosition(), collider_->GetWorldPosition(),
+			{ 1.0f, 0.5f, 0.0f, 1.0f });
+		if (collider_->GetShape() == ColliderShape::AABB)
+		{
+			DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
+				collider_->GetSize(), { 0.0f, 0.0f, 0.0f, 1.0f });
+		}
+		else
+		{
+			DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
+				collider_->GetRadius(), { 0.0f, 0.0f, 0.0f, 1.0f }, 6);
+		}
 	}
 #endif
 }

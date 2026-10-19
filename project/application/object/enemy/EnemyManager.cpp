@@ -1,4 +1,6 @@
 #include "EnemyManager.h"
+#include "BossEnemy.h"
+#include "SmallEnemy.h"
 #include "PlayerEvent.h"
 #include "EnemyEvent.h"
 #include "time/DeltaTimeManager.h"
@@ -95,7 +97,14 @@ void EnemyManager::RegisterPSO()
 EnemyID EnemyManager::AddEnemy(const EnemyCreateConfig& config)
 {
 	std::unique_ptr<Enemy> enemy;
-	enemy = std::make_unique<Enemy>();
+	if (config.type == EnemyType::Boss)
+	{
+		enemy = std::make_unique<BossEnemy>();
+	}
+	else
+	{
+		enemy = std::make_unique<SmallEnemy>();
+	}
 	enemy->Initialize(config);
 	enemy->SetEnemyID(nextEnemyID_);
 	EnemyID id = nextEnemyID_;

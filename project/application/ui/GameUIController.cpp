@@ -122,6 +122,7 @@ void GameUIController::OnNearestEnemyInfo(const NearestEnemyInfoEvent& event)
 void GameUIController::OnPlayerLockOn(const PlayerLockOnEvent& event)
 {
     viewModel_.isLockOn = event.isLockOn;
+	viewModel_.targetEnemyID = event.isLockOn ? event.targetEnemyID : 0;
 	if (event.isLockOn)
 	{
 		viewModel_.targetEnemyWorldPosition = event.targetWorldPosition;

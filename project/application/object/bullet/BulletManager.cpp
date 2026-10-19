@@ -252,14 +252,17 @@ void BulletManager::CreateCounterBullet(const Vector3& position, const Vector3& 
 	bullets_.push_back(std::move(newBullet));
 }
 
-void BulletManager::CreateEnemyBullet(const Vector3& position, const Vector3& velocity)
+void BulletManager::CreateEnemyBullet(
+	const Vector3& localPosition, const Vector3& localVelocity,
+	WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{
 		return;
 	}
 	std::unique_ptr<Bullet> newBullet = std::make_unique<Bullet>();
-	newBullet->Initialize(position, velocity, Bullet::ID::kEnemy, "enemyBullet.obj");
+	newBullet->Initialize(
+		localPosition, localVelocity, Bullet::ID::kEnemy, "enemyBullet.obj", parent);
 	newBullet->SetSize({2.0f, 2.0f, 2.0f});
 	newBullet->GetCollider()->SetRadius(2.0f);
 	newBullet->GetCollider()->SetDamage(1);
@@ -268,6 +271,24 @@ void BulletManager::CreateEnemyBullet(const Vector3& position, const Vector3& ve
 	/*PlaySEShot();
 	isPlayShotSE_ = false;
 	*/
+}
+
+void BulletManager::CreateSmallEnemyBullet(
+	const Vector3& localPosition, const Vector3& localVelocity,
+	WorldTransform* parent)
+{
+	if (bullets_.size() >= kMaxBullet)
+	{
+		return;
+	}
+
+	std::unique_ptr<Bullet> newBullet = std::make_unique<Bullet>();
+	newBullet->Initialize(
+		localPosition, localVelocity, Bullet::ID::kEnemy, "enemyBullet.obj", parent);
+	newBullet->SetSize({ 0.4f, 0.4f, 0.4f });
+	newBullet->GetCollider()->SetRadius(0.4f);
+	newBullet->GetCollider()->SetDamage(1);
+	bullets_.push_back(std::move(newBullet));
 }
 
 

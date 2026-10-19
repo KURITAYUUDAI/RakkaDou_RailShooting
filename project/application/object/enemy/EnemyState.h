@@ -5,24 +5,25 @@
 #include "EnemyCommand.h"
 #include "EnemyUtility.h"
 
-class Enemy;
+class BossEnemy;
 
 class IEnemyState
 {
 public:
-	virtual void Initialize(Enemy* enemy) = 0;
-	virtual void Update(Enemy* enemy, const float& deltaTime) = 0;
-	virtual void Draw(Enemy* enemy) = 0;
-	virtual void Finalize(Enemy* enemy) = 0;
+	virtual ~IEnemyState() = default;
+	virtual void Initialize(BossEnemy* enemy) = 0;
+	virtual void Update(BossEnemy* enemy, const float& deltaTime) = 0;
+	virtual void Draw(BossEnemy* enemy) = 0;
+	virtual void Finalize(BossEnemy* enemy) = 0;
 };
 
 class EnemyIdleState : public IEnemyState
 {
 public:
-	void Initialize(Enemy* enemy) override;
-	void Update(Enemy* enemy, const float& deltaTime) override;
-	void Draw(Enemy* enemy) override;
-	void Finalize(Enemy* enemy) override;
+	void Initialize(BossEnemy* enemy) override;
+	void Update(BossEnemy* enemy, const float& deltaTime) override;
+	void Draw(BossEnemy* enemy) override;
+	void Finalize(BossEnemy* enemy) override;
 
 private:
 
@@ -34,23 +35,23 @@ private:
 class EnemyMoveState : public IEnemyState
 {
 public:
-	void Initialize(Enemy* enemy) override;
-	void Update(Enemy* enemy, const float& deltaTime) override;
-	void Draw(Enemy* enemy) override;
-	void Finalize(Enemy* enemy) override;
+	void Initialize(BossEnemy* enemy) override;
+	void Update(BossEnemy* enemy, const float& deltaTime) override;
+	void Draw(BossEnemy* enemy) override;
+	void Finalize(BossEnemy* enemy) override;
 };
 
 class EnemyBossBattleState : public IEnemyState
 {
 public:
-	void Initialize(Enemy* enemy) override;
-	void Update(Enemy* enemy, const float& deltaTime) override;
-	void Draw(Enemy* enemy) override;
-	void Finalize(Enemy* enemy) override;
+	void Initialize(BossEnemy* enemy) override;
+	void Update(BossEnemy* enemy, const float& deltaTime) override;
+	void Draw(BossEnemy* enemy) override;
+	void Finalize(BossEnemy* enemy) override;
 
 private:
-	void ChangePhase(Enemy* enemy, EnemyBattlePhase phase);
-	Vector3 GetHorizontalTrackingTarget(Enemy* enemy) const;
+	void ChangePhase(BossEnemy* enemy, EnemyBattlePhase phase);
+	Vector3 GetHorizontalTrackingTarget(BossEnemy* enemy) const;
 
 	EnemyBattlePhase phase_ = EnemyBattlePhase::MoveToRanged;
 	float timer_ = 0.0f;
@@ -83,10 +84,10 @@ private:
 class EnemyShotState : public IEnemyState
 {
 public:
-	void Initialize(Enemy* enemy) override;
-	void Update(Enemy* enemy, const float& deltaTime) override;
-	void Draw(Enemy* enemy) override;
-	void Finalize(Enemy* enemy) override;
+	void Initialize(BossEnemy* enemy) override;
+	void Update(BossEnemy* enemy, const float& deltaTime) override;
+	void Draw(BossEnemy* enemy) override;
+	void Finalize(BossEnemy* enemy) override;
 
 private:
 
@@ -110,10 +111,10 @@ private:
 
 public:
 
-	void Initialize(Enemy* enemy) override;
-	void Update(Enemy* enemy, const float& deltaTime) override;
-	void Draw(Enemy* enemy) override;
-	void Finalize(Enemy* enemy) override;
+	void Initialize(BossEnemy* enemy) override;
+	void Update(BossEnemy* enemy, const float& deltaTime) override;
+	void Draw(BossEnemy* enemy) override;
+	void Finalize(BossEnemy* enemy) override;
 
 private:
 

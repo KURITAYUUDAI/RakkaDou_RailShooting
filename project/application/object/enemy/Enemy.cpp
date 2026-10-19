@@ -4,7 +4,6 @@
 #include "TextureManager.h"
 #include "SrvManager.h"
 #include "CameraManager.h"
-#include "BulletManager.h"
 #include "DebugDrawManager.h"
 #include "EnemyEvent.h"
 #include "PlayerEvent.h"
@@ -21,15 +20,11 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 
 	PSOManager::GetInstance()->RegisterEnvironmentPSO();
 
-	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
 	ModelManager::GetInstance()->LoadModel("enemy", "enemy.obj");
-	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
-	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize();
-	object3d_->SetModel(
-		config.type == EnemyType::Boss ? "sphere.obj" : "enemy.obj");
+	object3d_->SetModel("enemy.obj");
 	object3d_->SetEnvironmentCoefficient(0.2f);
 	object3d_->SetColor(config.color);
 
@@ -40,38 +35,12 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 	collider_->SetMask(CollisionAttribute::Enemy);
 	collider_->SetDamage(1);
 
-	objectRightHand_ = std::make_unique<Object3d>();
-	objectRightHand_->Initialize();
-	objectRightHand_->SetModel("RightHand.obj");
-	objectRightHand_->SetEnvironmentCoefficient(0.2f);
-	objectRightHand_->SetShininess(0.1f);
-	objectRightHand_->SetAlphaReference(0.1f);
-	objectRightHand_->SetParent(object3d_->GetWorldTransform());
-
-	colliderAttack_ = std::make_unique<Collider>();
-	colliderAttack_->SetOwner(this);
-	colliderAttack_->SetOnCollision(
-		[this](Collider* self, Collider* other, const CollisionContact& contact)
-		{
-			this->OnCollision(self, other, contact);
-		}
-	);
-	colliderAttack_->SetRadius(2.0f);
-	colliderAttack_->SetAttribute(CollisionAttribute::EnemyAttack);
-	colliderAttack_->SetMask(CollisionAttribute::Enemy);
-	colliderAttack_->SetDamage(1);
-	colliderAttack_->SetParent(objectRightHand_->GetWorldTransform());
-	colliderAttack_->SetLocalPosition({ 0.0f, 0.0f, -3.0f });
-
 	transform_.scale = config.scale;
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
 	transform_.translate = config.position;
 	basePosition_ = config.position;
 	baseColor_ = config.color;
 	enemyType_ = config.type;
-	moveAmplitude_ = config.moveAmplitude;
-	moveSpeed_ = config.moveSpeed;
-	movePhase_ = config.movePhase;
 	fadeNearDistance_ = config.fadeNearDistance;
 	fadeFarDistance_ = config.fadeFarDistance;
 	minimumAlpha_ = std::clamp(config.minimumAlpha, 0.0f, 1.0f);
@@ -79,10 +48,6 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 	{
 		object3d_->SetAlphaReference(0.0f);
 	}
-
-	rightHandTransform_.scale = { 1.0f, 1.0f, 1.0f };
-	rightHandTransform_.rotate = { -40.0f / 180.0f * pi, 0.0f, 0.0f };
-	rightHandTransform_.translate = { -2.5f, 0.0, 0.0f };
 
 	maxHitPoint_ = std::max(config.hitPoint, 1);
 	hitPoint_ = maxHitPoint_;
@@ -94,10 +59,8 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 	dissolveParams_.threshold = 0.0f;
 	dissolveParams_.edgeColor = { 2.0f, 0.3f, 0.3f, 1.0f };
 
-	if (GetIsBoss())
-	{
-		ChangeState(std::make_unique<EnemyBossBattleState>());
-	}
+
+	InitializeSpecific(config);
 }
 
 void Enemy::EventDispatch()
@@ -136,15 +99,7 @@ void Enemy::Update(const float& deltaTime)
 	deltaTime_ = deltaTime;
 	const Vector3 previousWorldPosition = GetWorldPosition();
 
-	if (GetIsBoss())
-	{
-		state_->Update(this, deltaTime);
-		transform_.translate += velocity_ * deltaTime;
-	}
-	else
-	{
-		UpdateSmallEnemy(deltaTime);
-	}
+	UpdateBehavior(deltaTime);
 
 #ifdef _DEBUG
 	ImGui::Begin("EnemySetting");
@@ -170,17 +125,7 @@ void Enemy::Update(const float& deltaTime)
 		SetEdgeColor(dissolveEdgeColor);
 	}
 
-	EulerTransform transformRightHand = rightHandTransform_;
-	if(ImGui::DragFloat3("Right Hand Position", &transformRightHand.translate.x, 0.1f))
-	{
-		rightHandTransform_.translate = transformRightHand.translate;
-	}
-	if(ImGui::DragFloat3("Right Hand Rotation", &transformRightHand.rotate.x, 0.1f))
-	{
-		rightHandTransform_.rotate = transformRightHand.rotate;
-	}
-
-	
+	UpdateDebugUI();
 
 	ImGui::End();
 #endif
@@ -197,16 +142,7 @@ void Enemy::Update(const float& deltaTime)
 		worldVelocity_ = {};
 	}
 	hasWorldVelocitySample_ = true;
-	if (!GetIsBoss())
-	{
-		UpdateCameraFade();
-	}
-
-	if (GetIsBoss())
-	{
-		objectRightHand_->SetTransform(rightHandTransform_);
-		objectRightHand_->Update();
-	}
+	UpdateAfterTransform();
 
 	if (damageTimer_ > 0.0f)
 	{
@@ -220,8 +156,6 @@ void Enemy::Update(const float& deltaTime)
 
 	collider_->SetWorldPosition(GetWorldPosition());
 
-	colliderAttack_->UpdateWorldPosition();
-
 	eventBus_->Publish(EnemyScreenPositionEvent
 		{
 			.enemyID = enemyID_,
@@ -233,7 +167,7 @@ void Enemy::Update(const float& deltaTime)
 	eventBus_->Publish(EnemyBattlePhaseEvent
 		{
 			.enemyID = enemyID_,
-			.phase = battlePhase_,
+			.phase = GetBattlePhase(),
 			.canReceiveMeleeApproach = CanReceiveMeleeApproach(),
 		}
 	);
@@ -263,34 +197,24 @@ void Enemy::Draw()
 		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
 		{
 			object3d_->Draw();
-			if (GetIsBoss())
-			{
-				objectRightHand_->Draw();
-			}
+			DrawAdditional();
 		}
 	}
 
 #ifdef _DEBUG
-	if (collider_->GetShape() == ColliderShape::AABB)
+	if (DebugDrawManager::GetInstance()->IsCollisionDebugDrawEnabled())
 	{
-		DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
-			collider_->GetSize(), { 1.0f, 0.0f, 1.0f, 1.0f });
-	}
-	else
-	{
-		DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
-			collider_->GetRadius(), { 1.0f, 0.0f, 1.0f, 1.0f }, 8);
-	}
-
-	if (colliderAttack_->GetShape() == ColliderShape::AABB)
-	{
-		DebugDrawManager::GetInstance()->AddBox(colliderAttack_->GetWorldPosition(),
-			colliderAttack_->GetSize(), { 1.0f, 0.0f, 1.0f, 1.0f });
-	}
-	else
-	{
-		DebugDrawManager::GetInstance()->AddSphere(colliderAttack_->GetWorldPosition(),
-			colliderAttack_->GetRadius(), { 1.0f, 0.0f, 1.0f, 1.0f }, 8);
+		if (collider_->GetShape() == ColliderShape::AABB)
+		{
+			DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
+				collider_->GetSize(), { 1.0f, 0.0f, 1.0f, 1.0f });
+		}
+		else
+		{
+			DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
+				collider_->GetRadius(), { 1.0f, 0.0f, 1.0f, 1.0f }, 8);
+		}
+		DrawAdditionalDebug();
 	}
 #endif
 }
@@ -300,18 +224,12 @@ void Enemy::Finalize()
 	eventSubscriber_.Finalize();
 }
 
-void Enemy::ChangeState(std::unique_ptr<IEnemyState> newState)
-{
-	state_ = std::move(newState);
-	state_->Initialize(this);
-}
-
 void Enemy::OnCollision(
 	Collider* self, Collider* other, const CollisionContact& contact)
 {
 	if (other->GetAttribute() == static_cast<uint32_t>(CollisionAttribute::Player))
 	{
-		isAttackColliderActive_ = false;
+		OnPlayerCollision();
 		return;
 	}
 
@@ -346,6 +264,10 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 	{
 		hitPoint_ = 0;
 	}
+	if (hitPoint_ == 0)
+	{
+		isDead_ = true;
+	}
 
 	if (hitPoint_ == previousHP)
 	{
@@ -368,72 +290,49 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 	}
 }
 
-void Enemy::Move(const float& directionX, const float& directionY)
+void Enemy::InitializeSpecific(const EnemyCreateConfig& config)
 {
-	float targetVelocityX = maxSpeed_.x * directionX;
-	float targetVelocityY = maxSpeed_.y * directionY;
-
-	velocity_.x += (targetVelocityX - velocity_.x) * lerpFactor_;
-	velocity_.y += (targetVelocityY - velocity_.y) * lerpFactor_;
+	(void)config;
 }
 
-void Enemy::Decelerate()
+void Enemy::UpdateBehavior(const float& deltaTime)
 {
-	velocity_.x += (0.0f - velocity_.x) * lerpFactor_;
-	velocity_.y += (0.0f - velocity_.y) * lerpFactor_;
+	(void)deltaTime;
 }
 
-void Enemy::Shot()
+void Enemy::UpdateAfterTransform()
 {
-	FireProjectile();
-	ChangeState(std::make_unique<EnemyShotState>());
 }
 
-void Enemy::FireProjectile()
+void Enemy::UpdateDebugUI()
 {
-	Vector3 bulletDirection = { 0.0f, 0.0f, -1.0f };
-	Vector3 toPlayer = playerWorldPosition_ - GetWorldPosition();
-	if (Length(toPlayer) > 0.0001f)
-	{
-		bulletDirection = Normalize(toPlayer);
-	}
-
-	/*bulletDirection = Normalize(TransformNormal(bulletDirection, object3d_->GetWorldTransform()->worldMatrix_));
-	*/
-	BulletManager::GetInstance()->CreateEnemyBullet(GetWorldPosition(), bulletDirection * bulletSpeed_);
 }
 
-void Enemy::Attack()
+void Enemy::DrawAdditional()
 {
-	ChangeState(std::make_unique<EnemyAttackState>());
 }
 
-bool Enemy::CanReceiveMeleeApproach() const
+void Enemy::DrawAdditionalDebug()
 {
-	if (!GetIsBoss())
-	{
-		return true;
-	}
-	return battlePhase_ == EnemyBattlePhase::CloseWait ||
-		battlePhase_ == EnemyBattlePhase::CloseAttack ||
-		battlePhase_ == EnemyBattlePhase::Recovery;
 }
 
-void Enemy::UpdateSmallEnemy(const float& deltaTime)
+void Enemy::OnPlayerCollision()
 {
-	movementElapsedTime_ += deltaTime;
-	transform_.translate = basePosition_;
-	const float movement =
-		std::sin(movementElapsedTime_ * moveSpeed_ + movePhase_) * moveAmplitude_;
+}
 
-	if (enemyType_ == EnemyType::Vertical)
-	{
-		transform_.translate.y += movement;
-	}
-	else if (enemyType_ == EnemyType::Horizontal)
-	{
-		transform_.translate.x += movement;
-	}
+void Enemy::SetAttackChargeProgress(float progress)
+{
+	attackChargeProgress_ = std::clamp(progress, 0.0f, 1.0f);
+}
+
+void Enemy::ApplyVisualColor(float alphaScale)
+{
+	Vector4 color = baseColor_;
+	color.x += (1.0f - color.x) * attackChargeProgress_;
+	color.y *= 1.0f - attackChargeProgress_;
+	color.z *= 1.0f - attackChargeProgress_;
+	color.w *= alphaScale;
+	object3d_->SetColor(color);
 }
 
 void Enemy::UpdateCameraFade()
@@ -445,9 +344,7 @@ void Enemy::UpdateCameraFade()
 	const float farDistance = std::max(fadeNearDistance_, fadeFarDistance_);
 	const float range = std::max(farDistance - nearDistance, 0.0001f);
 	const float fade = std::clamp((distance - nearDistance) / range, 0.0f, 1.0f);
-	Vector4 color = baseColor_;
-	color.w *= minimumAlpha_ + (1.0f - minimumAlpha_) * fade;
-	object3d_->SetColor(color);
+	ApplyVisualColor(minimumAlpha_ + (1.0f - minimumAlpha_) * fade);
 }
 
 const Vector3 Enemy::GetWorldPosition() const

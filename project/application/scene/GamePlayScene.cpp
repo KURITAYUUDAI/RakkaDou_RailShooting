@@ -18,6 +18,9 @@
 #include "FontManager.h"
 #include "TextManager.h"
 
+#include <algorithm>
+#include <cfloat>
+
 void GamePlayScene::Initialize()
 {
 	camera_ = std::make_unique<Camera>();
@@ -374,6 +377,12 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 	ImGui::Checkbox("DrawSprite", &isDrawSprite_);
 	ImGui::Checkbox("DrawObject3d", &isDrawObject3d_);
+	bool collisionDebugDrawEnabled =
+		debugManager_->IsCollisionDebugDrawEnabled();
+	if (ImGui::Checkbox("Draw Collision", &collisionDebugDrawEnabled))
+	{
+		debugManager_->SetCollisionDebugDrawEnabled(collisionDebugDrawEnabled);
+	}
 	ImGui::End();
 
 	ImGui::Begin("DistanceFogSetting");
@@ -473,6 +482,8 @@ void GamePlayScene::Update(const float& deltaTime)
 	ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
 	ImGui::End();
+
+	DrawEnemyStageDebugUI();
 
 #endif
 
@@ -693,15 +704,81 @@ void GamePlayScene::ConfigureEnemy(EnemyID id, bool isBoss)
 	enemy->SetEventBus(eventBus_.get());
 	if (isBoss)
 	{
-		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss |
-			EnemyHPGageDisplayType::OverHead);
+		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss);
 		enemy->SetScreenBossPriority(50);
 	}
 	else
 	{
-		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::None);
+		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::OverHead);
 	}
 	enemy->EventDispatch();
+}
+
+void GamePlayScene::DrawEnemyStageDebugUI()
+{
+#ifdef _DEBUG
+	const float travelledDistance = railCameraController_ ?
+		railCameraController_->GetTravelledDistance() : 0.0f;
+	const float phaseDistance = enemyStageConfig_.smallEnemyPhaseDistance;
+	const float progress = phaseDistance > 0.0f ?
+		std::clamp(travelledDistance / phaseDistance, 0.0f, 1.0f) : 0.0f;
+
+	ImGui::Begin("Enemy Stage Debug");
+	ImGui::Text("Rail travelled distance: %.3f", travelledDistance);
+	ImGui::Text("Small enemy phase distance: %.3f", phaseDistance);
+	ImGui::Text("Progress: %.3f / %.1f%%", progress, progress * 100.0f);
+	ImGui::ProgressBar(progress, ImVec2(-FLT_MIN, 0.0f));
+	ImGui::Text("Next spawn index: %zu / %zu",
+		nextSmallEnemyIndex_, enemyStageConfig_.smallEnemies.size());
+
+	constexpr ImGuiTableFlags tableFlags =
+		ImGuiTableFlags_Borders |
+		ImGuiTableFlags_RowBg |
+		ImGuiTableFlags_Resizable |
+		ImGuiTableFlags_ScrollX;
+	if (ImGui::BeginTable("ActiveEnemies", 7, tableFlags, ImVec2(0.0f, 260.0f)))
+	{
+		ImGui::TableSetupColumn("Enemy ID");
+		ImGui::TableSetupColumn("Role");
+		ImGui::TableSetupColumn("State");
+		ImGui::TableSetupColumn("Spawn Local");
+		ImGui::TableSetupColumn("Current Local");
+		ImGui::TableSetupColumn("Max HP");
+		ImGui::TableSetupColumn("Current HP");
+		ImGui::TableHeadersRow();
+
+		for (const EnemyID id : enemyManager_->GetEnemyIDs())
+		{
+			const Enemy* enemy = enemyManager_->FindEnemy(id);
+			if (!enemy || enemy->GetIsDead())
+			{
+				continue;
+			}
+
+			const Vector3& spawnPosition = enemy->GetSpawnPosition();
+			const Vector3& currentPosition = enemy->GetTranslate();
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+			ImGui::Text("%u", static_cast<unsigned int>(id));
+			ImGui::TableSetColumnIndex(1);
+			ImGui::TextUnformatted(enemy->GetRoleName());
+			ImGui::TableSetColumnIndex(2);
+			ImGui::TextUnformatted(enemy->GetBehaviorStateName());
+			ImGui::TableSetColumnIndex(3);
+			ImGui::Text("(%.2f, %.2f, %.2f)",
+				spawnPosition.x, spawnPosition.y, spawnPosition.z);
+			ImGui::TableSetColumnIndex(4);
+			ImGui::Text("(%.2f, %.2f, %.2f)",
+				currentPosition.x, currentPosition.y, currentPosition.z);
+			ImGui::TableSetColumnIndex(5);
+			ImGui::Text("%d", enemy->GetMaxHitPoint());
+			ImGui::TableSetColumnIndex(6);
+			ImGui::Text("%d", enemy->GetHitPoint());
+		}
+		ImGui::EndTable();
+	}
+	ImGui::End();
+#endif
 }
 
 void GamePlayScene::FinishFadeIn()

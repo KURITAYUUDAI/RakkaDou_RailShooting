@@ -190,6 +190,11 @@ void GamePlaySceneUI::SyncOverHeadEnemyHPGages()
     {
         EnemyID enemyID = enemyHP.enemyID;
 
+		if (!viewModel.isLockOn || viewModel.targetEnemyID != enemyID)
+		{
+			continue;
+		}
+
         if (!enemyHP.isVisible)
         {
             continue;
@@ -271,6 +276,8 @@ void GamePlaySceneUI::SyncOverHeadEnemyHPGages()
             }
 
             shouldExist =
+				viewModel.isLockOn &&
+				viewModel.targetEnemyID == enemyID &&
                 enemyHP.isVisible &&
                 HasEnemyHPGageDisplay(
                     enemyHP.displayType,

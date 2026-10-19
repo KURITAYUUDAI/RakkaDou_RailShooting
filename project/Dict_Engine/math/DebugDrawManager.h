@@ -46,6 +46,15 @@ public:
 
     void Initialize();
 
+	bool IsCollisionDebugDrawEnabled() const
+	{
+		return collisionDebugDrawEnabled_;
+	}
+	void SetCollisionDebugDrawEnabled(bool enabled)
+	{
+		collisionDebugDrawEnabled_ = enabled;
+	}
+
     // --- 外部から毎フレーム呼ばれるリクエスト関数 ---
     void AddLine(const Vector3& start, const Vector3& end, const Vector4& color);
     void AddBox(const Vector3& center, const Vector3& size, const Vector4& color);
@@ -85,5 +94,7 @@ private:
 
     // 1フレーム分のリクエストを貯めるバッファ
     std::vector<DebugVertex> vertices_;
+
+	bool collisionDebugDrawEnabled_ = true;
 };
 

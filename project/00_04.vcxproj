@@ -196,6 +196,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\tool\postEffect\GaussianBlur.cpp" />
     <ClCompile Include="Dict_Engine\camera\ICameraController.cpp" />
     <ClCompile Include="application\object\enemy\Enemy.cpp" />
+    <ClCompile Include="application\object\enemy\BossEnemy.cpp" />
+    <ClCompile Include="application\object\enemy\SmallEnemy.cpp" />
     <ClCompile Include="application\object\enemy\EnemyState.cpp" />
     <ClCompile Include="application\command\EnemyCommand.cpp" />
     <ClCompile Include="application\ui\GameUIController.cpp" />
@@ -530,6 +532,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\math\WorldTransform.h" />
     <ClInclude Include="Dict_Engine\math\Quaternion.h" />
     <ClInclude Include="application\object\enemy\Enemy.h" />
+    <ClInclude Include="application\object\enemy\BossEnemy.h" />
+    <ClInclude Include="application\object\enemy\SmallEnemy.h" />
     <ClInclude Include="application\object\enemy\EnemyState.h" />
     <ClInclude Include="application\command\EnemyCommand.h" />
     <ClInclude Include="application\ui\GameUIController.h" />

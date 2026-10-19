@@ -1,8 +1,8 @@
 #include "EnemyCommand.h"
-#include "Enemy/Enemy.h"
+#include "Enemy/BossEnemy.h"
 #include "AIHandler.h"
 
-void EnemyMoveCommand::Execute(Enemy* enemy)
+void EnemyMoveCommand::Execute(BossEnemy* enemy)
 {
     Vector2 direction = aiHandler_->GetDirection();
     if (direction.x == 0.0f && direction.y == 0.0f)
@@ -15,12 +15,12 @@ void EnemyMoveCommand::Execute(Enemy* enemy)
     }
 }
 
-void EnemyShotCommand::Execute(Enemy* enemy)
+void EnemyShotCommand::Execute(BossEnemy* enemy)
 {
     enemy->Shot();
 }
 
-void EnemyAttackCommand::Execute(Enemy* enemy)
+void EnemyAttackCommand::Execute(BossEnemy* enemy)
 {
     enemy->Attack();
 }

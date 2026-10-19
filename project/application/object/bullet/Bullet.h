@@ -19,11 +19,11 @@ public:
 
 public:
 	/// <summary>
-	/// 初期化
+	/// 弾を初期化する。parent指定時はpositionとvelocityを親のローカル座標として扱う。
 	/// </summary>
-	/// <param name = "model">モデル</param>
-	/// <param name = "textureHandle">テクスチャハンドル</param>
-	void Initialize(const Vector3& position, const Vector3& velocity, const ID& id, const std::string& modelName);
+	void Initialize(
+		const Vector3& position, const Vector3& velocity, const ID& id,
+		const std::string& modelName, WorldTransform* parent = nullptr);
 
 	/// <summary>
 	/// 更新
@@ -68,9 +68,11 @@ public: // 外部入出力
 	void SetPsoName(const std::string& psoName){ object3d_->SetPsoName(psoName); }
 
 private:
+	void UpdateObjectAndCollider();
 
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Collider> collider_;
+	WorldTransform* parent_ = nullptr;
 
 	EulerTransform transform_;
 

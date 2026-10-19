@@ -52,8 +52,13 @@ public:
 	// カウンター弾の生成
 	void CreateCounterBullet(const Vector3& position, const Vector3& velocity);
 
-	// 敵弾の生成
-	void CreateEnemyBullet(const Vector3& position, const Vector3& velocity);
+	// 敵弾の生成。座標と速度はparentのローカル空間で指定する。
+	void CreateEnemyBullet(
+		const Vector3& localPosition, const Vector3& localVelocity,
+		WorldTransform* parent);
+	void CreateSmallEnemyBullet(
+		const Vector3& localPosition, const Vector3& localVelocity,
+		WorldTransform* parent);
 
 public:  // 外部入出力
 

@@ -1,9 +1,9 @@
 #include "EnemyState.h"
-#include "Enemy.h"
+#include "BossEnemy.h"
 #include "EnemyCommand.h"
 #include "SplineCurve.h"
 
-void EnemyIdleState::Initialize(Enemy* enemy)
+void EnemyIdleState::Initialize(BossEnemy* enemy)
 {
 	moveCommand_ = std::make_unique<EnemyMoveCommand>(
 		enemy->GetAIHandler());
@@ -13,7 +13,7 @@ void EnemyIdleState::Initialize(Enemy* enemy)
 		enemy->GetAIHandler());
 }
 
-void EnemyIdleState::Update(Enemy* enemy, const float& deltaTime)
+void EnemyIdleState::Update(BossEnemy* enemy, const float& deltaTime)
 {
 	AIHandler* handler = enemy->GetAIHandler();
 
@@ -29,38 +29,38 @@ void EnemyIdleState::Update(Enemy* enemy, const float& deltaTime)
 	}
 }
 
-void EnemyIdleState::Draw(Enemy * enemy)
+void EnemyIdleState::Draw(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyIdleState::Finalize(Enemy * enemy)
+void EnemyIdleState::Finalize(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
 
-void EnemyMoveState::Initialize(Enemy* enemy)
+void EnemyMoveState::Initialize(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyMoveState::Update(Enemy * enemy, const float& deltaTime)
+void EnemyMoveState::Update(BossEnemy* enemy, const float& deltaTime)
 {
 	(void)enemy;
 }
 
-void EnemyMoveState::Draw(Enemy * enemy)
+void EnemyMoveState::Draw(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyMoveState::Finalize(Enemy * enemy)
+void EnemyMoveState::Finalize(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyBossBattleState::Initialize(Enemy* enemy)
+void EnemyBossBattleState::Initialize(BossEnemy* enemy)
 {
 	phase_ = EnemyBattlePhase::MoveToRanged;
 	timer_ = 0.0f;
@@ -73,10 +73,11 @@ void EnemyBossBattleState::Initialize(Enemy* enemy)
 	handStartPosition_ = enemy->GetRightHandTransform().translate;
 	enemy->SetVelocity({ 0.0f, 0.0f, 0.0f });
 	enemy->SetAttackColliderActive(false);
+	enemy->SetAttackChargeProgress(0.0f);
 	enemy->SetBattlePhase(phase_);
 }
 
-void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
+void EnemyBossBattleState::Update(BossEnemy* enemy, const float& deltaTime)
 {
 	timer_ += deltaTime;
 
@@ -122,6 +123,8 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 
 	case EnemyBattlePhase::CloseWait:
 		// 攻撃前の隙も間合いから外れないよう、接近時と同じ遅さで追従を続ける。
+		enemy->SetAttackChargeProgress(std::min(
+			timer_ / kCloseWaitDuration_, 1.0f));
 		trackedPlayerPosition_ = Lerp(
 			trackedPlayerPosition_, GetHorizontalTrackingTarget(enemy),
 			std::min(deltaTime * kApproachHomingSpeed_, 1.0f));
@@ -184,23 +187,26 @@ void EnemyBossBattleState::Update(Enemy* enemy, const float& deltaTime)
 	}
 }
 
-void EnemyBossBattleState::Draw(Enemy* enemy)
+void EnemyBossBattleState::Draw(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyBossBattleState::Finalize(Enemy* enemy)
+void EnemyBossBattleState::Finalize(BossEnemy* enemy)
 {
 	enemy->SetAttackColliderActive(false);
 	enemy->SetVelocity({ 0.0f, 0.0f, 0.0f });
+	enemy->SetAttackChargeProgress(0.0f);
 }
 
-void EnemyBossBattleState::ChangePhase(Enemy* enemy, EnemyBattlePhase phase)
+void EnemyBossBattleState::ChangePhase(BossEnemy* enemy, EnemyBattlePhase phase)
 {
 	phase_ = phase;
 	timer_ = 0.0f;
 	enemy->SetBattlePhase(phase_);
 	enemy->SetAttackColliderActive(false);
+	enemy->SetAttackChargeProgress(
+		phase_ == EnemyBattlePhase::CloseAttack ? 1.0f : 0.0f);
 
 	if (phase_ == EnemyBattlePhase::Approach)
 	{
@@ -223,7 +229,7 @@ void EnemyBossBattleState::ChangePhase(Enemy* enemy, EnemyBattlePhase phase)
 	}
 }
 
-Vector3 EnemyBossBattleState::GetHorizontalTrackingTarget(Enemy* enemy) const
+Vector3 EnemyBossBattleState::GetHorizontalTrackingTarget(BossEnemy* enemy) const
 {
 	Vector3 target = enemy->GetPlayerLocalPosition();
 	// 追尾で上下には動かさず、Enemyの初期Y座標を維持する。
@@ -233,13 +239,13 @@ Vector3 EnemyBossBattleState::GetHorizontalTrackingTarget(Enemy* enemy) const
 
 
 
-void EnemyShotState::Initialize(Enemy* enemy)
+void EnemyShotState::Initialize(BossEnemy* enemy)
 {
 	moveCommand_ = std::make_unique<EnemyMoveCommand>(
 		enemy->GetAIHandler());
 }
 
-void EnemyShotState::Update(Enemy * enemy, const float& deltaTime)
+void EnemyShotState::Update(BossEnemy* enemy, const float& deltaTime)
 {
 	moveCommand_->Execute(enemy);
 
@@ -250,30 +256,31 @@ void EnemyShotState::Update(Enemy * enemy, const float& deltaTime)
 	}
 }
 
-void EnemyShotState::Draw(Enemy * enemy)
+void EnemyShotState::Draw(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyShotState::Finalize(Enemy * enemy)
+void EnemyShotState::Finalize(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyAttackState::Initialize(Enemy* enemy)
+void EnemyAttackState::Initialize(BossEnemy* enemy)
 {
 	attackPhase_ = AttackPhase::Approach;
 	timer_ = 0.0f;
 	duration_ = 0.5f;
 	enemy->SetVelocity({ 0.0f, 0.0f, 0.0f });
 	enemy->SetAttackColliderActive(false);
+	enemy->SetAttackChargeProgress(0.0f);
 
 	// 動的に再中心化されても壊れないよう、Playerからの相対位置で軌道を持つ。
 	beforePosition_ = enemy->GetTranslate() - enemy->GetPlayerLocalPosition();
 	approachPosition_ = { 0.0f, 0.0f, 5.0f };
 }
 
-void EnemyAttackState::Update(Enemy * enemy, const float& deltaTime)
+void EnemyAttackState::Update(BossEnemy* enemy, const float& deltaTime)
 {
 	timer_ += deltaTime;
 	switch (attackPhase_)
@@ -292,6 +299,8 @@ void EnemyAttackState::Update(Enemy * enemy, const float& deltaTime)
 		break;
 
 	case EnemyAttackState::AttackPhase::Homing:
+		enemy->SetAttackChargeProgress(
+			std::min(timer_ / duration_, 1.0f));
 		enemy->SetTranslate(enemy->GetPlayerLocalPosition() + approachPosition_);
 		enemy->SetRightHandTranslate(Lerp(
 			handPosition_, {0.0f, 5.0f, 0.0f}, std::min(timer_ / duration_, 1.0f)));
@@ -299,6 +308,7 @@ void EnemyAttackState::Update(Enemy * enemy, const float& deltaTime)
 		if (timer_ >= duration_)
 		{
 			attackPhase_ = AttackPhase::Attack;
+			enemy->SetAttackChargeProgress(1.0f);
 			timer_ = 0.0f;
 			duration_ = 0.4f;
 			handPosition_ = enemy->GetRightHandTransform().translate;
@@ -323,6 +333,7 @@ void EnemyAttackState::Update(Enemy * enemy, const float& deltaTime)
 		break;
 
 	case EnemyAttackState::AttackPhase::Away:
+		enemy->SetAttackChargeProgress(0.0f);
 
 		enemy->SetTranslate(enemy->GetPlayerLocalPosition() +
 			Lerp(approachPosition_, beforePosition_, std::min(timer_ / duration_, 1.0f)));
@@ -340,13 +351,14 @@ void EnemyAttackState::Update(Enemy * enemy, const float& deltaTime)
 	}
 }
 
-void EnemyAttackState::Draw(Enemy * enemy)
+void EnemyAttackState::Draw(BossEnemy* enemy)
 {
 	(void)enemy;
 }
 
-void EnemyAttackState::Finalize(Enemy * enemy)
+void EnemyAttackState::Finalize(BossEnemy* enemy)
 {
 	enemy->SetAttackColliderActive(false);
 	enemy->SetVelocity({ 0.0f, 0.0f, 0.0f });
+	enemy->SetAttackChargeProgress(0.0f);
 }

@@ -2,92 +2,77 @@
     "smallEnemyPhaseDistance": 64.6188,
     "smallEnemyDefaults": {
         "scale": [1.0, 1.0, 1.0],
-        "hitPoint": 10,
         "colliderRadius": 1.25,
-        "moveAmplitude": 3.0,
-        "moveSpeed": 2.0,
-        "movePhase": 0.0,
+		"spawnFogMargin": 20.0,
+		"spawnApproachSpeed": 100.0,
+		"spawnSettleDuration": 0.5,
+		"forwardSpeed": 10.0,
+		"escapeHorizontalSpeed": 10.0,
+		"despawnHorizontalX": 12.0,
         "fadeNearDistance": 2.0,
         "fadeFarDistance": 7.0,
-        "minimumAlpha": 0.15
+        "minimumAlpha": 0.15,
+        "shotInterval": 1.0,
+        "burstShotInterval": 0.2,
+        "chargeDuration": 1.5,
+        "chargeSpeed": 20.0,
+        "rushDuration": 0.75,
+        "maxRushDistance": 30.0,
+        "approachDelay": 4.0,
+        "approachDuration": 1.5,
+		"approachStepDistance": 10.0,
+        "nearDuration": 4.0,
+        "escapeSpeed": 12.0,
+		"farLineZ": 48.0,
+        "nearLineZ": -2.0,
+        "despawnLineZ": -15.0,
+        "contactDamage": 1
+    },
+    "smallEnemyRoleDefaults": {
+        "basic": {
+            "hitPoint": 5,
+            "color": [0.35, 0.55, 1.0, 1.0],
+			"bulletSpeed": 40.0
+        },
+        "turret": {
+            "hitPoint": 8,
+            "color": [1.0, 0.65, 0.2, 1.0],
+			"bulletSpeed": 40.0
+        },
+        "charger": {
+            "hitPoint": 10,
+            "color": [1.0, 0.2, 0.2, 1.0],
+			"bulletSpeed": 0.0,
+            "contactDamage": 5
+        },
+        "approacher": {
+            "hitPoint": 15,
+            "color": [0.35, 1.0, 0.45, 1.0],
+			"bulletSpeed": 40.0,
+			"farLineZ": 55.0,
+			"approachStepDistance": 10.0
+        },
+        "elite": {
+            "hitPoint": 30,
+            "color": [0.75, 0.25, 1.0, 1.0],
+			"bulletSpeed": 40.0,
+            "nearDuration": 6.0,
+            "contactDamage": 5
+        }
     },
     "smallEnemies": [
-        {
-            "railRatio": 0.0,
-            "type": "stationary",
-            "position": [-5.0, 0.0, 10.0],
-            "color": [1.0, 0.35, 0.35, 1.0]
-        },
-        {
-            "railRatio": 0.1,
-            "type": "vertical",
-            "position": [0.0, 0.0, 12.0],
-            "color": [0.35, 1.0, 0.45, 1.0]
-        },
-        {
-            "railRatio": 0.2,
-            "type": "horizontal",
-            "position": [0.0, 2.0, 12.0],
-            "color": [0.35, 0.55, 1.0, 1.0]
-        },
-        {
-            "railRatio": 0.3,
-            "type": "stationary",
-            "position": [5.0, 1.0, 10.0],
-            "color": [1.0, 0.35, 0.35, 1.0]
-        },
-        {
-            "railRatio": 0.4,
-            "type": "vertical",
-            "position": [-3.0, 0.0, 13.0],
-            "movePhase": 1.57,
-            "color": [0.35, 1.0, 0.45, 1.0]
-        },
-        {
-            "railRatio": 0.5,
-            "type": "horizontal",
-            "position": [0.0, -1.0, 13.0],
-            "movePhase": 1.57,
-            "color": [0.35, 0.55, 1.0, 1.0]
-        },
-        {
-            "railRatio": 0.55,
-            "type": "stationary",
-            "position": [-5.0, 0.0, 10.0],
-            "color": [1.0, 0.35, 0.35, 1.0]
-        },
-        {
-            "railRatio": 0.63,
-            "type": "vertical",
-            "position": [0.0, 0.0, 12.0],
-            "color": [0.35, 1.0, 0.45, 1.0]
-        },
-        {
-            "railRatio": 0.71,
-            "type": "horizontal",
-            "position": [0.0, 2.0, 12.0],
-            "color": [0.35, 0.55, 1.0, 1.0]
-        },
-        {
-            "railRatio": 0.79,
-            "type": "stationary",
-            "position": [5.0, 1.0, 10.0],
-            "color": [1.0, 0.35, 0.35, 1.0]
-        },
-        {
-            "railRatio": 0.87,
-            "type": "vertical",
-            "position": [-3.0, 0.0, 13.0],
-            "movePhase": 1.57,
-            "color": [0.35, 1.0, 0.45, 1.0]
-        },
-        {
-            "railRatio": 0.95,
-            "type": "horizontal",
-            "position": [0.0, -1.0, 13.0],
-            "movePhase": 1.57,
-            "color": [0.35, 0.55, 1.0, 1.0]
-        }
+        { "railRatio": 0.00, "role": "basic",      "position": [-4.0,  0.0] },
+        { "railRatio": 0.08, "role": "basic",      "position": [ 4.0,  1.0] },
+        { "railRatio": 0.16, "role": "turret",     "position": [-5.0,  0.0] },
+        { "railRatio": 0.24, "role": "charger",    "position": [-3.0, -3.0] },
+        { "railRatio": 0.32, "role": "basic",      "position": [ 0.0,  2.0] },
+        { "railRatio": 0.40, "role": "approacher", "position": [-3.0, -2.0] },
+        { "railRatio": 0.48, "role": "basic",      "position": [ 4.0, -1.0] },
+        { "railRatio": 0.56, "role": "turret",     "position": [ 5.0,  1.0] },
+        { "railRatio": 0.64, "role": "elite",      "position": [ 0.0,  0.0] },
+        { "railRatio": 0.74, "role": "charger",    "position": [ 3.0, -3.0] },
+        { "railRatio": 0.84, "role": "approacher", "position": [ 3.0, -2.0] },
+        { "railRatio": 0.92, "role": "basic",      "position": [ 0.0, -1.0] }
     ],
     "boss": {
         "position": [0.0, 0.0, 7.5],
