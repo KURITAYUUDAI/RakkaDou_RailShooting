@@ -681,15 +681,12 @@ void GamePlayScene::UpdateStageEntrySkydivingCamera()
 
 void GamePlayScene::UpdateStageEntryCaveFog()
 {
-	// 入口より上にいる間は、入口までの落下距離をフォグ区間へ加算する。
-	// これによりFieldEntrance / FieldGroundは常にFogStartより手前に残り、
-	// 洞窟内部だけが入口から基準距離20～260で暗くなる。
-	// 入口通過後とRail上では高さを0として、通常値20～260へ固定する。
+	// FogStartは落下中からRailまで基準値20で固定する。
+	// FogEndだけ入口までの落下距離を加算し、入口通過後は260へ固定する。
 	const float playerHeight = player_->GetTranslate().y;
 	const float playerHeightAboveEntrance =
 		playerHeight > 0.0f ? playerHeight : 0.0f;
-	const float fogStartDistance =
-		stageEntryCaveFogBaseStart_ + playerHeightAboveEntrance;
+	const float fogStartDistance = stageEntryCaveFogBaseStart_;
 	const float fogEndDistance =
 		stageEntryCaveFogBaseEnd_ + playerHeightAboveEntrance;
 
