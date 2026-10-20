@@ -26,6 +26,9 @@ public:
 	bool IsLoop() const { return isLoop_; }
 	void SetMovementEnabled(bool enabled) { isMovementEnabled_ = enabled; }
 	bool IsMovementEnabled() const { return isMovementEnabled_; }
+	void SetMoveSpeed(float speed) { moveSpeed_ = speed < 0.0f ? 0.0f : speed; }
+	float GetMoveSpeed() const { return moveSpeed_; }
+	void ResetTravelledDistance() { travelledDistance_ = 0.0f; }
 	Mode GetMode() const { return mode_; }
 
 	WorldTransform* GetBattleWorldTransform() { return &battleWorldTransform_; }

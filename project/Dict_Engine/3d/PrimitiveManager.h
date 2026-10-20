@@ -148,6 +148,8 @@ public:
 
 	void CreateCylinder(const std::string& name, const CylinderConfig& config = {});
 
+	void CreateBox(const std::string& name);
+
 private:
 
 	static float CatmullRom(float p0, float p1, float p2, float p4, float t);

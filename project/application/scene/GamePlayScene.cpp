@@ -21,6 +21,29 @@
 #include <algorithm>
 #include <cfloat>
 
+namespace
+{
+	float SmoothStep01(float value)
+	{
+		const float t = std::clamp(value, 0.0f, 1.0f);
+		return t * t * (3.0f - 2.0f * t);
+	}
+
+	float LerpFloat(float start, float end, float t)
+	{
+		return start + (end - start) * t;
+	}
+
+	Vector3 LerpVector3(const Vector3& start, const Vector3& end, float t)
+	{
+		return {
+			LerpFloat(start.x, end.x, t),
+			LerpFloat(start.y, end.y, t),
+			LerpFloat(start.z, end.z, t),
+		};
+	}
+}
+
 void GamePlayScene::Initialize()
 {
 	camera_ = std::make_unique<Camera>();
@@ -39,7 +62,7 @@ void GamePlayScene::Initialize()
 	camera_->SetTranslate({ 0.0f, 9.0f, 5.0f });*/
 
 	camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	camera_->SetTranslate({ 0.0f, 0.0f, -15.0f });
+	camera_->SetTranslate({ 0.0f, 1.0f, -13.0f });
 	camera_->SetFarClip(300.0f);
 
 	/*debugCamera_ = std::make_unique<DebugCamera>();
@@ -54,13 +77,17 @@ void GamePlayScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
+	defaultCameraController_->GetWorldTransform()->translate_ = { 0.0f, 1.0f, -13.0f };
+	defaultCameraController_->GetWorldTransform()->SetRotate({ 0.0f, 0.0f, 0.0f });
 
 	railCameraController_ = std::make_unique<RailCameraController>();
 	railCameraController_->Initialize(RailCameraController::Mode::VerticalDescent);
+	railCameraController_->SetMovementEnabled(false);
+	railCameraController_->SetMoveSpeed(20.0f);
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
 	cameraManager_->AddCameraController("Rail", railCameraController_.get());
-	cameraManager_->SetActiveCameraController("Rail");
+	cameraManager_->SetActiveCameraController("Default");
 
 	lightManager_->Initialize();
 	lightManager_->SetDirectionalLightColor({ 1.0f, 1.0f, 1.0f, 1.0f });
@@ -173,6 +200,7 @@ void GamePlayScene::Initialize()
 	cylinderConfig.alphaFade.startFadeRange = 0.15f;
 	cylinderConfig.alphaFade.endFadeRange = 0.15f;
 	PrimitiveManager::GetInstance()->CreateCylinder("cylinder_primitive", cylinderConfig);
+	PrimitiveManager::GetInstance()->CreateBox("stage_entry_box");
 
 	particleManager_->CreateParticleGroup("cylinder", "uvChecker.png");
 	particleManager_->SetModel("cylinder", "cylinder_primitive");
@@ -201,11 +229,8 @@ void GamePlayScene::Initialize()
 	terrain_->Initialize(Terrain::Mode::GameplayCave);
 
 	player_ = std::make_unique<Player>();
-	player_->Initialize();
+	player_->Initialize(Player::Mode::StageEntry);
 	player_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
-	railCameraController_->SetBattleSpaceParent(
-		cameraManager_->GetActiveCameraController()->GetWorldTransform());
-	player_->SetParent(railCameraController_->GetBattleWorldTransform());
 
 	BulletManager::GetInstance()->Initialize();
 
@@ -249,17 +274,374 @@ void GamePlayScene::Initialize()
 	player_->EventDispatch();
 
 	enemyManager_->Initialize(eventBus_.get());
-	InitializeEnemyStage();
 	
 	eventBus_->Dispatch();
 
 	pauseMenu_ = std::make_unique<PauseMenu>();
 	pauseMenu_->Initialize();
 	isPaused_ = false;
+
+	InitializeStageEntry();
+}
+
+void GamePlayScene::InitializeStageEntry()
+{
+	modelManager_->LoadModel("Field", "FieldEntrance.obj");
+	modelManager_->LoadModel("Field", "FieldGround.obj");
+
+	const auto createBox = [this](const Vector3& scale, const Vector3& translate,
+		const Vector4& color)
+		{
+			auto object = std::make_unique<Object3d>();
+			object->Initialize();
+			object->SetModel("stage_entry_box");
+			object->SetEnableLighting(false);
+			object->SetScale(scale);
+			object->SetTranslate(translate);
+			object->SetColor(color);
+			return object;
+		};
+
+	stageEntryBackdrop_ = createBox(
+		{ 40.0f, 24.0f, 0.5f }, { 0.0f, 0.0f, 10.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f });
+	stageEntryLight_ = createBox(
+		{ 8.0f, 10.0f, 0.15f }, { 0.0f, 0.0f, 8.4f },
+		{ 8.0f, 8.0f, 8.0f, 1.0f });
+	stageEntryLeftDoor_ = createBox(
+		{ 4.0f, 10.0f, 0.35f }, { -2.0f, 0.0f, 8.0f },
+		{ 0.015f, 0.02f, 0.035f, 1.0f });
+	stageEntryRightDoor_ = createBox(
+		{ 4.0f, 10.0f, 0.35f }, { 2.0f, 0.0f, 8.0f },
+		{ 0.015f, 0.02f, 0.035f, 1.0f });
+
+	stageEntryDoorFrames_[0] = createBox(
+		{ 0.6f, 11.0f, 0.6f }, { -4.3f, 0.0f, 7.9f },
+		{ 0.12f, 0.14f, 0.2f, 1.0f });
+	stageEntryDoorFrames_[1] = createBox(
+		{ 0.6f, 11.0f, 0.6f }, { 4.3f, 0.0f, 7.9f },
+		{ 0.12f, 0.14f, 0.2f, 1.0f });
+	stageEntryDoorFrames_[2] = createBox(
+		{ 9.2f, 0.6f, 0.6f }, { 0.0f, 5.3f, 7.9f },
+		{ 0.12f, 0.14f, 0.2f, 1.0f });
+
+	stageEntryFieldEntrance_ = std::make_unique<Object3d>();
+	stageEntryFieldEntrance_->Initialize();
+	stageEntryFieldEntrance_->SetModel("FieldEntrance.obj");
+	stageEntryFieldEntrance_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	stageEntryFieldEntrance_->SetScale(stageEntryFieldEntranceScale_);
+	stageEntryFieldEntrance_->SetTranslate(stageEntryFieldEntrancePosition_);
+
+	stageEntryFieldGround_ = std::make_unique<Object3d>();
+	stageEntryFieldGround_->Initialize();
+	stageEntryFieldGround_->SetModel("FieldGround.obj");
+	stageEntryFieldGround_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	stageEntryFieldGround_->SetScale(stageEntryFieldGroundScale_);
+	stageEntryFieldGround_->SetTranslate(stageEntryFieldGroundPosition_);
+
+	stageEntryWhiteSprite_ = std::make_unique<Sprite>();
+	stageEntryWhiteSprite_->Initialize("white1x1.png");
+	stageEntryWhiteSprite_->SetSize({
+		static_cast<float>(WindowsAPI::kClientWidth),
+		static_cast<float>(WindowsAPI::kClientHeight) });
+	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+
+	player_->SetScale({ 1.0f, 1.0f, 1.0f });
+	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	player_->SetTranslate({ 0.0f, 0.0f, -7.0f });
+	player_->SetTitleOpacity(0.0f);
+
+	stageEntryDoorProgress_ = 0.0f;
+	stageEntryTimer_ = 0.0f;
+	isStageEntryFieldVisible_ = false;
+	isEnemyStageInitialized_ = false;
+	stageEntryState_ = SceneManager::GetInstance()->GetSceneTransition().IsRunning()
+		? StageEntryState::WaitingForFadeIn
+		: StageEntryState::BlackHold;
+
+	UpdateStageEntryObjects();
+}
+
+void GamePlayScene::UpdateStageEntry(const float& deltaTime)
+{
+#ifdef _DEBUG
+	ImGui::Begin("StageEntry");
+	ImGui::Text("State: %d", static_cast<int>(stageEntryState_));
+	ImGui::Text("Timer: %.3f", stageEntryTimer_);
+	ImGui::DragFloat3(
+		"EntranceScale", &stageEntryFieldEntranceScale_.x, 0.01f, 0.01f, 10.0f);
+	ImGui::DragFloat3(
+		"EntrancePosition", &stageEntryFieldEntrancePosition_.x, 0.1f);
+	ImGui::DragFloat3(
+		"GroundScale", &stageEntryFieldGroundScale_.x, 0.01f, 0.01f, 10.0f);
+	ImGui::DragFloat3(
+		"GroundPosition", &stageEntryFieldGroundPosition_.x, 0.1f);
+	ImGui::End();
+#endif
+
+	switch (stageEntryState_)
+	{
+	case StageEntryState::WaitingForFadeIn:
+		break;
+
+	case StageEntryState::BlackHold:
+		stageEntryTimer_ += deltaTime;
+		if (stageEntryTimer_ >= kStageEntryBlackHoldDuration_)
+		{
+			stageEntryTimer_ = 0.0f;
+			stageEntryState_ = StageEntryState::Approaching;
+		}
+		break;
+
+	case StageEntryState::Approaching:
+	{
+		stageEntryTimer_ += deltaTime;
+		const float progress = std::clamp(
+			stageEntryTimer_ / kStageEntryApproachDuration_, 0.0f, 1.0f);
+		const float easedProgress = SmoothStep01(progress);
+		const Vector3 playerPosition = LerpVector3(
+			{ 0.0f, 0.0f, -7.0f }, { 0.0f, 0.0f, 1.5f }, easedProgress);
+		player_->SetTranslate(playerPosition);
+		player_->SetTitleOpacity(std::clamp(progress / 0.35f, 0.0f, 1.0f));
+		defaultCameraController_->GetWorldTransform()->translate_ =
+			{ 0.0f, 1.0f, playerPosition.z - 6.0f };
+
+		if (progress >= 1.0f)
+		{
+			stageEntryTimer_ = 0.0f;
+			stageEntryState_ = StageEntryState::OpeningDoor;
+		}
+		break;
+	}
+
+	case StageEntryState::OpeningDoor:
+	{
+		stageEntryTimer_ += deltaTime;
+		const float progress = std::clamp(
+			stageEntryTimer_ / kStageEntryDoorOpenDuration_, 0.0f, 1.0f);
+		stageEntryDoorProgress_ = SmoothStep01(progress);
+		if (progress >= 1.0f)
+		{
+			StartStageEntryBlur();
+			stageEntryTimer_ = 0.0f;
+			stageEntryState_ = StageEntryState::Diving;
+		}
+		break;
+	}
+
+	case StageEntryState::Diving:
+	{
+		stageEntryTimer_ += deltaTime;
+		const float progress = std::clamp(
+			stageEntryTimer_ / kStageEntryDiveDuration_, 0.0f, 1.0f);
+		const float easedProgress = progress * progress;
+		const Vector3 playerPosition = LerpVector3(
+			{ 0.0f, 0.0f, 1.5f }, { 0.0f, 0.0f, 10.5f }, easedProgress);
+		player_->SetTranslate(playerPosition);
+		defaultCameraController_->GetWorldTransform()->translate_ =
+			{ 0.0f, 1.0f, LerpFloat(-4.5f, 5.5f, easedProgress) };
+		UpdateStageEntryBlur(easedProgress);
+
+		if (progress >= 1.0f)
+		{
+			stageEntryTimer_ = 0.0f;
+			stageEntryState_ = StageEntryState::WhiteOut;
+		}
+		break;
+	}
+
+	case StageEntryState::WhiteOut:
+	{
+		stageEntryTimer_ += deltaTime;
+		const float progress = std::clamp(
+			stageEntryTimer_ / kStageEntryWhiteOutDuration_, 0.0f, 1.0f);
+		stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, SmoothStep01(progress) });
+		if (progress >= 1.0f)
+		{
+			BeginStageEntryCaveFall();
+		}
+		break;
+	}
+
+	case StageEntryState::CaveFall:
+	{
+		stageEntryTimer_ += deltaTime;
+		const float progress = std::clamp(
+			stageEntryTimer_ / kStageEntryCaveFallDuration_, 0.0f, 1.0f);
+		const float fallProgress = progress * progress;
+		player_->SetTranslate(LerpVector3(
+			{ 0.0f, 12.0f, -7.5f }, { 0.0f, -3.0f, -7.5f }, fallProgress));
+		player_->SetRotate({ LerpFloat(pi / 2.0f, 0.0f, SmoothStep01(progress)), 0.0f, 0.0f });
+		railCameraController_->SetMoveSpeed(LerpFloat(
+			20.0f, kStageEntryNormalRailSpeed_, SmoothStep01(progress)));
+
+		const float whiteProgress = std::clamp(
+			stageEntryTimer_ / kStageEntryWhiteFadeDuration_, 0.0f, 1.0f);
+		stageEntryWhiteSprite_->SetColor(
+			{ 1.0f, 1.0f, 1.0f, 1.0f - SmoothStep01(whiteProgress) });
+
+		if (progress >= 1.0f)
+		{
+			player_->SetTranslate({ 0.0f, -3.0f, -7.5f });
+			player_->SetRotate({ 0.0f, 0.0f, 0.0f });
+			railCameraController_->SetMoveSpeed(kStageEntryNormalRailSpeed_);
+			stageEntryTimer_ = 0.0f;
+			stageEntryState_ = StageEntryState::Connecting;
+		}
+		break;
+	}
+
+	case StageEntryState::Connecting:
+		stageEntryTimer_ += deltaTime;
+		if (stageEntryTimer_ >= kStageEntryConnectDuration_)
+		{
+			CompleteStageEntry();
+		}
+		break;
+
+	case StageEntryState::Complete:
+		return;
+	}
+
+	cameraManager_->Update(deltaTime);
+	if (isStageEntryFieldVisible_)
+	{
+		railCameraController_->SetBattleSpaceParent(
+			cameraManager_->GetActiveCameraController()->GetWorldTransform());
+		skyBox_->Update();
+		terrain_->Update(deltaTime, cameraManager_->GetCameraWorldPosition());
+	}
+
+	UpdateStageEntryObjects();
+	player_->Update(deltaTime);
+	stageEntryWhiteSprite_->Update();
+}
+
+void GamePlayScene::BeginStageEntryCaveFall()
+{
+	StopStageEntryBlur();
+	isStageEntryFieldVisible_ = true;
+	stageEntryTimer_ = 0.0f;
+	stageEntryState_ = StageEntryState::CaveFall;
+
+	cameraManager_->SetActiveCameraController("Rail");
+	railCameraController_->SetMovementEnabled(true);
+	railCameraController_->SetMoveSpeed(20.0f);
+	railCameraController_->SetBattleSpaceParent(
+		cameraManager_->GetActiveCameraController()->GetWorldTransform());
+	player_->SetParent(railCameraController_->GetBattleWorldTransform());
+	player_->SetTranslate({ 0.0f, 12.0f, -7.5f });
+	player_->SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+}
+
+void GamePlayScene::CompleteStageEntry()
+{
+	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+	railCameraController_->SetMoveSpeed(kStageEntryNormalRailSpeed_);
+	railCameraController_->ResetTravelledDistance();
+	player_->FinishStageEntry();
+
+	if (!isEnemyStageInitialized_)
+	{
+		InitializeEnemyStage();
+		isEnemyStageInitialized_ = true;
+		eventBus_->Dispatch();
+	}
+
+	stageEntryTimer_ = 0.0f;
+	stageEntryState_ = StageEntryState::Complete;
+}
+
+void GamePlayScene::UpdateStageEntryObjects()
+{
+	constexpr float doorHalfWidth = 2.0f;
+	constexpr float leftHingeX = -4.0f;
+	constexpr float rightHingeX = 4.0f;
+	constexpr float doorZ = 8.0f;
+	const float leftAngle = -stageEntryDoorProgress_ * (pi / 2.0f);
+	const float rightAngle = stageEntryDoorProgress_ * (pi / 2.0f);
+
+	stageEntryLeftDoor_->SetRotate({ 0.0f, leftAngle, 0.0f });
+	stageEntryLeftDoor_->SetTranslate({
+		leftHingeX + std::cos(leftAngle) * doorHalfWidth,
+		0.0f,
+		doorZ - std::sin(leftAngle) * doorHalfWidth });
+	stageEntryRightDoor_->SetRotate({ 0.0f, rightAngle, 0.0f });
+	stageEntryRightDoor_->SetTranslate({
+		rightHingeX - std::cos(rightAngle) * doorHalfWidth,
+		0.0f,
+		doorZ + std::sin(rightAngle) * doorHalfWidth });
+
+	stageEntryBackdrop_->Update();
+	stageEntryLight_->Update();
+	stageEntryLeftDoor_->Update();
+	stageEntryRightDoor_->Update();
+	for (auto& frame : stageEntryDoorFrames_)
+	{
+		frame->Update();
+	}
+
+	if (isStageEntryFieldVisible_)
+	{
+		stageEntryFieldEntrance_->SetScale(stageEntryFieldEntranceScale_);
+		stageEntryFieldEntrance_->SetTranslate(stageEntryFieldEntrancePosition_);
+		stageEntryFieldGround_->SetScale(stageEntryFieldGroundScale_);
+		stageEntryFieldGround_->SetTranslate(stageEntryFieldGroundPosition_);
+		stageEntryFieldEntrance_->Update();
+		stageEntryFieldGround_->Update();
+	}
+}
+
+void GamePlayScene::StartStageEntryBlur()
+{
+	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
+	if (controller->IsActive(stageEntryBlurHandle_))
+	{
+		return;
+	}
+
+	stageEntryBlurHandle_ = controller->Emit<RadialBlur>(
+		"RadialBlur", std::nullopt, nullptr);
+	controller->Edit<RadialBlur>(
+		stageEntryBlurHandle_,
+		[](RadialBlur& blur)
+		{
+			blur.SetCenter({ 0.5f, 0.5f });
+			blur.SetBlurWidth(0.0f);
+		});
+}
+
+void GamePlayScene::UpdateStageEntryBlur(float progress)
+{
+	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
+	if (!controller->IsActive(stageEntryBlurHandle_))
+	{
+		return;
+	}
+
+	const float blurWidth = 0.02f * std::clamp(progress, 0.0f, 1.0f);
+	controller->Edit<RadialBlur>(
+		stageEntryBlurHandle_,
+		[blurWidth](RadialBlur& blur)
+		{
+			blur.SetBlurWidth(blurWidth);
+		});
+}
+
+void GamePlayScene::StopStageEntryBlur()
+{
+	if (stageEntryBlurHandle_ == kInvalidPostEffectHandle)
+	{
+		return;
+	}
+
+	SceneManager::GetInstance()->GetPostEffectController()->Cancel(stageEntryBlurHandle_);
+	stageEntryBlurHandle_ = kInvalidPostEffectHandle;
 }
 
 void GamePlayScene::Finalize()
 {
+	StopStageEntryBlur();
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
 	DistanceFogManager::GetInstance()->SetEnabled(false);
 
@@ -302,6 +684,17 @@ void GamePlayScene::Finalize()
 		object3d.reset();
 	}*/
 	object3ds_.clear();
+	stageEntryBackdrop_.reset();
+	stageEntryLight_.reset();
+	stageEntryLeftDoor_.reset();
+	stageEntryRightDoor_.reset();
+	for (auto& frame : stageEntryDoorFrames_)
+	{
+		frame.reset();
+	}
+	stageEntryFieldEntrance_.reset();
+	stageEntryFieldGround_.reset();
+	stageEntryWhiteSprite_.reset();
 
 	if (terrain_)
 	{
@@ -339,6 +732,21 @@ void GamePlayScene::Update(const float& deltaTime)
 	const bool isTransitionIdle =
 		SceneManager::GetInstance()->GetSceneTransition().GetState() ==
 		SceneTransition::SceneTransitionState::Idle;
+
+	if (isTransitionIdle && inputManager_->TriggerKey(DIK_F1))
+	{
+		player_->Damage(player_->GetHitPoint());
+		SceneManager::GetInstance()->SetSceneRequest("RESULT");
+		return;
+	}
+
+	if (!IsStageEntryComplete())
+	{
+		WorldTransform::AdvanceFrame();
+		lightManager_->Update();
+		UpdateStageEntry(deltaTime);
+		return;
+	}
 
 	if (isTransitionIdle && inputManager_->TriggerKey(DIK_TAB))
 	{
@@ -783,11 +1191,32 @@ void GamePlayScene::DrawEnemyStageDebugUI()
 
 void GamePlayScene::FinishFadeIn()
 {
-	
+	if (stageEntryState_ == StageEntryState::WaitingForFadeIn)
+	{
+		stageEntryTimer_ = 0.0f;
+		stageEntryState_ = StageEntryState::BlackHold;
+	}
 }
 
 void GamePlayScene::Draw()
 {
+	if (!IsStageEntryComplete())
+	{
+		if (isStageEntryFieldVisible_)
+		{
+			DrawStageEntryField();
+		}
+		else
+		{
+			DrawStageEntryDarkSpace();
+		}
+
+		if (stageEntryWhiteSprite_ && stageEntryWhiteSprite_->GetColor().w > 0.0f)
+		{
+			stageEntryWhiteSprite_->Draw();
+		}
+		return;
+	}
 
 	skyBox_->Draw();
 
@@ -864,4 +1293,32 @@ void GamePlayScene::Draw()
 	sceneUI_->DrawLayer(UILayer::Overlay);
 
 	pauseMenu_->Draw();
+}
+
+void GamePlayScene::DrawStageEntryDarkSpace()
+{
+	stageEntryBackdrop_->Draw();
+	if (stageEntryState_ == StageEntryState::WaitingForFadeIn ||
+		stageEntryState_ == StageEntryState::BlackHold)
+	{
+		return;
+	}
+
+	stageEntryLight_->Draw();
+	stageEntryLeftDoor_->Draw();
+	stageEntryRightDoor_->Draw();
+	for (auto& frame : stageEntryDoorFrames_)
+	{
+		frame->Draw();
+	}
+	player_->Draw();
+}
+
+void GamePlayScene::DrawStageEntryField()
+{
+	skyBox_->Draw();
+	terrain_->Draw();
+	stageEntryFieldGround_->Draw();
+	stageEntryFieldEntrance_->Draw();
+	player_->Draw();
 }

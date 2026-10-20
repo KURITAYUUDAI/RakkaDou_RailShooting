@@ -268,6 +268,101 @@ void PrimitiveManager::CreateCylinder(const std::string& name, const CylinderCon
 	ModelManager::GetInstance()->InsertMesh(name, mesh);
 }
 
+void PrimitiveManager::CreateBox(const std::string& name)
+{
+	if (ModelManager::GetInstance()->FindModel(name) != nullptr)
+	{
+		return;
+	}
+
+	MeshGeometry mesh;
+	mesh.vertices.reserve(24);
+	mesh.indices.reserve(36);
+
+	constexpr float halfExtent = 0.5f;
+	const Vector4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+	const auto addFace = [&mesh, &color](
+		const Vector3& topLeft,
+		const Vector3& bottomLeft,
+		const Vector3& bottomRight,
+		const Vector3& topRight,
+		const Vector3& normal)
+		{
+			const uint32_t baseIndex = static_cast<uint32_t>(mesh.vertices.size());
+
+			mesh.vertices.push_back(
+				{ { topLeft.x, topLeft.y, topLeft.z, 1.0f }, { 0.0f, 0.0f }, normal, color });
+			mesh.vertices.push_back(
+				{ { bottomLeft.x, bottomLeft.y, bottomLeft.z, 1.0f }, { 0.0f, 1.0f }, normal, color });
+			mesh.vertices.push_back(
+				{ { bottomRight.x, bottomRight.y, bottomRight.z, 1.0f }, { 1.0f, 1.0f }, normal, color });
+			mesh.vertices.push_back(
+				{ { topRight.x, topRight.y, topRight.z, 1.0f }, { 1.0f, 0.0f }, normal, color });
+
+			mesh.indices.insert(
+				mesh.indices.end(),
+				{
+					baseIndex,
+					baseIndex + 1,
+					baseIndex + 2,
+					baseIndex,
+					baseIndex + 2,
+					baseIndex + 3
+				});
+		};
+
+	// Front (+Z)
+	addFace(
+		{ -halfExtent, halfExtent, halfExtent },
+		{ -halfExtent, -halfExtent, halfExtent },
+		{ halfExtent, -halfExtent, halfExtent },
+		{ halfExtent, halfExtent, halfExtent },
+		{ 0.0f, 0.0f, 1.0f });
+
+	// Back (-Z)
+	addFace(
+		{ halfExtent, halfExtent, -halfExtent },
+		{ halfExtent, -halfExtent, -halfExtent },
+		{ -halfExtent, -halfExtent, -halfExtent },
+		{ -halfExtent, halfExtent, -halfExtent },
+		{ 0.0f, 0.0f, -1.0f });
+
+	// Right (+X)
+	addFace(
+		{ halfExtent, halfExtent, halfExtent },
+		{ halfExtent, -halfExtent, halfExtent },
+		{ halfExtent, -halfExtent, -halfExtent },
+		{ halfExtent, halfExtent, -halfExtent },
+		{ 1.0f, 0.0f, 0.0f });
+
+	// Left (-X)
+	addFace(
+		{ -halfExtent, halfExtent, -halfExtent },
+		{ -halfExtent, -halfExtent, -halfExtent },
+		{ -halfExtent, -halfExtent, halfExtent },
+		{ -halfExtent, halfExtent, halfExtent },
+		{ -1.0f, 0.0f, 0.0f });
+
+	// Top (+Y)
+	addFace(
+		{ -halfExtent, halfExtent, -halfExtent },
+		{ -halfExtent, halfExtent, halfExtent },
+		{ halfExtent, halfExtent, halfExtent },
+		{ halfExtent, halfExtent, -halfExtent },
+		{ 0.0f, 1.0f, 0.0f });
+
+	// Bottom (-Y)
+	addFace(
+		{ -halfExtent, -halfExtent, halfExtent },
+		{ -halfExtent, -halfExtent, -halfExtent },
+		{ halfExtent, -halfExtent, -halfExtent },
+		{ halfExtent, -halfExtent, halfExtent },
+		{ 0.0f, -1.0f, 0.0f });
+
+	ModelManager::GetInstance()->InsertMesh(name, mesh);
+}
+
 float PrimitiveManager::CatmullRom(float p0, float p1, float p2, float p3, float t)
 {
 	return 0.5f * (

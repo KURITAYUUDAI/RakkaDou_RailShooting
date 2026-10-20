@@ -107,7 +107,7 @@ void Player::Initialize(Mode mode)
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
 	transform_.translate = { 0.0f, -3.0f, -7.5f };
-	if (mode_ == Mode::TitleFalling)
+	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry)
 	{
 		transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
 		transform_.translate = { 0.0f, 0.0f, -2.00f };
@@ -215,7 +215,7 @@ void Player::EventDispatch()
 
 void Player::Update(const float& deltaTime)
 {
-	if (mode_ == Mode::TitleFalling)
+	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry)
 	{
 		UpdateTitleFalling();
 		return;
@@ -394,7 +394,7 @@ void Player::UpdateTitleFalling()
 
 void Player::SetTitleOpacity(float opacity)
 {
-	if (mode_ != Mode::TitleFalling)
+	if (mode_ != Mode::TitleFalling && mode_ != Mode::StageEntry)
 	{
 		return;
 	}
@@ -410,6 +410,31 @@ void Player::SetTitleOpacity(float opacity)
 	setOpacity(object3d_.get());
 	setOpacity(objectMeleeHand_.get());
 	setOpacity(objectLeftHand_.get());
+}
+
+void Player::FinishStageEntry()
+{
+	if (mode_ != Mode::StageEntry)
+	{
+		return;
+	}
+
+	SetTitleOpacity(1.0f);
+	mode_ = Mode::Gameplay;
+	transform_.rotate = { 0.0f, 0.0f, 0.0f };
+	transform_.translate = { 0.0f, -3.0f, -7.5f };
+	velocity_ = { 0.0f, 0.0f, 0.0f };
+
+	meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+	meleeHandTransform_.rotate = { 0.0f, pi, 0.0f };
+	meleeHandTransform_.translate = { 0.8f, 0.0f, 0.5f };
+	leftHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+	leftHandTransform_.rotate = { 0.0f, 0.0f, -pi / 2.0f };
+	leftHandTransform_.translate = { -1.4f, 0.0f, 0.0f };
+
+	SetAttackColliderActive(false);
+	SetMeleeHandVisible(false);
+	ChangeState(std::make_unique<PlayerIdleState>());
 }
 
 void Player::Draw()
@@ -438,7 +463,8 @@ void Player::Draw()
 			object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 		}
 	}
-	if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
+	if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling ||
+		mode_ == Mode::StageEntry))
 	{
 		auto environmentPso = PSOManager::GetInstance()->GetPSOData(
 			"Environment", blendMode_, fillMode_);
@@ -451,7 +477,7 @@ void Player::Draw()
 		DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
 		objectMeleeHand_->Draw();
 	}
-	if (isDraw_ && mode_ == Mode::TitleFalling)
+	if (isDraw_ && (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry))
 	{
 		objectLeftHand_->Draw();
 	}

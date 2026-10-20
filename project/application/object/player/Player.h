@@ -29,6 +29,7 @@ public:
 	{
 		Gameplay,
 		TitleFalling,
+		StageEntry,
 	};
 
 	void Initialize(Mode mode = Mode::Gameplay);
@@ -133,6 +134,7 @@ public:	//外部入出力
 	void SetMeleeHandVisible(bool visible) { isMeleeHandVisible_ = visible; }
 	void SetMeleeHandTranslate(const Vector3& translate) { meleeHandTransform_.translate = translate; }
 	void SetTitleOpacity(float opacity);
+	void FinishStageEntry();
 
 private:
 	Vector3 CalculateShotDirection();

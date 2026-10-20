@@ -304,6 +304,13 @@ void TitleScene::Finalize()
 
 void TitleScene::Update(const float& deltaTime)
 {
+	if (inputManager_->TriggerKey(DIK_F1) &&
+		!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+	{
+		SceneManager::GetInstance()->SetSceneRequest("GAMEPLAY");
+		return;
+	}
+
 	WorldTransform::AdvanceFrame();
 	bool skippedEntranceThisFrame = false;
 	if (entranceSequenceState_ != EntranceSequenceState::Complete &&

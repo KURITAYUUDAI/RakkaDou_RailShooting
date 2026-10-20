@@ -300,6 +300,15 @@ void Model::InsertMesh(MeshGeometry mesh)
 	
 	modelData_.meshes.push_back(mesh);
 
+	// 手続き生成モデルにも、ファイルから読み込んだモデルと同様に
+	// Object3d::Update()で利用できる有効なRootNodeを持たせる。
+	modelData_.rootNode.transform.scale = { 1.0f, 1.0f, 1.0f };
+	modelData_.rootNode.transform.rotate = { 0.0f, 0.0f, 0.0f, 1.0f };
+	modelData_.rootNode.transform.translate = { 0.0f, 0.0f, 0.0f };
+	modelData_.rootNode.localMatrix = MakeIdentity4x4();
+	modelData_.rootNode.name = "PrimitiveRoot";
+	modelData_.rootNode.meshIndices = { 0 };
+
 	MaterialAsset defaultAsset{};
 
 	defaultAsset.name = "Default";

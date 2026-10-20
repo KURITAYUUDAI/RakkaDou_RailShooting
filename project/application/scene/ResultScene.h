@@ -1,6 +1,9 @@
 #pragma once
 #include "BaseScene.h"
 #include "Framework.h"
+#include "CameraManager.h"
+#include "DefaultCameraController.h"
+#include "SkyBox.h"
 
 class ResultScene : public BaseScene
 {
@@ -45,17 +48,22 @@ private:
 	// 3Dオブジェクトマネージャー
 	Object3dManager* object3dManager_ = Object3dManager::GetInstance();
 
+	// カメラマネージャー
+	CameraManager* cameraManager_ = CameraManager::GetInstance();
+
 private:
 
 	bool isDrawSprite_ = true;
 
-	bool isDrawObject3d_ = false;
+	bool isDrawObject3d_ = true;
+	float boxAnimationTime_ = 0.0f;
 
 	// カメラ
 	std::unique_ptr<Camera> camera_ = nullptr;
-	// デバッグカメラ
-	std::unique_ptr<DebugCamera> debugCamera_ = nullptr;
+	// 背景
+	std::unique_ptr<SkyBox> skyBox_ = nullptr;
 	bool isDebugCamera_ = false;
+	std::unique_ptr<DefaultCameraController> defaultCameraController_ = nullptr;
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 

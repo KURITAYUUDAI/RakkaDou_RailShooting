@@ -22,6 +22,8 @@
 
 #include "PostEffectController.h"
 
+#include <array>
+
 class GamePlayScene : public BaseScene
 {
 public:
@@ -41,6 +43,33 @@ public:
 	void Draw() override;
 
 private:
+	enum class StageEntryState
+	{
+		WaitingForFadeIn,
+		BlackHold,
+		Approaching,
+		OpeningDoor,
+		Diving,
+		WhiteOut,
+		CaveFall,
+		Connecting,
+		Complete,
+	};
+
+	void InitializeStageEntry();
+	void UpdateStageEntry(const float& deltaTime);
+	void BeginStageEntryCaveFall();
+	void CompleteStageEntry();
+	void UpdateStageEntryObjects();
+	void DrawStageEntryDarkSpace();
+	void DrawStageEntryField();
+	void StartStageEntryBlur();
+	void UpdateStageEntryBlur(float progress);
+	void StopStageEntryBlur();
+	bool IsStageEntryComplete() const
+	{
+		return stageEntryState_ == StageEntryState::Complete;
+	}
 
 	void InitializeEnemyStage();
 	void UpdateEnemyStage(const float& deltaTime);
@@ -111,6 +140,37 @@ private:
 	std::unique_ptr<DefaultCameraController> defaultCameraController_ = nullptr;
 
 	std::unique_ptr<RailCameraController> railCameraController_ = nullptr;
+
+	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
+	float stageEntryTimer_ = 0.0f;
+	bool isStageEntryFieldVisible_ = false;
+	bool isEnemyStageInitialized_ = false;
+	float stageEntryDoorProgress_ = 0.0f;
+
+	std::unique_ptr<Object3d> stageEntryBackdrop_ = nullptr;
+	std::unique_ptr<Object3d> stageEntryLight_ = nullptr;
+	std::unique_ptr<Object3d> stageEntryLeftDoor_ = nullptr;
+	std::unique_ptr<Object3d> stageEntryRightDoor_ = nullptr;
+	std::array<std::unique_ptr<Object3d>, 3> stageEntryDoorFrames_;
+	std::unique_ptr<Object3d> stageEntryFieldEntrance_ = nullptr;
+	std::unique_ptr<Object3d> stageEntryFieldGround_ = nullptr;
+	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
+	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
+	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 stageEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
+	Vector3 stageEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
+
+	PostEffectHandle stageEntryBlurHandle_ = kInvalidPostEffectHandle;
+
+	static constexpr float kStageEntryBlackHoldDuration_ = 0.25f;
+	static constexpr float kStageEntryApproachDuration_ = 0.90f;
+	static constexpr float kStageEntryDoorOpenDuration_ = 0.65f;
+	static constexpr float kStageEntryDiveDuration_ = 0.55f;
+	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
+	static constexpr float kStageEntryCaveFallDuration_ = 1.10f;
+	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
+	static constexpr float kStageEntryConnectDuration_ = 0.35f;
+	static constexpr float kStageEntryNormalRailSpeed_ = 100.0f;
 	
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };

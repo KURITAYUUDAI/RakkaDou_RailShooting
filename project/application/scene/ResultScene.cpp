@@ -2,6 +2,14 @@
 #include "SceneManager.h"
 #include "LightManager.h"
 #include "CameraManager.h"
+#include "PrimitiveManager.h"
+
+namespace
+{
+	constexpr size_t kScalingBoxIndex = 0;
+	constexpr size_t kRotatingBoxIndex = 1;
+	constexpr size_t kMovingBoxIndex = 2;
+}
 
 void ResultScene::Initialize()
 {
@@ -25,17 +33,28 @@ void ResultScene::Initialize()
 	/*object3dManager_->SetDefaultCamera(camera_.get());
 	particleManager_->SetDefaultCamera(camera_.get());*/
 
-	debugCamera_ = std::make_unique<DebugCamera>();
-	debugCamera_->Initialize();
-	debugCamera_->SetRotate(camera_->GetRotate());
-	debugCamera_->SetTranslate(camera_->GetTranslate());
+	cameraManager_->Initialize();
+	cameraManager_->GetMainCamera()->SetFarClip(300.0f);
+	cameraManager_->AddCamera("Default", camera_.get());
+	cameraManager_->SetActiveCamera("Default");
 
-	CameraManager::GetInstance()->Initialize();
-	CameraManager::GetInstance()->AddCamera("Default", camera_.get());
-	CameraManager::GetInstance()->AddCamera("Debug", debugCamera_.get());
-	CameraManager::GetInstance()->SetActiveCamera("Default");
+	defaultCameraController_ = std::make_unique<DefaultCameraController>();
+	defaultCameraController_->Initialize();
+	defaultCameraController_->GetWorldTransform()->translate_ = camera_->GetTranslate();
+	defaultCameraController_->GetWorldTransform()->SetRotate(camera_->GetRotate());
+
+	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
+	cameraManager_->SetActiveCameraController("Default");
+
+	skyBox_ = std::make_unique<SkyBox>();
+	skyBox_->Initialize();
+	skyBox_->SetCamera(camera_.get());
 
 	LightManager::GetInstance()->Initialize();
+	LightManager::GetInstance()->SetDirectionalLightColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	LightManager::GetInstance()->SetDirectionalLightDirection(
+		Normalize(Vector3{ 0.0f, -1.0f, -1.0f }));
+	LightManager::GetInstance()->SetDirectionalLightIntensity(1.0f);
 
 	for (size_t i = 0; i < 1; i++)
 	{
@@ -53,18 +72,27 @@ void ResultScene::Initialize()
 
 	ModelManager::GetInstance()->LoadModel("", "plane.obj");
 	ModelManager::GetInstance()->LoadModel("", "axis.obj");
-	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
+	PrimitiveManager::GetInstance()->Initialize();
+	PrimitiveManager::GetInstance()->CreateBox("box_primitive");
 
-	for (size_t i = 0; i < 1; i++)
+	for (size_t i = 0; i < 3; i++)
 	{
 		std::unique_ptr<Object3d> newObject3d = std::make_unique<Object3d>();
 		newObject3d->Initialize();
-		newObject3d->SetModel("plane.obj");
+		newObject3d->SetModel("box_primitive");
+		newObject3d->SetEnableLighting(false);
 		object3ds_.push_back(std::move(newObject3d));
 	}
 
-	object3ds_[0]
-		->SetModel("sphere.obj");
+	object3ds_[kScalingBoxIndex]->SetTranslate({ -4.0f, 0.0f, 0.0f });
+	object3ds_[kScalingBoxIndex]->SetColor({ 1.0f, 0.2f, 0.2f, 1.0f });
+
+	object3ds_[kRotatingBoxIndex]->SetTranslate({ 0.0f, 0.0f, 0.0f });
+	object3ds_[kRotatingBoxIndex]->SetColor({ 0.2f, 1.0f, 0.2f, 1.0f });
+
+	object3ds_[kMovingBoxIndex]->SetTranslate({ 4.0f, 0.0f, 0.0f });
+	object3ds_[kMovingBoxIndex]->SetColor({ 0.2f, 0.4f, 1.0f, 1.0f });
+	boxAnimationTime_ = 0.0f;
 
 
 	particleManager_->SetModel("plane.obj");
@@ -120,17 +148,29 @@ void ResultScene::Finalize()
 	}
 	sprites_.clear();
 
+	if (skyBox_)
+	{
+		skyBox_->Finalize();
+		skyBox_.reset();
+	}
 
 	camera_->Finalize();
 	camera_.reset();
 
 	LightManager::GetInstance()->Finalize();
-	CameraManager::GetInstance()->Finalize();
+	cameraManager_->Finalize();
 	//PostEffectManager::GetInstance()->Clear();
 }
 
 void ResultScene::Update(const float& deltaTime)
 {
+	if (inputManager_->TriggerKey(DIK_F1) &&
+		!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+	{
+		SceneManager::GetInstance()->SetSceneRequest("TITLE");
+		return;
+	}
+
 	if (inputManager_->TriggerKey(DIK_RETURN))
 	{
 		// シーン切り替え
@@ -158,16 +198,17 @@ void ResultScene::Update(const float& deltaTime)
 	ImGui::End();
 
 
-	ImGui::Begin("CameraSetting");
-	Vector3 cameraRotate = camera_->GetRotate();
-	Vector3 cameraTranslate = camera_->GetTranslate();
-	if (ImGui::DragFloat3("CameraRotate", &cameraRotate.x, (1.0f / 180.0f) * pi))
+	ImGui::Begin("DebugBox");
+	
+	for (size_t i = 0; i < object3ds_.size(); ++i)
 	{
-		camera_->SetRotate(cameraRotate);
-	}
-	if (ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.1f))
-	{
-		camera_->SetTranslate(cameraTranslate);
+		Vector3 scale = object3ds_[i]->GetScale();
+		ImGui::InputFloat3(("scale" + std::to_string(i)).c_str(), &scale.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		Vector3 rotate = object3ds_[i]->GetRotate();
+		ImGui::InputFloat3(("rotate" + std::to_string(i)).c_str(), &rotate.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		Vector3 translate = object3ds_[i]->GetTranslate();
+		ImGui::InputFloat3(("translate" + std::to_string(i)).c_str(), &translate.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+
 	}
 
 	ImGui::End();
@@ -195,7 +236,7 @@ void ResultScene::Update(const float& deltaTime)
 		LightManager::GetInstance()->SetDirectionalLightIntensity(directionLightIntensity);
 	}
 
-	Vector3 cameraPos = CameraManager::GetInstance()->GetCameraWorldPosition();
+	Vector3 cameraPos = cameraManager_->GetCameraWorldPosition();
 	ImGui::InputFloat3("CameraData", &cameraPos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::End();
@@ -219,15 +260,16 @@ void ResultScene::Update(const float& deltaTime)
 	mousePosition_.x = static_cast<float>(inputManager_->MousePoint().x);
 	mousePosition_.y = static_cast<float>(inputManager_->MousePoint().y);
 
-	if (isDebugCamera_)
-	{
-		CameraManager::GetInstance()->SetActiveCamera("Debug");
-	} else
-	{
-		CameraManager::GetInstance()->SetActiveCamera("Default");
-	}
+	cameraManager_->SetActiveCamera("Default");
+	cameraManager_->Update(deltaTime);
+	skyBox_->Update();
 
-	CameraManager::GetInstance()->Update(deltaTime);
+	boxAnimationTime_ += deltaTime;
+	const float scale = 1.0f + std::sinf(boxAnimationTime_ * 2.0f) * 0.5f;
+	object3ds_[kScalingBoxIndex]->SetScale({ scale, scale, scale });
+	object3ds_[kRotatingBoxIndex]->SetRotate({ 0.0f, boxAnimationTime_, 0.0f });
+	object3ds_[kMovingBoxIndex]->SetTranslate(
+		{ 4.0f, std::sinf(boxAnimationTime_ * 2.0f) * 2.0f, 0.0f });
 
 
 	for (auto it = sprites_.begin(); it != sprites_.end(); ++it)
@@ -261,10 +303,10 @@ void ResultScene::FinishFadeIn()
 
 void ResultScene::Draw()
 {
+	skyBox_->Draw();
+
 	if (isDrawObject3d_)
 	{
-		object3dManager_->DrawingCommon();
-
 		for (size_t i = 0; i < object3ds_.size(); i++)
 		{
 			object3ds_[i]->Draw();
