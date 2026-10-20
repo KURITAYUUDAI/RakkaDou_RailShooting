@@ -7,6 +7,7 @@ void Terrain::Initialize(Mode mode)
 {
 	mode_ = mode;
 	isGameplayCaveScrolling_ = false;
+	isGameplayCaveEntryMode_ = false;
 
 	if (mode_ == Mode::TitleCave || mode_ == Mode::GameplayCave)
 	{
@@ -89,13 +90,16 @@ void Terrain::Update(float deltaTime, const Vector3& referencePosition)
 				caveTransforms_[i].translate.y += caveSpeed_ * deltaTime;
 			}
 
-			while (caveTransforms_[i].translate.y - referencePosition.y > kCaveRecycleHalfDistance_)
+			if (!isGameplayCaveEntryMode_)
 			{
-				caveTransforms_[i].translate.y -= kCaveRecycleDistance_;
-			}
-			while (caveTransforms_[i].translate.y - referencePosition.y < -kCaveRecycleHalfDistance_)
-			{
-				caveTransforms_[i].translate.y += kCaveRecycleDistance_;
+				while (caveTransforms_[i].translate.y - referencePosition.y > kCaveRecycleHalfDistance_)
+				{
+					caveTransforms_[i].translate.y -= kCaveRecycleDistance_;
+				}
+				while (caveTransforms_[i].translate.y - referencePosition.y < -kCaveRecycleHalfDistance_)
+				{
+					caveTransforms_[i].translate.y += kCaveRecycleDistance_;
+				}
 			}
 
 			const Vector3 difference = caveTransforms_[i].translate - referencePosition;
@@ -142,6 +146,27 @@ void Terrain::Update(float deltaTime, const Vector3& referencePosition)
 	}
 	ImGui::End();
 #endif
+}
+
+void Terrain::SetGameplayCaveEntryMode(bool enabled)
+{
+	if (mode_ != Mode::GameplayCave || isGameplayCaveEntryMode_ == enabled)
+	{
+		return;
+	}
+
+	isGameplayCaveEntryMode_ = enabled;
+	if (!enabled)
+	{
+		return;
+	}
+
+	// 地表より上へ洞窟区画を出さず、開口部から下へ隙間なく連結する。
+	for (size_t i = 0; i < caveTransforms_.size(); ++i)
+	{
+		caveTransforms_[i].translate =
+			{ 0.0f, -kCaveSegmentLength_ * (static_cast<float>(i) + 0.5f), 0.0f };
+	}
 }
 
 void Terrain::Draw()

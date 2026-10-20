@@ -35,6 +35,7 @@ void RailCameraController::Initialize(Mode mode)
 	isMovementEnabled_ = true;
 	currentDistance_ = 0.0f;
 	travelledDistance_ = 0.0f;
+	verticalStartHeight_ = 0.0f;
 	isLoop_ = mode_ == Mode::Loop;
 
 	worldTransform_.Initialize();
@@ -52,8 +53,8 @@ void RailCameraController::Initialize(Mode mode)
 	{
 		lengthTable_.clear();
 		totalLength_ = 0.0f;
-		railPos_ = { 0.0f, 0.0f, 0.0f };
-		target_ = { 0.0f, -targetRange_, 0.0f };
+		railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
+		target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
 		worldTransform_.translate_ =
 			{ railPos_.x + offset_.x, railPos_.y, railPos_.z + offset_.y };
 		worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
@@ -108,8 +109,8 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 		{
 			travelledDistance_ += std::max(0.0f, stageProgressSpeed_) * deltaTime;
 		}
-		railPos_ = { 0.0f, -currentDistance_, 0.0f };
-		target_ = { 0.0f, -(currentDistance_ + targetRange_), 0.0f };
+		railPos_ = { 0.0f, verticalStartHeight_ - currentDistance_, 0.0f };
+		target_ = { 0.0f, verticalStartHeight_ - currentDistance_ - targetRange_, 0.0f };
 	}
 	else
 	{
@@ -176,6 +177,24 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 
 	mainCamera->SetRotate(worldTransform_.GetRotate());
 	mainCamera->SetTranslate(worldTransform_.translate_);
+}
+
+void RailCameraController::SetVerticalStartHeight(float height)
+{
+	if (mode_ != Mode::VerticalDescent)
+	{
+		return;
+	}
+
+	verticalStartHeight_ = height;
+	currentDistance_ = 0.0f;
+	travelledDistance_ = 0.0f;
+	railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
+	target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
+	worldTransform_.translate_ =
+		{ railPos_.x + offset_.x, railPos_.y, railPos_.z + offset_.y };
+	worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+	worldTransform_.UpdateMatrix();
 }
 
 void RailCameraController::SetBattleSpaceParent(WorldTransform* parent)

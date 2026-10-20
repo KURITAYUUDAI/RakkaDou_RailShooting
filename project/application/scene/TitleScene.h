@@ -55,6 +55,7 @@ private:
 	void SkipEntranceSequence();
 	void UpdateExitSequence(float deltaTime);
 	void SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate);
+	void UpdateCaveFogEndPlane();
 	void StartExitBlur();
 	void UpdateExitBlur(float progress);
 	void StopExitBlur();
@@ -116,6 +117,9 @@ private:
 	std::unique_ptr<DefaultCameraController> defaultCameraController_ = nullptr;
 	std::unique_ptr<SkyBox> skyBox_ = nullptr;
 	std::unique_ptr<Terrain> terrain_ = nullptr;
+	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
+	float caveFogEndPlaneScale_ = 50.0f;
+	float caveFogEndPlaneOffset_ = 0.0f;
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 

@@ -23,6 +23,9 @@ public:
 	void Finalize();
 	void SetGameplayCaveScrolling(bool enabled) { isGameplayCaveScrolling_ = enabled; }
 	bool IsGameplayCaveScrolling() const { return isGameplayCaveScrolling_; }
+	void SetCaveSpeed(float speed) { caveSpeed_ = speed < 0.0f ? 0.0f : speed; }
+	void SetGameplayCaveEntryMode(bool enabled);
+	float GetGameplayCaveForwardLength() const { return kCaveRecycleHalfDistance_; }
 
 private:
 
@@ -35,6 +38,7 @@ private:
 	Mode mode_ = Mode::Gameplay;
 	float caveSpeed_ = 100.0f;
 	bool isGameplayCaveScrolling_ = false;
+	bool isGameplayCaveEntryMode_ = false;
 	static constexpr size_t kCaveObjectCount_ = 20;
 	static constexpr float kCaveSegmentLength_ = 50.0f;
 	static constexpr float kCaveRecycleDistance_ =

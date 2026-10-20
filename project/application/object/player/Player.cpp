@@ -657,6 +657,15 @@ void Player::LockOn()
 void Player::Shot()
 {
 	const Vector3 bulletDirection = CalculateShotDirection();
+	Vector3 bulletPosition = GetWorldPosition();
+	Vector3 bulletVelocity = bulletDirection * bulletSpeed_;
+	WorldTransform* bulletParent = GetParentWorldTransform();
+	if (bulletParent)
+	{
+		const Matrix4x4 parentInverse = Inverse(bulletParent->worldMatrix_);
+		bulletPosition = TransformPosition(bulletPosition, parentInverse);
+		bulletVelocity = TransformNormal(bulletVelocity, parentInverse);
+	}
 
 	if (BulletManager::GetInstance() == nullptr)
 	{
@@ -666,11 +675,13 @@ void Player::Shot()
 	if (state_->GetType() == PlayerStateType::JustAvoid)
 	{
 		justAvoidEmitter_->Emit();
-		BulletManager::GetInstance()->CreateCounterBullet(GetWorldPosition(), bulletDirection * bulletSpeed_);
+		BulletManager::GetInstance()->CreateCounterBullet(
+			bulletPosition, bulletVelocity, bulletParent);
 	}
 	else
 	{
-		BulletManager::GetInstance()->CreatePlayerBullet(GetWorldPosition(), bulletDirection * bulletSpeed_);
+		BulletManager::GetInstance()->CreatePlayerBullet(
+			bulletPosition, bulletVelocity, bulletParent);
 		ChangeState(std::make_unique<PlayerShotState>());
 	}
 }
@@ -678,9 +689,18 @@ void Player::Shot()
 void Player::ChargedShot()
 {
 	const Vector3 bulletDirection = CalculateShotDirection();
+	Vector3 bulletPosition = GetWorldPosition();
+	Vector3 bulletVelocity = bulletDirection * bulletSpeed_;
+	WorldTransform* bulletParent = GetParentWorldTransform();
+	if (bulletParent)
+	{
+		const Matrix4x4 parentInverse = Inverse(bulletParent->worldMatrix_);
+		bulletPosition = TransformPosition(bulletPosition, parentInverse);
+		bulletVelocity = TransformNormal(bulletVelocity, parentInverse);
+	}
 
 	BulletManager::GetInstance()->CreateChargedPlayerBullet(
-		GetWorldPosition(), bulletDirection * bulletSpeed_);
+		bulletPosition, bulletVelocity, bulletParent);
 	ChangeState(std::make_unique<PlayerShotState>());
 }
 

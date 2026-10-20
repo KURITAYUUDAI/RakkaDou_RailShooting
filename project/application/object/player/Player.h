@@ -201,7 +201,7 @@ private:
 
 	bool isDraw_ = true;
 
-	float bulletSpeed_ = 300.0f;
+	float bulletSpeed_ = 100.0f;
 
 	// HP
 	int hitPoint_;

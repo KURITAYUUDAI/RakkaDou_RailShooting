@@ -51,14 +51,19 @@ private:
 		OpeningDoor,
 		Diving,
 		WhiteOut,
-		CaveFall,
+		Skydiving,
+		CaveEntry,
 		Connecting,
 		Complete,
 	};
 
 	void InitializeStageEntry();
 	void UpdateStageEntry(const float& deltaTime);
-	void BeginStageEntryCaveFall();
+	void BeginStageEntrySkydiving();
+	void BeginStageEntryRailConnection();
+	void UpdateStageEntrySkydivingCamera();
+	void UpdateStageEntryCaveFog();
+	void UpdateCaveFogEndPlane();
 	void CompleteStageEntry();
 	void UpdateStageEntryObjects();
 	void DrawStageEntryDarkSpace();
@@ -144,6 +149,7 @@ private:
 	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
 	float stageEntryTimer_ = 0.0f;
 	bool isStageEntryFieldVisible_ = false;
+	bool isStageEntryRailActive_ = false;
 	bool isEnemyStageInitialized_ = false;
 	float stageEntryDoorProgress_ = 0.0f;
 
@@ -154,11 +160,26 @@ private:
 	std::array<std::unique_ptr<Object3d>, 3> stageEntryDoorFrames_;
 	std::unique_ptr<Object3d> stageEntryFieldEntrance_ = nullptr;
 	std::unique_ptr<Object3d> stageEntryFieldGround_ = nullptr;
+	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
 	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 stageEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
+	float stageEntrySkydivingStartHeight_ = 500.0f;
+	float stageEntrySkydivingInitialSpeed_ = 20.0f;
+	float stageEntrySkydivingAcceleration_ = 80.0f;
+	float stageEntrySkydivingCurrentSpeed_ = 0.0f;
+	float stageEntryCameraForwardHoldDuration_ = 0.25f;
+	float stageEntryCameraTurnDuration_ = 0.75f;
+	float stageEntryCameraTurnTimer_ = 0.0f;
+	float stageEntryCaveEntryStartHeight_ = 50.0f;
+	float stageEntryRailConnectHeight_ = -30.0f;
+	float stageEntryCameraHeightOffset_ = 15.0f;
+	float stageEntryCaveFogBaseStart_ = 20.0f;
+	float stageEntryCaveFogBaseEnd_ = 260.0f;
+	float caveFogEndPlaneScale_ = 50.0f;
+	float caveFogEndPlaneOffset_ = 0.0f;
 
 	PostEffectHandle stageEntryBlurHandle_ = kInvalidPostEffectHandle;
 
@@ -167,7 +188,6 @@ private:
 	static constexpr float kStageEntryDoorOpenDuration_ = 0.65f;
 	static constexpr float kStageEntryDiveDuration_ = 0.55f;
 	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
-	static constexpr float kStageEntryCaveFallDuration_ = 1.10f;
 	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
 	static constexpr float kStageEntryConnectDuration_ = 0.35f;
 	static constexpr float kStageEntryNormalRailSpeed_ = 100.0f;

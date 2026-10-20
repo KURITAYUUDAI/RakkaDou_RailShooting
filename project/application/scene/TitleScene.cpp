@@ -110,6 +110,16 @@ void TitleScene::Initialize()
 	modelManager_->LoadModel("", "axis.obj");
 	modelManager_->LoadModel("", "sphere.obj");
 
+	// Skyboxをフォグ対象外にしたまま、洞窟中央の最深部だけをフォグ色で塞ぐ。
+	caveFogEndPlane_ = std::make_unique<Object3d>();
+	caveFogEndPlane_->Initialize();
+	caveFogEndPlane_->SetModel("plane.obj");
+	caveFogEndPlane_->SetEnableLighting(false);
+	caveFogEndPlane_->SetRotate({ -pi / 2.0f, 0.0f, 0.0f });
+	caveFogEndPlane_->SetScale(
+		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
+	caveFogEndPlane_->SetColor(distanceFog->GetColor());
+
 	for (size_t i = 0; i < 1; i++)
 	{
 		std::unique_ptr<Object3d> newObject3d = std::make_unique<Object3d>();
@@ -265,6 +275,7 @@ void TitleScene::Finalize()
 		skyBox_->Finalize();
 		skyBox_.reset();
 	}
+	caveFogEndPlane_.reset();
 
 	for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
 	{
@@ -371,6 +382,10 @@ void TitleScene::Update(const float& deltaTime)
 	{
 		distanceFog->SetColor(fogColor);
 	}
+	ImGui::DragFloat(
+		"FogEndPlaneScale", &caveFogEndPlaneScale_, 0.5f, 1.0f, 200.0f);
+	ImGui::DragFloat(
+		"FogEndPlaneOffset", &caveFogEndPlaneOffset_, 0.1f, -100.0f, 100.0f);
 	ImGui::End();
 
 	ImGui::Begin("Title Exit Sequence");
@@ -446,6 +461,7 @@ void TitleScene::Update(const float& deltaTime)
 	cameraManager_->Update(deltaTime);
 	skyBox_->Update();
 	terrain_->Update(deltaTime);
+	UpdateCaveFogEndPlane();
 
 
 
@@ -487,6 +503,25 @@ void TitleScene::Update(const float& deltaTime)
 	//ImGui::Render();
 
 	spacePromptText_->Update();
+}
+
+void TitleScene::UpdateCaveFogEndPlane()
+{
+	if (!caveFogEndPlane_)
+	{
+		return;
+	}
+
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	const Vector3 cameraPosition = cameraManager_->GetCameraWorldPosition();
+	const float fogEndDistance = distanceFog->GetEndDistance();
+
+	caveFogEndPlane_->SetScale(
+		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
+	caveFogEndPlane_->SetTranslate(
+		{ 0.0f, cameraPosition.y - fogEndDistance + caveFogEndPlaneOffset_, 0.0f });
+	caveFogEndPlane_->SetColor(distanceFog->GetColor());
+	caveFogEndPlane_->Update();
 }
 
 void TitleScene::UpdateEntranceSequence(float deltaTime)
@@ -733,6 +768,7 @@ void TitleScene::FinishFadeIn()
 void TitleScene::Draw()
 {
 	skyBox_->Draw();
+	caveFogEndPlane_->Draw();
 	terrain_->Draw();
 
 	if (isDrawObject3d_)

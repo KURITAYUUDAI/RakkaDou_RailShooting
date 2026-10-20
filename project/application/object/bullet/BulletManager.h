@@ -46,11 +46,14 @@ public:
 	void Draw();
 
 	// 味方弾の生成
-	void CreatePlayerBullet(const Vector3& position, const Vector3& velocity);
-	void CreateChargedPlayerBullet(const Vector3& position, const Vector3& velocity);
+	void CreatePlayerBullet(
+		const Vector3& position, const Vector3& velocity, WorldTransform* parent = nullptr);
+	void CreateChargedPlayerBullet(
+		const Vector3& position, const Vector3& velocity, WorldTransform* parent = nullptr);
 
 	// カウンター弾の生成
-	void CreateCounterBullet(const Vector3& position, const Vector3& velocity);
+	void CreateCounterBullet(
+		const Vector3& position, const Vector3& velocity, WorldTransform* parent = nullptr);
 
 	// 敵弾の生成。座標と速度はparentのローカル空間で指定する。
 	void CreateEnemyBullet(

@@ -29,6 +29,7 @@ public:
 	void SetMoveSpeed(float speed) { moveSpeed_ = speed < 0.0f ? 0.0f : speed; }
 	float GetMoveSpeed() const { return moveSpeed_; }
 	void ResetTravelledDistance() { travelledDistance_ = 0.0f; }
+	void SetVerticalStartHeight(float height);
 	Mode GetMode() const { return mode_; }
 
 	WorldTransform* GetBattleWorldTransform() { return &battleWorldTransform_; }
@@ -49,6 +50,7 @@ private:
 
 	float currentDistance_ = 0.0f;          // カメラが実際に進んだ表示上の距離
 	float travelledDistance_ = 0.0f;        // 敵フェーズ進行用。ループしても巻き戻さない累積距離
+	float verticalStartHeight_ = 0.0f;       // 垂直降下を開始するワールドY
 	float moveSpeed_ = 5.0f;                // 移動速度 (1秒間に進むメートル数)
 	float stageProgressSpeed_ = 1.0f;        // 垂直降下中の敵出現進行速度
 	bool isMovementEnabled_ = true;
