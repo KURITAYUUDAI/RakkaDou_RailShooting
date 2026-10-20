@@ -215,6 +215,8 @@ void Player::EventDispatch()
 
 void Player::Update(const float& deltaTime)
 {
+	UpdateParentWorldVelocity(deltaTime);
+
 	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry)
 	{
 		UpdateTitleFalling();
@@ -269,6 +271,9 @@ void Player::Update(const float& deltaTime)
 		transform_ = transform;
 	}
 	ImGui::InputFloat3 ("Velocity", &velocity_.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3(
+		"ParentWorldVelocity", &parentWorldVelocity_.x, "%.3f",
+		ImGuiInputTextFlags_ReadOnly);
 	Vector3 worldPosition = GetWorldPosition();
 	ImGui::InputFloat3 ("WorldPosition", &worldPosition.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	Vector3 worldRotate = GetWorldRotate();
@@ -657,15 +662,11 @@ void Player::LockOn()
 void Player::Shot()
 {
 	const Vector3 bulletDirection = CalculateShotDirection();
-	Vector3 bulletPosition = GetWorldPosition();
-	Vector3 bulletVelocity = bulletDirection * bulletSpeed_;
-	WorldTransform* bulletParent = GetParentWorldTransform();
-	if (bulletParent)
-	{
-		const Matrix4x4 parentInverse = Inverse(bulletParent->worldMatrix_);
-		bulletPosition = TransformPosition(bulletPosition, parentInverse);
-		bulletVelocity = TransformNormal(bulletVelocity, parentInverse);
-	}
+	const Vector3 bulletPosition = GetWorldPosition();
+	// 発射時の戦闘空間の速度だけを慣性として引き継ぐ。
+	// 弾自体はワールド空間へ生成し、発射後のRail移動には追従させない。
+	const Vector3 bulletVelocity =
+		parentWorldVelocity_ + bulletDirection * bulletSpeed_;
 
 	if (BulletManager::GetInstance() == nullptr)
 	{
@@ -676,12 +677,12 @@ void Player::Shot()
 	{
 		justAvoidEmitter_->Emit();
 		BulletManager::GetInstance()->CreateCounterBullet(
-			bulletPosition, bulletVelocity, bulletParent);
+			bulletPosition, bulletVelocity);
 	}
 	else
 	{
 		BulletManager::GetInstance()->CreatePlayerBullet(
-			bulletPosition, bulletVelocity, bulletParent);
+			bulletPosition, bulletVelocity);
 		ChangeState(std::make_unique<PlayerShotState>());
 	}
 }
@@ -689,18 +690,12 @@ void Player::Shot()
 void Player::ChargedShot()
 {
 	const Vector3 bulletDirection = CalculateShotDirection();
-	Vector3 bulletPosition = GetWorldPosition();
-	Vector3 bulletVelocity = bulletDirection * bulletSpeed_;
-	WorldTransform* bulletParent = GetParentWorldTransform();
-	if (bulletParent)
-	{
-		const Matrix4x4 parentInverse = Inverse(bulletParent->worldMatrix_);
-		bulletPosition = TransformPosition(bulletPosition, parentInverse);
-		bulletVelocity = TransformNormal(bulletVelocity, parentInverse);
-	}
+	const Vector3 bulletPosition = GetWorldPosition();
+	const Vector3 bulletVelocity =
+		parentWorldVelocity_ + bulletDirection * bulletSpeed_;
 
 	BulletManager::GetInstance()->CreateChargedPlayerBullet(
-		bulletPosition, bulletVelocity, bulletParent);
+		bulletPosition, bulletVelocity);
 	ChangeState(std::make_unique<PlayerShotState>());
 }
 
@@ -780,7 +775,10 @@ Vector3 Player::CalculateShotDirection()
 		return forward;
 	}
 
-	const Vector3 targetVelocity = target->GetWorldVelocity();
+	// Player・Enemyに共通する戦闘空間の移動を除き、相対運動だけで偏差を求める。
+	// 発射時には同じ速度を弾のワールド初速へ一度だけ加える。
+	const Vector3 targetVelocity =
+		target->GetWorldVelocity() - parentWorldVelocity_;
 	const float speedSquared = bulletSpeed_ * bulletSpeed_;
 	const float a = Dot(targetVelocity, targetVelocity) - speedSquared;
 	const float b = 2.0f * Dot(targetOffset, targetVelocity);
@@ -953,9 +951,44 @@ const Vector3 Player::GetWorldRotate() const
 void Player::SetParent(WorldTransform* worldTransform)
 {
 	parentTransform_ = worldTransform;
+	parentWorldVelocity_ = {};
+	hasParentWorldMatrixSample_ = worldTransform != nullptr;
+	if (worldTransform)
+	{
+		previousParentWorldMatrix_ = worldTransform->worldMatrix_;
+	}
 	object3d_->SetParent(worldTransform);
 	// EventDispatch() は最初の Update() より前にワールド座標を配信する。
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
+}
+
+void Player::UpdateParentWorldVelocity(float deltaTime)
+{
+	if (!parentTransform_ || deltaTime <= 0.000001f)
+	{
+		parentWorldVelocity_ = {};
+		hasParentWorldMatrixSample_ = false;
+		return;
+	}
+
+	const Matrix4x4 currentParentWorldMatrix = parentTransform_->worldMatrix_;
+	if (!hasParentWorldMatrixSample_)
+	{
+		previousParentWorldMatrix_ = currentParentWorldMatrix;
+		parentWorldVelocity_ = {};
+		hasParentWorldMatrixSample_ = true;
+		return;
+	}
+
+	// 同じPlayerローカル座標を前後の親行列で変換し、
+	// 親の平行移動と回転が発射地点へ与えた速度だけを取り出す。
+	const Vector3 previousWorldPosition =
+		TransformPosition(transform_.translate, previousParentWorldMatrix_);
+	const Vector3 currentWorldPosition =
+		TransformPosition(transform_.translate, currentParentWorldMatrix);
+	parentWorldVelocity_ =
+		(currentWorldPosition - previousWorldPosition) / deltaTime;
+	previousParentWorldMatrix_ = currentParentWorldMatrix;
 }
 

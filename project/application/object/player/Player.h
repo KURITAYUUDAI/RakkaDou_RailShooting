@@ -138,6 +138,7 @@ public:	//外部入出力
 
 private:
 	Vector3 CalculateShotDirection();
+	void UpdateParentWorldVelocity(float deltaTime);
 	void UpdateMeleeFollowUpEffect(float deltaTime);
 	void UpdateTitleFalling();
 
@@ -201,7 +202,7 @@ private:
 
 	bool isDraw_ = true;
 
-	float bulletSpeed_ = 100.0f;
+	float bulletSpeed_ = 300.0f;
 
 	// HP
 	int hitPoint_;
@@ -235,4 +236,7 @@ private:
 
 	std::unique_ptr<JustAvoidDarken> justAvoidDarken_;
 	WorldTransform* parentTransform_ = nullptr;
+	Matrix4x4 previousParentWorldMatrix_{};
+	Vector3 parentWorldVelocity_{};
+	bool hasParentWorldMatrixSample_ = false;
 };
