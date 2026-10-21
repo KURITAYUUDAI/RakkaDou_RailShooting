@@ -32,6 +32,11 @@ public:
 		StageEntry,
 	};
 
+	static constexpr Vector3 GetGameplayInitialPosition()
+	{
+		return { 0.0f, -1.9f, -7.5f };
+	}
+
 	void Initialize(Mode mode = Mode::Gameplay);
 	void EventDispatch();
 	void Update(const float& deltaTime);

@@ -1,6 +1,8 @@
 #include "SceneManager.h"
 #include "GamePlayScene.h"
 #include "DissolveTransition.h"
+#include "DarkenTransition.h"
+#include "ImGuiManager.h"
 
 std::unique_ptr<SceneManager> SceneManager::instance_ = nullptr;
 
@@ -42,6 +44,19 @@ void SceneManager::Update(const float& deltaTime)
 	//	// シーン変更
 	//	ChangeScene(sceneRequest_);
 	//}
+
+#ifdef _DEBUG
+	ImGui::Begin("Scene Transition");
+	int transitionEffectIndex = static_cast<int>(transitionEffect_);
+	const char* transitionEffectNames[] = { "Darken", "Dissolve" };
+	if (ImGui::Combo(
+		"Effect", &transitionEffectIndex,
+		transitionEffectNames, IM_ARRAYSIZE(transitionEffectNames)))
+	{
+		transitionEffect_ = static_cast<TransitionEffect>(transitionEffectIndex);
+	}
+	ImGui::End();
+#endif
 
 	sceneTransition_.Update(deltaTime);
 	postEffectController_->Update(deltaTime);
@@ -123,16 +138,31 @@ void SceneManager::SetSceneRequest(const std::string& sceneRequest)
 
 	sceneRequest_ = sceneRequest;
 
-	auto dissolveTransition =
-		std::make_unique<DissolveTransition>(postEffectController_.get());
+	std::unique_ptr<ITransitionTrack> transitionTrack;
+	if (transitionEffect_ == TransitionEffect::Dissolve)
+	{
+		auto dissolveTransition =
+			std::make_unique<DissolveTransition>(postEffectController_.get());
 
-	DissolveTransition::Setting setting;
-	setting.edgeWidth = 0.08f;
-	setting.noiseScale = 45.0f;
-	setting.fadeColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-	setting.edgeColor = { 0.2f, 0.2f, 0.2f, 1.0f };
+		DissolveTransition::Setting setting;
+		setting.edgeWidth = 0.08f;
+		setting.noiseScale = 45.0f;
+		setting.fadeColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+		setting.edgeColor = { 0.2f, 0.2f, 0.2f, 1.0f };
+		dissolveTransition->SetSetting(setting);
+		transitionTrack = std::move(dissolveTransition);
+	}
+	else
+	{
+		auto darkenTransition =
+			std::make_unique<DarkenTransition>(postEffectController_.get());
 
-	dissolveTransition->SetSetting(setting);
+		DarkenTransition::Setting setting;
+		setting.maxIntensity = 1.0f;
+		setting.fadeColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+		darkenTransition->SetSetting(setting);
+		transitionTrack = std::move(darkenTransition);
+	}
 
 	sceneTransition_.Start(
 		0.5f,
@@ -140,5 +170,5 @@ void SceneManager::SetSceneRequest(const std::string& sceneRequest)
 		[this](){
 			ChangeScene(sceneRequest_);
 		},
-		std::move(dissolveTransition));
+		std::move(transitionTrack));
 }

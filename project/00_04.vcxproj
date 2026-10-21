@@ -213,6 +213,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\tool\postEffect\Dissolve.cpp" />
     <ClCompile Include="Dict_Engine\tool\effect\DissolveManager.cpp" />
     <ClCompile Include="Dict_Engine\scene\DissolveTransition.cpp" />
+	<ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp" />
     <ClCompile Include="application\object\player\JustAvoidDarken.cpp" />
     <ClCompile Include="Dict_Engine\tool\freetype\FreeTypeManager.cpp" />
     <ClCompile Include="Dict_Engine\2d\FontManager.cpp" />
@@ -558,6 +559,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\scene\SceneTransition.h" />
     <ClInclude Include="Dict_Engine\scene\TransitionTrack.h" />
     <ClInclude Include="Dict_Engine\scene\DissolveTransition.h" />
+	<ClInclude Include="Dict_Engine\scene\DarkenTransition.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectController.h" />
     <ClInclude Include="application\object\player\JustAvoidDarken.h" />
     <ClInclude Include="application\scene\ResultScene.h" />

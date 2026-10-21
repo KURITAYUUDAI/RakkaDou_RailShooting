@@ -82,6 +82,7 @@ public:
 								// UV変換情報
 		Vector3 velocity;		// 速度
 		Vector4 color;			// 色
+		float initialAlpha = 1.0f; // 寿命フェード前の不透明度
 		float lifeTime;			// 生存時間
 		float currentTime;		// 経過時間
 	};
@@ -152,6 +153,9 @@ public:
 	void EmitSlash(const std::string name, const Vector3& position, uint32_t count);
 
 	void Emit(const std::string name, const Vector3& position, uint32_t count);
+	void EmitParticle(
+		const std::string& name, const EulerTransform& transform,
+		const Vector3& velocity, const Vector4& color, float lifeTime);
 
 public: // 外部入出力
 
@@ -165,6 +169,7 @@ public: // 外部入出力
 	void SetScaleOverLife(
 		const std::string& name, const Vector3& startScale, const Vector3& endScale);
 	void SetParticleLifeTime(const std::string& name, float lifeTime);
+	void SetBlendMode(const std::string& name, PSOManager::BlendMode blendMode);
 
 	// ゲッター
 	DirectXBase* GetDxBase() const { return dxBase_; }

@@ -178,8 +178,8 @@ void ParticleManager::Update(const float& deltaTime)
 				};
 			}
 
-			particle.color.w =
-				1.0f - (particle.currentTime / particle.lifeTime);
+			particle.color.w = particle.initialAlpha *
+				(1.0f - (particle.currentTime / particle.lifeTime));
 
 			particle.currentTime += deltaTime_;
 
@@ -433,6 +433,33 @@ void ParticleManager::Emit(const std::string name, const Vector3& position, uint
 	}
 }
 
+void ParticleManager::EmitParticle(
+	const std::string& name, const EulerTransform& transform,
+	const Vector3& velocity, const Vector4& color, float lifeTime)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	ParticleGroup& particleGroup = particleGroups_[name];
+	if (particleGroup.particles.size() >= particleGroup.maxInstanceNum)
+	{
+		return;
+	}
+
+	Particle particle;
+	particle.transform = transform;
+	particle.velocity = velocity;
+	particle.color = color;
+	particle.initialAlpha = std::clamp(color.w, 0.0f, 1.0f);
+	particle.color.w = particle.initialAlpha;
+	particle.lifeTime = std::max(lifeTime, 0.001f);
+	particle.currentTime = 0.0f;
+	particleGroup.particles.push_back(particle);
+}
+
 void ParticleManager::CreateAccelerationField(const Vector3& acceleration, const AABB& area)
 {
 	AccelerationField accelerationField;
@@ -507,6 +534,18 @@ void ParticleManager::SetParticleLifeTime(const std::string& name, float lifeTim
 	ParticleGroup& particleGroup = particleGroups_[name];
 	particleGroup.useFixedLifeTime = true;
 	particleGroup.fixedLifeTime = std::max(lifeTime, 0.001f);
+}
+
+void ParticleManager::SetBlendMode(
+	const std::string& name, PSOManager::BlendMode blendMode)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	particleGroups_[name].blendMode_ = blendMode;
 }
 
 const std::list<std::string> ParticleManager::GetParticleGroupName()

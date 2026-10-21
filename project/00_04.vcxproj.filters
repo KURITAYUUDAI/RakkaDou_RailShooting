@@ -345,6 +345,9 @@
     <ClCompile Include="Dict_Engine\scene\DissolveTransition.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+	<ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp">
+	  <Filter>ソース ファイル</Filter>
+	</ClCompile>
     <ClCompile Include="Dict_Engine\tool\postEffect\PostEffectController.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -711,6 +714,9 @@
     <ClInclude Include="Dict_Engine\scene\DissolveTransition.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+	<ClInclude Include="Dict_Engine\scene\DarkenTransition.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectController.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>

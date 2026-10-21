@@ -56,6 +56,7 @@ private:
 	void UpdateExitSequence(float deltaTime);
 	void SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate);
 	void UpdateCaveFogEndPlane();
+	void UpdateWindLines(float deltaTime);
 	void StartExitBlur();
 	void UpdateExitBlur(float progress);
 	void StopExitBlur();
@@ -120,6 +121,17 @@ private:
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	float caveFogEndPlaneScale_ = 50.0f;
 	float caveFogEndPlaneOffset_ = 0.0f;
+	float windLineEmitAccumulator_ = 0.0f;
+	static constexpr float kTitleCaveSpeed_ = 300.0f;
+	static constexpr const char* kWindLineGroup_ = "title_wind_line";
+	static constexpr float kWindLineMinRadius_ = 6.0f;
+	static constexpr float kWindLineMaxRadius_ = 32.0f;
+	static constexpr float kWindLineMinDepth_ = 30.0f;
+	static constexpr float kWindLineMaxDepth_ = 150.0f;
+	static constexpr float kWindLineMinLength_ = 3.0f;
+	static constexpr float kWindLineMaxLength_ = 22.0f;
+	static constexpr float kWindLineEmitRate_ = 48.0f;
+	static constexpr float kWindLineAlpha_ = 0.28f;
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 

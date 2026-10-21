@@ -20,6 +20,7 @@ void EnemyManager::Finalize()
 {
 	eventSubscriber_.Finalize();
 	enemies_.clear();
+	pooledEnemies_.clear();
 	instance_.reset();
 }
 
@@ -96,6 +97,57 @@ void EnemyManager::RegisterPSO()
 
 EnemyID EnemyManager::AddEnemy(const EnemyCreateConfig& config)
 {
+	std::unique_ptr<Enemy> enemy = CreateEnemy(config);
+	enemy->SetEnemyID(nextEnemyID_);
+	const EnemyID id = nextEnemyID_;
+	++nextEnemyID_;
+	enemies_.push_back(std::move(enemy));
+	return id;
+}
+
+EnemyManager::PoolHandle EnemyManager::PrewarmEnemy(const EnemyCreateConfig& config)
+{
+	PooledEnemy pooledEnemy;
+	pooledEnemy.handle = nextPoolHandle_++;
+	if (nextPoolHandle_ == kInvalidPoolHandle)
+	{
+		++nextPoolHandle_;
+	}
+	pooledEnemy.enemy = CreateEnemy(config);
+	const PoolHandle handle = pooledEnemy.handle;
+	pooledEnemies_.push_back(std::move(pooledEnemy));
+	return handle;
+}
+
+EnemyID EnemyManager::ActivatePrewarmedEnemy(PoolHandle handle)
+{
+	if (handle == kInvalidPoolHandle)
+	{
+		return 0;
+	}
+
+	for (auto iterator = pooledEnemies_.begin();
+		iterator != pooledEnemies_.end(); ++iterator)
+	{
+		if (iterator->handle != handle)
+		{
+			continue;
+		}
+
+		std::unique_ptr<Enemy> enemy = std::move(iterator->enemy);
+		pooledEnemies_.erase(iterator);
+		enemy->SetEnemyID(nextEnemyID_);
+		const EnemyID id = nextEnemyID_;
+		++nextEnemyID_;
+		enemies_.push_back(std::move(enemy));
+		return id;
+	}
+
+	return 0;
+}
+
+std::unique_ptr<Enemy> EnemyManager::CreateEnemy(const EnemyCreateConfig& config)
+{
 	std::unique_ptr<Enemy> enemy;
 	if (config.type == EnemyType::Boss)
 	{
@@ -106,11 +158,7 @@ EnemyID EnemyManager::AddEnemy(const EnemyCreateConfig& config)
 		enemy = std::make_unique<SmallEnemy>();
 	}
 	enemy->Initialize(config);
-	enemy->SetEnemyID(nextEnemyID_);
-	EnemyID id = nextEnemyID_;
-	nextEnemyID_++;
-	enemies_.push_back(std::move(enemy));
-	return id;
+	return enemy;
 }
 
 void EnemyManager::RemoveSmallEnemies()

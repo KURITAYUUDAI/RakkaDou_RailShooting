@@ -30,7 +30,7 @@ void RailCameraController::Initialize(Mode mode)
 		};
 	}
 
-	moveSpeed_ = mode_ == Mode::VerticalDescent ? 100.0f : 1.0f;
+	moveSpeed_ = mode_ == Mode::VerticalDescent ? 300.0f : 1.0f;
 	stageProgressSpeed_ = 1.0f;
 	isMovementEnabled_ = true;
 	currentDistance_ = 0.0f;

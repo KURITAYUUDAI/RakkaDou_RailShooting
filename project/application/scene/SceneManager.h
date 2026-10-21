@@ -8,6 +8,11 @@
 class SceneManager
 {
 public:
+	enum class TransitionEffect
+	{
+		Darken,
+		Dissolve,
+	};
 
 	// シングルトンインスタンスの取得
 	static SceneManager* GetInstance();
@@ -53,6 +58,8 @@ public:	// 外部入出力
 	const std::string GetNextScene() const;
 	const SceneTransition& GetSceneTransition() const { return sceneTransition_; }
 	PostEffectController* GetPostEffectController() { return postEffectController_.get(); }
+	void SetTransitionEffect(TransitionEffect effect) { transitionEffect_ = effect; }
+	TransitionEffect GetTransitionEffect() const { return transitionEffect_; }
 
 
 	void SetSceneRequest(const std::string& sceneRequest);
@@ -72,5 +79,6 @@ private:
 
 	SceneTransition sceneTransition_;
 	std::unique_ptr<PostEffectController> postEffectController_;
+	TransitionEffect transitionEffect_ = TransitionEffect::Darken;
 };
 

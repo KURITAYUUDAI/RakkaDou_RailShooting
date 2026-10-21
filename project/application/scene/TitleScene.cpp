@@ -4,6 +4,7 @@
 #include "CameraManager.h"
 #include "DistanceFogManager.h"
 #include "RadialBlur.h"
+#include "Random.h"
 
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
@@ -90,6 +91,7 @@ void TitleScene::Initialize()
 
 	terrain_ = std::make_unique<Terrain>();
 	terrain_->Initialize(Terrain::Mode::TitleCave);
+	terrain_->SetCaveSpeed(kTitleCaveSpeed_);
 
 	for (size_t i = 0; i < 1; i++)
 	{
@@ -158,6 +160,15 @@ void TitleScene::Initialize()
 	openingFadeSprite_->SetColor({ 0.0f, 0.0f, 0.0f, 1.0f });
 
 	PrimitiveManager::GetInstance()->Initialize();
+	PrimitiveManager::GetInstance()->CreateBox("title_wind_line_box");
+	particleManager_->CreateParticleGroup(kWindLineGroup_, "white1x1.png");
+	particleManager_->SetModel(kWindLineGroup_, "title_wind_line_box");
+	particleManager_->SetIsMoveAccelerationField(kWindLineGroup_, false);
+	particleManager_->SetIsBillboard(kWindLineGroup_, false);
+	particleManager_->SetBlendMode(
+		kWindLineGroup_, PSOManager::BlendMode::Normal);
+	windLineEmitAccumulator_ = 0.0f;
+
 	PrimitiveManager::RingConfig ringConfig;
 	ringConfig.segments = 48;
 	ringConfig.doubleSided = true;
@@ -494,6 +505,7 @@ void TitleScene::Update(const float& deltaTime)
 	}
 
 	player_->Update(deltaTime);
+	UpdateWindLines(deltaTime);
 
 	openingFadeSprite_->Update();
 
@@ -522,6 +534,44 @@ void TitleScene::UpdateCaveFogEndPlane()
 		{ 0.0f, cameraPosition.y - fogEndDistance + caveFogEndPlaneOffset_, 0.0f });
 	caveFogEndPlane_->SetColor(distanceFog->GetColor());
 	caveFogEndPlane_->Update();
+}
+
+void TitleScene::UpdateWindLines(float deltaTime)
+{
+	windLineEmitAccumulator_ += kWindLineEmitRate_ * deltaTime;
+
+	auto* random = SeedManager::GetInstance();
+	while (windLineEmitAccumulator_ >= 1.0f)
+	{
+		windLineEmitAccumulator_ -= 1.0f;
+
+		const float angle = random->GenerateFloat(0.0f, 2.0f * pi);
+		const float radius = random->GenerateFloat(
+			kWindLineMinRadius_, kWindLineMaxRadius_);
+		const float depth = random->GenerateFloat(
+			kWindLineMinDepth_, kWindLineMaxDepth_);
+		const float width = random->GenerateFloat(0.035f, 0.10f);
+		const float length = random->GenerateFloat(
+			kWindLineMinLength_, kWindLineMaxLength_);
+		const Vector3 playerPosition = player_->GetWorldPosition();
+
+		EulerTransform transform{};
+		transform.scale = { width, length, width };
+		transform.rotate = { 0.0f, 0.0f, 0.0f };
+		transform.translate =
+		{
+			playerPosition.x + std::cos(angle) * radius,
+			playerPosition.y - depth,
+			playerPosition.z + std::sin(angle) * radius,
+		};
+
+		const float upwardSpeed = 20.0f + kTitleCaveSpeed_ * 0.25f;
+		const float lifeTime = random->GenerateFloat(0.35f, 0.70f);
+		particleManager_->EmitParticle(
+			kWindLineGroup_, transform,
+			{ 0.0f, upwardSpeed, 0.0f },
+			{ 0.72f, 0.88f, 1.0f, kWindLineAlpha_ }, lifeTime);
+	}
 }
 
 void TitleScene::UpdateEntranceSequence(float deltaTime)
@@ -783,8 +833,7 @@ void TitleScene::Draw()
 	}
 
 	player_->Draw();
-
-	/*particleManager_->Draw();*/
+	particleManager_->Draw();
 
 	/*for (size_t i = 0; i < particle3ds.size(); i++)
 	{
@@ -807,8 +856,6 @@ void TitleScene::Draw()
 	{
 		spacePromptText_->Draw();
 	}
-
-	particleManager_->Draw();
 
 	if (openingFadeSprite_->GetColor().w > 0.0f)
 	{

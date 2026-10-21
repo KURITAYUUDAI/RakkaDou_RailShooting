@@ -19,6 +19,9 @@ struct EnemyConfig
 class EnemyManager
 {
 public:
+	using PoolHandle = uint32_t;
+	static constexpr PoolHandle kInvalidPoolHandle = 0;
+
 	// シングルトンインスタンスの取得
 	static EnemyManager* GetInstance();
 	// 終了
@@ -58,6 +61,8 @@ public:
 	void RegisterPSO();
 
 	EnemyID AddEnemy(const EnemyCreateConfig& config = {});
+	PoolHandle PrewarmEnemy(const EnemyCreateConfig& config);
+	EnemyID ActivatePrewarmedEnemy(PoolHandle handle);
 	void RemoveSmallEnemies();
 	std::vector<EnemyID> GetEnemyIDs() const;
 
@@ -77,13 +82,22 @@ public:
 
 
 private:
+	std::unique_ptr<Enemy> CreateEnemy(const EnemyCreateConfig& config);
+
+	struct PooledEnemy
+	{
+		PoolHandle handle = kInvalidPoolHandle;
+		std::unique_ptr<Enemy> enemy;
+	};
 
 	float deltaTime_ = 0.0f;
 
 	// 敵のコンテナ
 	std::list<std::unique_ptr<Enemy>> enemies_;
+	std::list<PooledEnemy> pooledEnemies_;
 
 	EnemyID nextEnemyID_ = 1;
+	PoolHandle nextPoolHandle_ = 1;
 
 	// ワールドに存在できる敵の最大数
 	static inline const int kMaxEnemy = 100;

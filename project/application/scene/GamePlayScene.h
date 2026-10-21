@@ -52,7 +52,6 @@ private:
 		Diving,
 		WhiteOut,
 		Skydiving,
-		CaveEntry,
 		Connecting,
 		Complete,
 	};
@@ -61,9 +60,14 @@ private:
 	void UpdateStageEntry(const float& deltaTime);
 	void BeginStageEntrySkydiving();
 	void BeginStageEntryRailConnection();
+	void ActivateStageEntryGameplay();
+	void UpdateStageEntryFallSpeed(float deltaTime);
 	void UpdateStageEntrySkydivingCamera();
 	void UpdateStageEntryCaveFog();
+	void UpdateStageEntryWindLines(float deltaTime);
 	void UpdateCaveFogEndPlane();
+	void UpdateStageTitle(float deltaTime);
+	void DrawStageTitle();
 	void CompleteStageEntry();
 	void UpdateStageEntryObjects();
 	void DrawStageEntryDarkSpace();
@@ -77,8 +81,11 @@ private:
 	}
 
 	void InitializeEnemyStage();
+	void UpdateGameplayDebugUI();
+	void UpdateGameplaySystems(const float& deltaTime);
 	void UpdateEnemyStage(const float& deltaTime);
-	void SpawnSmallEnemy(const SmallEnemySpawnConfig& spawnConfig);
+	void SpawnSmallEnemy(
+		const SmallEnemySpawnConfig& spawnConfig, size_t spawnIndex);
 	void StartBossPhase();
 	void ConfigureEnemy(EnemyID id, bool isBoss);
 	void DrawEnemyStageDebugUI();
@@ -150,6 +157,7 @@ private:
 	float stageEntryTimer_ = 0.0f;
 	bool isStageEntryFieldVisible_ = false;
 	bool isStageEntryRailActive_ = false;
+	bool isStageEntryPlayerControlEnabled_ = false;
 	bool isEnemyStageInitialized_ = false;
 	float stageEntryDoorProgress_ = 0.0f;
 
@@ -162,10 +170,16 @@ private:
 	std::unique_ptr<Object3d> stageEntryFieldGround_ = nullptr;
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
+	std::unique_ptr<Text> stageTitleText_ = nullptr;
 	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 stageEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 stageEntryDoorPosition_ = { 0.0f, 3.2f, 8.0f };
+	Vector3 stageEntryPlayerStartPosition_ = { 0.0f, -1.7f, -7.0f };
+	Vector3 stageEntryPlayerDoorPosition_ = { 0.0f, 0.0f, 1.5f };
+	Vector3 stageEntryPlayerDiveEndPosition_ = { 0.0f, 0.0f, 10.5f };
+	Vector3 stageEntryPlayerRailPosition_ = { 0.0f, -1.7f, -7.5f };
 	float stageEntrySkydivingStartHeight_ = 500.0f;
 	float stageEntrySkydivingInitialSpeed_ = 20.0f;
 	float stageEntrySkydivingAcceleration_ = 80.0f;
@@ -173,13 +187,26 @@ private:
 	float stageEntryCameraForwardHoldDuration_ = 0.25f;
 	float stageEntryCameraTurnDuration_ = 0.75f;
 	float stageEntryCameraTurnTimer_ = 0.0f;
-	float stageEntryCaveEntryStartHeight_ = 50.0f;
 	float stageEntryRailConnectHeight_ = -30.0f;
-	float stageEntryCameraHeightOffset_ = 15.0f;
 	float stageEntryCaveFogBaseStart_ = 20.0f;
 	float stageEntryCaveFogBaseEnd_ = 260.0f;
 	float caveFogEndPlaneScale_ = 50.0f;
 	float caveFogEndPlaneOffset_ = 0.0f;
+	float stageEntryWindLineEmitAccumulator_ = 0.0f;
+	float stageEntryWindLineMinRadius_ = 6.0f;
+	float stageEntryWindLineMaxRadius_ = 32.0f;
+	float stageEntryWindLineMinDepth_ = 30.0f;
+	float stageEntryWindLineMaxDepth_ = 150.0f;
+	float stageEntryWindLineMinLength_ = 3.0f;
+	float stageEntryWindLineMaxLength_ = 22.0f;
+	float stageEntryWindLineMaxEmitRate_ = 48.0f;
+	float stageEntryWindLineAlpha_ = 0.28f;
+	float stageTitleTimer_ = 0.0f;
+	bool isStageTitleTimerActive_ = false;
+	static constexpr const char* kStageEntryWindLineGroup_ =
+		"stage_entry_wind_line";
+	static constexpr float kStageTitleDelay_ = 1.0f;
+	static constexpr float kStageTitleDuration_ = 3.0f;
 
 	PostEffectHandle stageEntryBlurHandle_ = kInvalidPostEffectHandle;
 
@@ -190,7 +217,7 @@ private:
 	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
 	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
 	static constexpr float kStageEntryConnectDuration_ = 0.35f;
-	static constexpr float kStageEntryNormalRailSpeed_ = 100.0f;
+	static constexpr float kStageEntryNormalRailSpeed_ = 300.0f;
 	
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
@@ -208,8 +235,12 @@ private:
 		Boss,
 	};
 	EnemyStagePhase enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
+	float enemyStageSpawnDelay_ = 4.0f;
 	size_t nextSmallEnemyIndex_ = 0;
 	EnemyID bossEnemyID_ = 0;
+	std::vector<EnemyManager::PoolHandle> smallEnemyPoolHandles_;
+	EnemyManager::PoolHandle bossEnemyPoolHandle_ =
+		EnemyManager::kInvalidPoolHandle;
 
 	std::unique_ptr<ParticleEmitter> slashEmitter_ = nullptr;
 
