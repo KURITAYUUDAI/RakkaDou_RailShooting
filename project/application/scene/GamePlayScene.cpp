@@ -1126,6 +1126,13 @@ void GamePlayScene::Update(const float& deltaTime)
 	//	SceneManager::GetInstance()->SetSceneRequest("TITLE");
 	//}
 
+	if (inputManager_->TriggerKey(DIK_F12))
+	{
+		// シーン切り替え
+		SceneManager::GetInstance()->SetSceneRequest("TEST");
+		return;
+	}
+
 	const bool isTransitionIdle =
 		SceneManager::GetInstance()->GetSceneTransition().GetState() ==
 		SceneTransition::SceneTransitionState::Idle;

@@ -269,3 +269,10 @@ void UpdateSkinCluster(SkinCluster& skinCluster, const Skeleton& skeleton)
 			Transpose(Inverse(skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix));
 	}
 }
+
+//void DispatchComputeShader()
+//{
+//	DirectXBase::GetInstance()->GetCommandList()->SetComputeRootSignature()
+//}
+
+

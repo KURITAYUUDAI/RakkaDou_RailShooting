@@ -345,9 +345,9 @@
     <ClCompile Include="Dict_Engine\scene\DissolveTransition.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-	<ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp">
-	  <Filter>ソース ファイル</Filter>
-	</ClCompile>
+    <ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="Dict_Engine\tool\postEffect\PostEffectController.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -382,6 +382,15 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="application\tool\postEffect\Grayscale.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Dict_Engine\base\UavManager.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\object\AnimationTest.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\scene\TestScene.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
@@ -424,6 +433,7 @@
     <FxCompile Include="resources\shaders\Font\FreetypeFont.VS.hlsl" />
     <FxCompile Include="resources\shaders\Object3d\Object3d.GS.hlsl" />
     <FxCompile Include="resources\shaders\SkinningObject3d\SkinningObject3d.VS.hlsl" />
+    <FxCompile Include="resources\shaders\SkinningObject3d\Skinning.CS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dict_Engine\camera\DebugCamera.h">
@@ -714,9 +724,9 @@
     <ClInclude Include="Dict_Engine\scene\DissolveTransition.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-	<ClInclude Include="Dict_Engine\scene\DarkenTransition.h">
-	  <Filter>ヘッダー ファイル</Filter>
-	</ClInclude>
+    <ClInclude Include="Dict_Engine\scene\DarkenTransition.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectController.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -751,6 +761,15 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\tool\postEffect\Grayscale.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Dict_Engine\base\UavManager.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\object\AnimationTest.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\scene\TestScene.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

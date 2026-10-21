@@ -333,6 +333,13 @@ void TitleScene::Update(const float& deltaTime)
 		return;
 	}
 
+	if (inputManager_->TriggerKey(DIK_F12))
+	{
+		// シーン切り替え
+		SceneManager::GetInstance()->SetSceneRequest("TEST");
+		return;
+	}
+
 	WorldTransform::AdvanceFrame();
 	bool skippedEntranceThisFrame = false;
 	if (entranceSequenceState_ != EntranceSequenceState::Complete &&

@@ -152,6 +152,6 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 void UpdateSkinCluster(SkinCluster& skincluster, const Skeleton& skeleton);
 
 
-
+void DispatchComputeShader();
 
 

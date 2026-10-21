@@ -77,6 +77,13 @@ public:
 	enum class BlendMode { None, Normal, Add, Subtract, Multiply, Screen };
 	enum class FillMode { kSolid, kWireFrame };
 
+	struct ComputePSOConfig
+	{
+		std::wstring computeShaderPath;
+		using RootSignatureGenerator = std::function<Microsoft::WRL::ComPtr<ID3D12RootSignature>()>;
+		RootSignatureGenerator rootSignatureGenerator;
+	};
+
 	struct PSOData
 	{
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
@@ -93,12 +100,18 @@ public:
 
 	void RegisterSkinningPSO();
 
+	void RegisterSkinningComputePSO();
+
 public: // 外部入出力
 
 	D3D12_STATIC_SAMPLER_DESC GetDefaultStaticSamplerDesc();
-	const PSOData& GetPSOData(const std::string& name, BlendMode blendMode, FillMode fillMode);
 
+	const PSOData& GetPSOData(const std::string& name, BlendMode blendMode, FillMode fillMode);
 	void RegisterPSOConfig(const std::string& name, const PSOConfig& config);
+
+	const PSOData& GetComputePSOData(const std::string& name);
+	void RegisterComputePSOConfig(const std::string& name, const ComputePSOConfig& config);
+
 
 private:
 
@@ -132,14 +145,21 @@ private:
 	void CompileShader(const std::string& name, Microsoft::WRL::ComPtr<IDxcBlob>& outVS,
 		Microsoft::WRL::ComPtr<IDxcBlob>& outPS, Microsoft::WRL::ComPtr<IDxcBlob>& outGS);
 
-
+	void CreateComputePipeLineState(const std::string& name);
+	void CompileComputeShader(const std::string& name, Microsoft::WRL::ComPtr<IDxcBlob>& outCS);
 
 private:
 
-	std::unordered_map<std::string, PSOConfig> psoConfigs_;
 	std::unordered_map<std::string, ShaderData> shaderDatas_;
+
+	std::unordered_map<std::string, PSOConfig> psoConfigs_;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> rootSignatureDatas_;
 
-	std::unordered_map<DataKey, PSOData, DataKeyHash> psoDatas_;	
+	std::unordered_map<DataKey, PSOData, DataKeyHash> psoDatas_;
+
+	std::unordered_map<std::string, ComputePSOConfig> computePSOConfigs_;
+	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> computeRootSignatureDatas_;
+
+	std::unordered_map<std::string, PSOData> computePSODatas_;
 };
 

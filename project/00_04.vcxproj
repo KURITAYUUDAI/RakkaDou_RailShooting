@@ -157,6 +157,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="application\object\AnimationTest.cpp" />
     <ClCompile Include="application\command\AIHandler.cpp" />
     <ClCompile Include="application\command\GameSceneCommand.cpp" />
     <ClCompile Include="application\object\bullet\BulletManager.cpp" />
@@ -213,7 +214,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\tool\postEffect\Dissolve.cpp" />
     <ClCompile Include="Dict_Engine\tool\effect\DissolveManager.cpp" />
     <ClCompile Include="Dict_Engine\scene\DissolveTransition.cpp" />
-	<ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp" />
+    <ClCompile Include="Dict_Engine\scene\DarkenTransition.cpp" />
     <ClCompile Include="application\object\player\JustAvoidDarken.cpp" />
     <ClCompile Include="Dict_Engine\tool\freetype\FreeTypeManager.cpp" />
     <ClCompile Include="Dict_Engine\2d\FontManager.cpp" />
@@ -263,6 +264,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\2d\TextManager.cpp" />
     <ClCompile Include="Dict_Engine\2d\Text.cpp" />
     <ClCompile Include="Dict_Engine\base\MaterialInstance.cpp" />
+    <ClCompile Include="Dict_Engine\base\UavManager.cpp" />
+    <ClCompile Include="application\scene\TestScene.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="resources\shaders\DebugDraw\DebugDraw.GS.hlsl">
@@ -346,6 +349,17 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="resources\shaders\PostEffect\BloomExtract.PS.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="resources\shaders\SkinningObject3d\Skinning.CS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Development|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Development|x64'">5.0</ShaderModel>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -460,6 +474,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="application\object\AnimationTest.h" />
     <ClInclude Include="application\command\AIHandler.h" />
     <ClInclude Include="application\command\GameSceneCommand.h" />
     <ClInclude Include="application\object\bullet\BulletManager.h" />
@@ -559,7 +574,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\scene\SceneTransition.h" />
     <ClInclude Include="Dict_Engine\scene\TransitionTrack.h" />
     <ClInclude Include="Dict_Engine\scene\DissolveTransition.h" />
-	<ClInclude Include="Dict_Engine\scene\DarkenTransition.h" />
+    <ClInclude Include="Dict_Engine\scene\DarkenTransition.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectController.h" />
     <ClInclude Include="application\object\player\JustAvoidDarken.h" />
     <ClInclude Include="application\scene\ResultScene.h" />
@@ -569,6 +584,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\2d\Text.h" />
     <ClInclude Include="Dict_Engine\base\MaterialInstance.h" />
     <ClInclude Include="application\tool\postEffect\Grayscale.h" />
+    <ClInclude Include="Dict_Engine\base\UavManager.h" />
+    <ClInclude Include="application\scene\TestScene.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="externals\DirectXTex\DirectXTex_Desktop_2022_Win10.vcxproj">

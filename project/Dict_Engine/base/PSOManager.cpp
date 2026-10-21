@@ -266,6 +266,114 @@ void PSOManager::RegisterSkinningPSO()
 	PSOManager::GetInstance()->RegisterPSOConfig("Skinning", config);
 }
 
+void PSOManager::RegisterSkinningComputePSO()
+{
+	// PSOの設定
+	PSOManager::ComputePSOConfig config{};
+	config.computeShaderPath = L"resources/shaders/SkinningObject3d/Skinning.CS.hlsl";
+
+	// RootSignatureの設定
+	config.rootSignatureGenerator = [](){
+		std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+		std::vector<D3D12_STATIC_SAMPLER_DESC> staticSamplerDescs;
+		D3D12_STATIC_SAMPLER_DESC sampler{};
+		sampler = PSOManager::GetInstance()->GetDefaultStaticSamplerDesc();
+
+		//staticSamplerDescs.push_back(sampler);
+		//D3D12_DESCRIPTOR_RANGE descriptorRange[1]{};
+		//descriptorRange[0].BaseShaderRegister = 0; // t0
+		//descriptorRange[0].NumDescriptors = 1;
+		//descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		//descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_DESCRIPTOR_RANGE paletteRange{};
+		paletteRange.BaseShaderRegister = 0; // t0
+		paletteRange.NumDescriptors = 1;
+		paletteRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		paletteRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_DESCRIPTOR_RANGE inputRange{};
+		inputRange.BaseShaderRegister = 1; // t1	
+		inputRange.NumDescriptors = 1;
+		inputRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		inputRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_DESCRIPTOR_RANGE influenceRange{};
+		influenceRange.BaseShaderRegister = 2; // t2
+		influenceRange.NumDescriptors = 1;
+		influenceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		influenceRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_DESCRIPTOR_RANGE outputRange{};
+		outputRange.BaseShaderRegister = 0; // u0
+		outputRange.NumDescriptors = 1;
+		outputRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		outputRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		
+
+		rootParameters.resize(1);
+		
+		enum {
+			kPalette, kInputVertices, kInfluence, kOutput, kInformation,
+		};
+
+		rootParameters[kPalette].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;	// DescriptorTableを使う
+		rootParameters[kPalette].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	
+		rootParameters[kPalette].DescriptorTable.pDescriptorRanges = &paletteRange;				// Tableの中身の配列を指定
+		rootParameters[kPalette].DescriptorTable.NumDescriptorRanges = 1;						// Tableで利用する数
+
+		rootParameters[kInputVertices].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+		rootParameters[kInputVertices].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters[kInputVertices].DescriptorTable.pDescriptorRanges = &inputRange;	// Tableの中身の配列を指定
+		rootParameters[kInputVertices].DescriptorTable.NumDescriptorRanges = 1;	// Tableで利用する数
+
+		rootParameters[kInfluence].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;	// DescriptorTableを使う
+		rootParameters[kInfluence].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters[kInfluence].DescriptorTable.pDescriptorRanges = &influenceRange;	// Tableの中身の配列を指定
+		rootParameters[kInfluence].DescriptorTable.NumDescriptorRanges = 1;	// Tableで利用する数
+
+		rootParameters[kOutput].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;	// DescriptorTableを使う
+		rootParameters[kOutput].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters[kOutput].DescriptorTable.pDescriptorRanges = &outputRange;	// Tableの中身の配列を指定
+		rootParameters[kOutput].DescriptorTable.NumDescriptorRanges = 1;	// Tableで利用する数
+
+		rootParameters[kInformation].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
+		rootParameters[kInformation].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters[kInformation].Descriptor.ShaderRegister = 0;	// レジスタ番号0を使う
+
+		// シリアライズ
+		static D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
+		descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		descriptionRootSignature.pParameters = rootParameters.data();
+		descriptionRootSignature.NumParameters = (UINT)rootParameters.size();
+		descriptionRootSignature.pStaticSamplers = staticSamplerDescs.data();
+		descriptionRootSignature.NumStaticSamplers = (UINT)staticSamplerDescs.size();
+
+
+		Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+
+		HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+		if (FAILED(hr)) {
+			Logger::Log(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+			assert(false);
+		}
+
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+		hr = DirectXBase::GetInstance()->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+		assert(SUCCEEDED(hr));
+
+
+
+		return rootSignature;
+		};
+
+
+	
+
+	PSOManager::GetInstance()->RegisterComputePSOConfig("Skinning", config);
+}
+
 D3D12_STATIC_SAMPLER_DESC PSOManager::GetDefaultStaticSamplerDesc()
 {
 	D3D12_STATIC_SAMPLER_DESC sampler{};
@@ -302,6 +410,28 @@ void PSOManager::RegisterPSOConfig(const std::string& name, const PSOConfig& con
 	}
 
 	psoConfigs_[name] = config;
+}
+
+const PSOManager::PSOData& PSOManager::GetComputePSOData(const std::string& name)
+{
+	if (computePSODatas_.contains(name))
+	{
+		return computePSODatas_[name];
+	}
+	CreateComputePipeLineState(name);
+	return computePSODatas_[name];
+}
+
+void PSOManager::RegisterComputePSOConfig(const std::string& name, const ComputePSOConfig& config)
+{
+	if (computePSOConfigs_.contains(name))
+	{
+		Logger::Log("This ComputePSOConfig name is already registered for " + name);
+		Logger::Log("Priority will be given to those who registered first.");
+		return;
+	}
+
+	computePSOConfigs_[name] = config;
 }
 
 void PSOManager::CreatePipeLineState(const std::string& name, BlendMode blend, FillMode fill)
@@ -497,4 +627,52 @@ void PSOManager::CompileShader(const std::string& name, Microsoft::WRL::ComPtr<I
 	outVS = vertexShaderBlob;
 	outPS = pixelShaderBlob;
 	outGS = geometryShaderBlob;
+}
+
+void PSOManager::CreateComputePipeLineState(const std::string& name)
+{
+	const auto& psoConfig = psoConfigs_.at(name);
+
+	// 1. RootSignatureの設定
+	if (!computeRootSignatureDatas_.contains(name))
+	{
+		assert(psoConfig.rootSignatureGenerator);
+		Logger::Log("RootSignatureGenerator is not set for " + name);
+		computeRootSignatureDatas_[name] = psoConfig.rootSignatureGenerator();
+	}
+	auto rootSignature = computeRootSignatureDatas_[name];
+
+	// 2. InputLayoutの設定
+	std::vector<D3D12_INPUT_ELEMENT_DESC> inputElementDescs;
+	if (psoConfig.inputLayoutGenerator)
+	{
+		inputElementDescs = psoConfig.inputLayoutGenerator();
+	}
+
+	// 3. Shaderをコンパイル
+	Microsoft::WRL::ComPtr<IDxcBlob> computeShaderBlob;
+	CompileComputeShader(name, computeShaderBlob);
+
+	// 4. PSOを構築
+	D3D12_COMPUTE_PIPELINE_STATE_DESC computePipelineStateDesc{};
+	{
+		computePipelineStateDesc.pRootSignature = rootSignature.Get();
+		
+		computePipelineStateDesc.CS = { computeShaderBlob->GetBufferPointer(), computeShaderBlob->GetBufferSize() };
+	}
+
+	// 5. PSOを生成
+	PSOData psoData;
+	psoData.rootSignature = rootSignature;
+	HRESULT hr = DirectXBase::GetInstance()->GetDevice()->CreateComputePipelineState(
+		&computePipelineStateDesc, IID_PPV_ARGS(&psoData.pipelineState));
+	assert(SUCCEEDED(hr) && "Failed to create compute pipeline state");
+
+	// 6. キャッシュに保存
+	computePSODatas_[name] = std::move(psoData);
+}
+
+void PSOManager::CompileComputeShader(const std::string & name, Microsoft::WRL::ComPtr<IDxcBlob>&outCS)
+{
+
 }
