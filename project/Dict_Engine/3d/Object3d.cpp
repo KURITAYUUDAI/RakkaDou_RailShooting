@@ -121,6 +121,50 @@ void Object3d::Draw(const D3D12_VERTEX_BUFFER_VIEW* additionalVBV,
 	}
 }
 
+void Object3d::DrawWithOverrideVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView)
+{
+	auto psoSet = PSOManager::GetInstance()->GetPSOData(psoName_, blendMode_, fillMode_);
+
+	// パイプラインステートとルートシグネチャをセット
+	DirectXBase::GetInstance()->GetCommandList()->SetPipelineState(psoSet.pipelineState.Get());
+	DirectXBase::GetInstance()->GetCommandList()->SetGraphicsRootSignature(psoSet.rootSignature.Get());
+
+	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
+	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+
+	// wvp用のCBufferの場所を設定
+	worldTransform_.SetCBufferTransformationResource(1);
+
+	// 平行光源用のCBufferをバインド（rootParameter[3] = b1）
+	LightManager::GetInstance()->SetCBufferLightsResource(3);
+
+	// カメラ用のCBufferをバインド（rootParameter[4] = b2）
+	CameraManager::GetInstance()->SetCbufferCameraResource(4);
+
+	// rootParameter[5] はPSOごとに用途が異なる。
+	// 距離フォグCBVを持つ標準Object3d PSOでのみバインドする。
+	// Environment PSOでは同じ番号が環境テクスチャのDescriptorTableになる。
+	if (psoName_ == object3dManager_->GetDefaultPsoName())
+	{
+		DistanceFogManager::GetInstance()->SetCBufferResource(5);
+	} else if (psoName_ == "Environment")
+	{
+		DistanceFogManager::GetInstance()->SetCBufferResource(8);
+	}
+
+	// 3Dモデルが割り当てられていれば描画する
+	if (model_)
+	{
+		for (uint32_t index = 0; index < model_->GetMeshCount(); ++index)
+		{
+			// マテリアルとSRVをバインド
+			material_[model_->GetMesh(index).materialIndex]->Draw(0, 2);
+			model_->DrawMeshWithOverrideVertexBuffer(index, 1, vertexBufferView);
+		}
+	}
+}
+
 void Object3d::Finalize()
 {
 

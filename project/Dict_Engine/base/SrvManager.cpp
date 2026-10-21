@@ -100,6 +100,34 @@ void SrvManager::CreateSRVforStructuredBuffer(uint32_t srvIndex, ID3D12Resource*
 		pResource, &srvDesc, GetCPUDescriptorHandle(srvIndex));
 }
 
+void SrvManager::CreateUAVforStructuredBuffer(uint32_t uavIndex, ID3D12Resource* pResource, UINT numVertex, UINT structureByteStride)
+{
+	assert(pResource);
+	assert(uavIndex < kMaxSRVCount);
+	assert(numVertex > 0);
+	assert(structureByteStride > 0);
+
+	const D3D12_RESOURCE_DESC resourceDesc =
+		pResource->GetDesc();
+
+	assert(
+		resourceDesc.Flags &
+		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+	uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	uavDesc.Buffer.FirstElement = 0;
+	uavDesc.Buffer.NumElements = numVertex;// 頂点数
+	uavDesc.Buffer.CounterOffsetInBytes = 0;
+	uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+	uavDesc.Buffer.StructureByteStride = structureByteStride;
+
+	// 第二引数は今はnullptrにしておく
+	DirectXBase::GetInstance()->GetDevice()->CreateUnorderedAccessView(
+		pResource, nullptr, &uavDesc, GetCPUDescriptorHandle(uavIndex));
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE SrvManager::GetCPUDescriptorHandle(const uint32_t index)
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE handleCPU = descriptorHeap_->GetCPUDescriptorHandleForHeapStart();
@@ -125,4 +153,11 @@ void SrvManager::SetGraphicsRootDescriptorTable(UINT RootParameterIndex, uint32_
 {
 
 	DirectXBase::GetInstance()->GetCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, GetGPUDescriptorHandle(srvIndex));
+}
+
+void SrvManager::SetComputeRootDescriptorTable(UINT rootParameterIndex, uint32_t uavIndex)
+{
+	assert(uavIndex < kMaxSRVCount);
+
+	DirectXBase::GetInstance()->GetCommandList()->SetComputeRootDescriptorTable(rootParameterIndex, GetGPUDescriptorHandle(uavIndex));
 }

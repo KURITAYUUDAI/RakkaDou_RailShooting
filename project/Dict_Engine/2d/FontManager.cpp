@@ -381,7 +381,7 @@ bool FontManager::CreateFontAtlasTexture(FontAtlas& atlas)
 
 bool FontManager::CreateFontAtlasSRV(FontAtlas & atlas)
 {
-    atlas.srvIndex = SrvManager::GetInstance()->AllocateSRVIndex();
+    atlas.srvIndex = SrvManager::GetInstance()->AllocateIndex();
     atlas.srvHandleCPU = SrvManager::GetInstance()->GetCPUDescriptorHandle(atlas.srvIndex);
     atlas.srvHandleGPU = SrvManager::GetInstance()->GetGPUDescriptorHandle(atlas.srvIndex);
 

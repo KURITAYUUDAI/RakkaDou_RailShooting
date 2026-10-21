@@ -5,16 +5,32 @@
 #include <memory>
 
 #include <vector>
+#include "../tool/effect/DissolveManager.h"
 
 #include "AnimationUtility.h"
 
 class AnimationTest
 {
 public:
+
+	struct SkinningInformation
+	{
+		uint32_t numVertices;
+	};
+
+public:
 	void Initialize();
 	void Update(float deltaTime);
 	void Draw();
 	void Finalize();
+
+	void CreateInputVerticesSRV();
+	void CreateInfluenceSRV();
+	void CreateOutputVertexBuffer();
+	void CreateSkinningInfoResource();
+	void DispatchSkinning();
+
+	void TransitionOutputVertex(D3D12_RESOURCE_STATES nextState);
 
 public: // 外部入出力
 
@@ -27,6 +43,11 @@ public: // 外部入出力
 	void SetRotate(const Vector3& rotate){ transform_.rotate = rotate; }
 	void SetTranslate(const Vector3& translate){ transform_.translate = translate; }
 
+	void SetEnvironmentTextureIndex(const uint32_t& index) { environmentTextureIndex_ = index; }
+
+	void SetThreshold(const float threshold) { dissolveParams_.threshold = threshold; }
+	void SetEdgeColor(const Vector4 edgeColor) { dissolveParams_.edgeColor = edgeColor; }
+
 	// ゲッター
 	const std::string& GetPsoName() const { return psoName_; }
 	const PSOManager::BlendMode& GetBlendMode() const { return blendMode_; }
@@ -36,10 +57,13 @@ public: // 外部入出力
 	const Vector3& GetRotate() const { return transform_.rotate; }
 	const Vector3& GetTranslate() const { return transform_.translate; }
 
+	const float& GetThreshold() { return dissolveParams_.threshold; }
+	const Vector4& GetEdgeColor() { return dissolveParams_.edgeColor; }
+
 
 private:
 
-	std::string psoName_ = "Skinning";
+	std::string psoName_ = "Environment";
 	PSOManager::BlendMode blendMode_ = PSOManager::BlendMode::Normal;
 	PSOManager::FillMode fillMode_ = PSOManager::FillMode::kSolid;
 
@@ -47,13 +71,25 @@ private:
 
 	std::unique_ptr<Object3d> object3d_;
 
-	uint32_t uavIndex_ = 0;
+	uint32_t environmentTextureIndex_ = 0;
+
+	DissolveParams dissolveParams_;
 
 	Animation animation_;
 	float animationTime = 0.0f;
 	Skeleton skeleton_;
 	SkinCluster skinCluster_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
+	uint32_t inputVerticesSrvIndex_ = 0;
+	uint32_t influenceSrvIndex_ = 0;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> outputVertexResource_;
+	D3D12_VERTEX_BUFFER_VIEW outputVertexBufferView;
+	uint32_t outputUavIndex_ = 0;
+	D3D12_RESOURCE_STATES outputVertexState_ = D3D12_RESOURCE_STATE_COMMON;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> skinningInfoResource_;
+	SkinningInformation* skinningInfoData_ = nullptr;
 
 	EulerTransform transform_;
 };

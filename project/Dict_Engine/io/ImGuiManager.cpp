@@ -44,7 +44,7 @@ void ImGuiManager::Initialize([[maybe_unused]] WindowsAPI* winAPI, [[maybe_unuse
 	ImGui_ImplWin32_Init(winAPI_->GetHwnd()); 
 
 	srvHeap_ = SrvManager::GetInstance()->GetDescriptorHeap();
-	srvIndex_ = SrvManager::GetInstance()->AllocateSRVIndex();
+	srvIndex_ = SrvManager::GetInstance()->AllocateIndex();
 	srvHandleCPU_ = SrvManager::GetInstance()->GetCPUDescriptorHandle(srvIndex_);
 	srvHandleGPU_ = SrvManager::GetInstance()->GetGPUDescriptorHandle(srvIndex_);
 

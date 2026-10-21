@@ -154,7 +154,7 @@ void Outline::RegisterPSOs()
 
 void Outline::CreateDepthStencilResource()
 {
-	depthStencilSrvIndex_ = SrvManager::GetInstance()->AllocateSRVIndex();
+	depthStencilSrvIndex_ = SrvManager::GetInstance()->AllocateIndex();
 
 	depthStencilResource_ = DirectXBase::GetInstance()->GetDepthResource();
 

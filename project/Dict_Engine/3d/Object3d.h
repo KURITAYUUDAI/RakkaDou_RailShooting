@@ -33,6 +33,8 @@ public:	// メンバ関数
 	void Draw(const D3D12_VERTEX_BUFFER_VIEW* additionalVBV = nullptr, 
 		const D3D12_GPU_DESCRIPTOR_HANDLE* additionalGPUHandle = nullptr);
 
+	void DrawWithOverrideVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView);
+
 	void Finalize();
 
 public:	// 外部入出力

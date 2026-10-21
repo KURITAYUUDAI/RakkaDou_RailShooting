@@ -99,7 +99,7 @@ void TextureManager::LoadTexture(const std::string& filePath)
 
 	textureData.resource = DirectXBase::GetInstance()->CreateTextureResource(textureData.metadata);
 
-	textureData.srvIndex = SrvManager::GetInstance()->AllocateSRVIndex();
+	textureData.srvIndex = SrvManager::GetInstance()->AllocateIndex();
 	textureData.srvHandleCPU = SrvManager::GetInstance()->GetCPUDescriptorHandle(textureData.srvIndex);
 	textureData.srvHandleGPU = SrvManager::GetInstance()->GetGPUDescriptorHandle(textureData.srvIndex);
 

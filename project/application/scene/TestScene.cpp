@@ -3,6 +3,7 @@
 #include "LightManager.h"
 #include "CameraManager.h"
 #include "PrimitiveManager.h"
+#include "Dict_Engine/tool/effect/DissolveManager.h"
 
 namespace
 {
@@ -99,6 +100,7 @@ void TestScene::Initialize()
 	animationTest_->SetScale({ 1.0f, 1.0f, 1.0f });
 	animationTest_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	animationTest_->SetTranslate({ 0.0f, 0.0f, 0.0f });
+	animationTest_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
 
 	particleManager_->SetModel("plane.obj");
 	particleManager_->CreateParticleGroup("circle", "circle.png");

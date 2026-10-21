@@ -20,18 +20,20 @@ public:
 
 	void SetGraphicsRootDescriptorTable(UINT RootParameterIndex, uint32_t srvIndex);
 
-	uint32_t AllocateSRVIndex() 
+	void SetComputeRootDescriptorTable(UINT rootParameterIndex, uint32_t uavIndex);
+
+	uint32_t AllocateIndex() 
 	{
-		if (!freeSRVIndices_.empty()) {
-			uint32_t index = freeSRVIndices_.front();
-			freeSRVIndices_.pop();
+		if (!freeIndices_.empty()) {
+			uint32_t index = freeIndices_.front();
+			freeIndices_.pop();
 			return index; // 空きがあれば再利用
 		}
 		return currentSRVCount_++; // なければ新規発番
 	}
 
-	void FreeSRVIndex(uint32_t index) {
-		freeSRVIndices_.push(index); // 使い終わったらプールに戻す
+	void FreeIndex(uint32_t index) {
+		freeIndices_.push(index); // 使い終わったらプールに戻す
 	}
 
 	// SRV生成（テクスチャ用）
@@ -41,6 +43,8 @@ public:
 	// SRV生成（Structured Buffer用）
 	void CreateSRVforStructuredBuffer(uint32_t srvIndex, ID3D12Resource* pResource, 
 		UINT numElements, UINT structureByteStride);
+	// UAV生成（Structured Buffer用）
+	void CreateUAVforStructuredBuffer(uint32_t uavIndex, ID3D12Resource* pResource, UINT numVertex, UINT structureByteStride);
 
 public: // 外部入出力
 
@@ -95,7 +99,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap_ = nullptr;
 	uint32_t descriptorSize_ = 0;
 
-	std::queue<uint32_t> freeSRVIndices_; // 空いている（再利用可能な）インデックスのプール
+	std::queue<uint32_t> freeIndices_; // 空いている（再利用可能な）インデックスのプール
 	uint32_t currentSRVCount_ = 1;        // 新規に発番するときのカウンタ
 
 

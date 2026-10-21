@@ -9,6 +9,7 @@ struct Vertex
 	float32_t4 position;
 	float32_t2 texcoord;
 	float32_t3 normal;
+	float32_t4 color;
 };
 
 struct VertexInfluence
@@ -64,7 +65,7 @@ Skinned Skinning(Vertex input, VertexInfluence influence)
 void main( uint3 DTid : SV_DispatchThreadID )
 {
 	uint32_t vertexIndex = DTid.x;
-	if (vertexIndex >= gSkinningInformation.numVertices)
+	if (vertexIndex < gSkinningInformation.numVertices)
 	{
 		// Skinning計算	
 		Vertex input = gInputVertices[vertexIndex];
@@ -73,6 +74,7 @@ void main( uint3 DTid : SV_DispatchThreadID )
 		// Skinning後の頂点を計算
 		Vertex skinnedVertex;
 		skinnedVertex.texcoord = input.texcoord;
+		skinnedVertex.color = input.color;
 		
 		Skinned skinned = Skinning(input, influence);
 		skinnedVertex.position = skinned.position;
@@ -81,5 +83,9 @@ void main( uint3 DTid : SV_DispatchThreadID )
 		// Skinning後の頂点データを格納、つまり書き込む
 		gOutputVertices[vertexIndex] = skinnedVertex;
 		
+	}
+	else
+	{
+		return;
 	}
 }

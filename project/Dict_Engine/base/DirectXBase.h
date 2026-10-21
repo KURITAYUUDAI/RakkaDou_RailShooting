@@ -92,12 +92,16 @@ public:
 
 	// 256バイトアライン済みリソース生成
 	ComPtr<ID3D12Resource> CreateConstantBufferResource(size_t sizeInBytes);
+
+	ComPtr<ID3D12Resource> CreateUnorderedResource(size_t sizeInBytes);
 	
 	// テクスチャリソース生成
 	ComPtr<ID3D12Resource> CreateTextureResource(const DirectX::TexMetadata& metadata);
 
 	ComPtr<ID3D12Resource> CreateRenderTextureResource(uint32_t width, uint32_t height, 
 		DXGI_FORMAT formmat, const Vector4& clearColor);
+
+
 
 	// テクスチャをアップロード
 	Microsoft::WRL::ComPtr<ID3D12Resource> UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages,

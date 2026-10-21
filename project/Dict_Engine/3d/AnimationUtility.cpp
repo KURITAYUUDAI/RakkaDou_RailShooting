@@ -194,7 +194,7 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 	WellForGPU* mappedPalette = nullptr;
 	skinCluster.paletteResource->Map(0, nullptr, reinterpret_cast<void**>(&mappedPalette));
 	skinCluster.mappedPalette = {mappedPalette, skeleton.joints.size()};
-	uint32_t paletteSrvIndex = SrvManager::GetInstance()->AllocateSRVIndex();
+	uint32_t paletteSrvIndex = SrvManager::GetInstance()->AllocateIndex();
 	skinCluster.paletteSrvHandle.first = SrvManager::GetInstance()->GetCPUDescriptorHandle(paletteSrvIndex);
 	skinCluster.paletteSrvHandle.second = SrvManager::GetInstance()->GetGPUDescriptorHandle(paletteSrvIndex);
 	

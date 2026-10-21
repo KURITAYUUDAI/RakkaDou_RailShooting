@@ -413,7 +413,7 @@ void PostEffectManager::CreatePingPongBuffers(uint32_t width, uint32_t height)
         dxBase->GetDevice()->CreateRenderTargetView(
             pingPongRT_[i].Get(), &rtvDesc, pingPongRTV_[i]);
 
-        pingPongSRVIndex_[i] = srvManager->AllocateSRVIndex();
+        pingPongSRVIndex_[i] = srvManager->AllocateIndex();
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
         srvDesc.Format = DirectXBase::GetInstance()->GetRtvFormat();

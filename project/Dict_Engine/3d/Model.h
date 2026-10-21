@@ -30,6 +30,9 @@ public:
 		const D3D12_VERTEX_BUFFER_VIEW* additionalVBV = nullptr,
 		const D3D12_GPU_DESCRIPTOR_HANDLE* additionalGPUHandle = nullptr);
 
+	void DrawMeshWithOverrideVertexBuffer(const uint32_t meshIndex, UINT instanceCount,
+		const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView);
+
 	void Finalize();
 
 	static Material LoadMaterialTemplateFile(const std::string& directoryPath, const std::string& filename, const std::string& mtlname);

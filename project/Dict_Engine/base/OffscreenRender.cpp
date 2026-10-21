@@ -46,7 +46,7 @@ void OffscreenRender::Initialize()
 		renderTextureResource_.Get(), &rtvDesc, rtvHandle_);
 
 	// --- SRV登録 ---
-	renderTextureSRVIndex_ = SrvManager::GetInstance()->AllocateSRVIndex();
+	renderTextureSRVIndex_ = SrvManager::GetInstance()->AllocateIndex();
 	/*DirectXBase::GetInstance()->SetRenderTextureSRVIndex(renderTextureSRVIndex_);*/
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};

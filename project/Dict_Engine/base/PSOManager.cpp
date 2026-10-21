@@ -301,7 +301,7 @@ void PSOManager::RegisterSkinningComputePSO()
 		D3D12_DESCRIPTOR_RANGE influenceRange{};
 		influenceRange.BaseShaderRegister = 2; // t2
 		influenceRange.NumDescriptors = 1;
-		influenceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		influenceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		influenceRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		D3D12_DESCRIPTOR_RANGE outputRange{};
@@ -311,9 +311,10 @@ void PSOManager::RegisterSkinningComputePSO()
 		outputRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 		
 
-		rootParameters.resize(1);
+		rootParameters.resize(5);
 		
-		enum {
+		enum 
+		{
 			kPalette, kInputVertices, kInfluence, kOutput, kInformation,
 		};
 
@@ -631,29 +632,23 @@ void PSOManager::CompileShader(const std::string& name, Microsoft::WRL::ComPtr<I
 
 void PSOManager::CreateComputePipeLineState(const std::string& name)
 {
-	const auto& psoConfig = psoConfigs_.at(name);
+	const auto& psoConfig = computePSOConfigs_.at(name);
 
 	// 1. RootSignatureの設定
 	if (!computeRootSignatureDatas_.contains(name))
 	{
-		assert(psoConfig.rootSignatureGenerator);
 		Logger::Log("RootSignatureGenerator is not set for " + name);
 		computeRootSignatureDatas_[name] = psoConfig.rootSignatureGenerator();
+		assert(psoConfig.rootSignatureGenerator);
 	}
 	auto rootSignature = computeRootSignatureDatas_[name];
 
-	// 2. InputLayoutの設定
-	std::vector<D3D12_INPUT_ELEMENT_DESC> inputElementDescs;
-	if (psoConfig.inputLayoutGenerator)
-	{
-		inputElementDescs = psoConfig.inputLayoutGenerator();
-	}
-
-	// 3. Shaderをコンパイル
+	// 2. Shaderをコンパイル
 	Microsoft::WRL::ComPtr<IDxcBlob> computeShaderBlob;
-	CompileComputeShader(name, computeShaderBlob);
+	
+	computeShaderBlob = DirectXBase::GetInstance()->CompileShader(computePSOConfigs_[name].computeShaderPath, L"cs_6_0");
 
-	// 4. PSOを構築
+	// 3. PSOを構築
 	D3D12_COMPUTE_PIPELINE_STATE_DESC computePipelineStateDesc{};
 	{
 		computePipelineStateDesc.pRootSignature = rootSignature.Get();
@@ -661,18 +656,14 @@ void PSOManager::CreateComputePipeLineState(const std::string& name)
 		computePipelineStateDesc.CS = { computeShaderBlob->GetBufferPointer(), computeShaderBlob->GetBufferSize() };
 	}
 
-	// 5. PSOを生成
+	// 4. PSOを生成
 	PSOData psoData;
 	psoData.rootSignature = rootSignature;
 	HRESULT hr = DirectXBase::GetInstance()->GetDevice()->CreateComputePipelineState(
 		&computePipelineStateDesc, IID_PPV_ARGS(&psoData.pipelineState));
 	assert(SUCCEEDED(hr) && "Failed to create compute pipeline state");
 
-	// 6. キャッシュに保存
+	// 5. キャッシュに保存
 	computePSODatas_[name] = std::move(psoData);
 }
 
-void PSOManager::CompileComputeShader(const std::string & name, Microsoft::WRL::ComPtr<IDxcBlob>&outCS)
-{
-
-}
