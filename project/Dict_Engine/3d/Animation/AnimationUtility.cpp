@@ -107,7 +107,7 @@ AnimationSet LoadAnimationSet(const std::string& directoryPath, const std::strin
 			{
 				aiVectorKey& keyAssimp = nodeAnimationAssimp->mPositionKeys[keyIndex];
 				KeyframeVector3 keyframe;
-				keyframe.time = float(keyAssimp.mTime / animationAssimp->mTicksPerSecond);	// ここも秒に変換
+				keyframe.time = float(keyAssimp.mTime / ticksPerSecond);	// ここも秒に変換
 				keyframe.value = { -keyAssimp.mValue.x, keyAssimp.mValue.y, keyAssimp.mValue.z };	// 右手→左手
 				nodeAnimation.translate.keyframes.push_back(keyframe);
 			}
@@ -116,7 +116,7 @@ AnimationSet LoadAnimationSet(const std::string& directoryPath, const std::strin
 			{
 				aiQuatKey& keyAssimp = nodeAnimationAssimp->mRotationKeys[keyIndex];
 				KeyframeQuaternion keyframe;
-				keyframe.time = float(keyAssimp.mTime / animationAssimp->mTicksPerSecond);	// ここも秒に変換
+				keyframe.time = float(keyAssimp.mTime / ticksPerSecond);	// ここも秒に変換
 				keyframe.value = { keyAssimp.mValue.x, -keyAssimp.mValue.y,
 								  -keyAssimp.mValue.z,  keyAssimp.mValue.w };	// 右手→左手
 				nodeAnimation.rotate.keyframes.push_back(keyframe);
@@ -126,7 +126,7 @@ AnimationSet LoadAnimationSet(const std::string& directoryPath, const std::strin
 			{
 				aiVectorKey& keyAssimp = nodeAnimationAssimp->mScalingKeys[keyIndex];
 				KeyframeVector3 keyframe;
-				keyframe.time = float(keyAssimp.mTime / animationAssimp->mTicksPerSecond);	// ここも秒に変換
+				keyframe.time = float(keyAssimp.mTime / ticksPerSecond);	// ここも秒に変換
 				keyframe.value = { keyAssimp.mValue.x, keyAssimp.mValue.y, keyAssimp.mValue.z };	// 右手→左手
 				nodeAnimation.scale.keyframes.push_back(keyframe);
 			}

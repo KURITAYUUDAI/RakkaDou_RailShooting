@@ -157,6 +157,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimationPlayer.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp" />
     <ClCompile Include="application\object\AnimationTest.cpp" />
     <ClCompile Include="application\command\AIHandler.cpp" />
@@ -476,6 +477,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />
     <ClInclude Include="application\object\AnimationTest.h" />
     <ClInclude Include="application\command\AIHandler.h" />

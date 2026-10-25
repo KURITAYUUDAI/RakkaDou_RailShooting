@@ -18,9 +18,7 @@ void AnimationTest::Initialize()
 	object3d_->SetModel("WireShotSample.gltf");
 
 	animationSet_ = LoadAnimationSet("Animation/Sample", "WireShotSample.gltf");
-	animation_ = animationSet_.GetAnimation(0);
-
-	animationTime = 0.0f;
+	animationPlayer_.Play(animationSet_.GetAnimation(0), true);
 
 	skeleton_ = CreateSkeleton(object3d_->GetModel()->GetRootNode(0));
 	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
@@ -69,16 +67,13 @@ void AnimationTest::Update(float deltaTime)
 
 #endif
 
-	if (animation_ != nullptr)
+	animationPlayer_.Update(deltaTime);
+
+	const Animation* animation = animationPlayer_.GetCurrentAnimation();
+
+	if (animation != nullptr)
 	{
-		animationTime += deltaTime;
-
-		if (animation_->duration > 0.0f)
-		{
-			animationTime = std::fmod(animationTime, animation_->duration);
-		}
-
-		ApplyAnimation(skeleton_, *animation_, animationTime);
+		ApplyAnimation(skeleton_, *animation, animationPlayer_.GetCurrentTime());
 	}
 
 	UpdateSkeleton(skeleton_);

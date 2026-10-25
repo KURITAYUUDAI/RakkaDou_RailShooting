@@ -8,6 +8,7 @@
 #include "../tool/effect/DissolveManager.h"
 
 #include "Animation/AnimationUtility.h"
+#include "Animation/AnimationPlayer.h"
 #include "Animation/AnimationMemo.h"
 
 class AnimationTest
@@ -77,8 +78,7 @@ private:
 	DissolveParams dissolveParams_;
 
 	AnimationSet animationSet_;
-	const Animation* animation_ = nullptr;
-	float animationTime = 0.0f;
+	AnimationPlayer animationPlayer_;
 
 	Skeleton skeleton_;
 	SkinCluster skinCluster_;
