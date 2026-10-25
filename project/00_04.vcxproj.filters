@@ -372,7 +372,7 @@
     <ClCompile Include="Dict_Engine\2d\Text.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="Dict_Engine\3d\AnimationUtility.cpp">
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimationUtility.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="Dict_Engine\io\SkeletonImGuiDebug.cpp">
@@ -391,6 +391,12 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="application\scene\TestScene.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimationMemo.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
@@ -751,7 +757,7 @@
     <ClInclude Include="Dict_Engine\2d\Text.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="Dict_Engine\3d\AnimationUtility.h">
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimationUtility.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Dict_Engine\io\SkeletonImGuiDebug.h">
@@ -770,6 +776,12 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\scene\TestScene.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimationMemo.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

@@ -7,7 +7,7 @@
 
 void AnimationTest::Initialize()
 {
-	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
+	ModelManager::GetInstance()->LoadModel("Animation/Sample", "WireShotSample.gltf");
 
 	PSOManager::GetInstance()->RegisterSkinningPSO();
 
@@ -15,9 +15,11 @@ void AnimationTest::Initialize()
 
 	object3d_ = std::make_unique<Object3d>();
 	object3d_->Initialize();
-	object3d_->SetModel("walk.gltf");
+	object3d_->SetModel("WireShotSample.gltf");
 
-	animation_ = LoadAnimationFile("Animation", "walk.gltf");
+	animationSet_ = LoadAnimationSet("Animation/Sample", "WireShotSample.gltf");
+	animation_ = animationSet_.GetAnimation(0);
+
 	animationTime = 0.0f;
 
 	skeleton_ = CreateSkeleton(object3d_->GetModel()->GetRootNode(0));
@@ -67,10 +69,18 @@ void AnimationTest::Update(float deltaTime)
 
 #endif
 
-	animationTime += deltaTime;
-	animationTime = std::fmod(animationTime, animation_.duration);
+	if (animation_ != nullptr)
+	{
+		animationTime += deltaTime;
 
-	ApplyAnimation(skeleton_, animation_, animationTime);
+		if (animation_->duration > 0.0f)
+		{
+			animationTime = std::fmod(animationTime, animation_->duration);
+		}
+
+		ApplyAnimation(skeleton_, *animation_, animationTime);
+	}
+
 	UpdateSkeleton(skeleton_);
 	UpdateSkinCluster(skinCluster_, skeleton_);
 

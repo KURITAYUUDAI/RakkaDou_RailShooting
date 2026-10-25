@@ -1,5 +1,6 @@
 #pragma once
-#include "AnimationUtility.h"
+#include "Animation/AnimationUtility.h"
+#include "Animation/AnimationMemo.h"
 
 #include <optional>
 

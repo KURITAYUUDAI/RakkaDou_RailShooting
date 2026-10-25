@@ -157,13 +157,15 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp" />
     <ClCompile Include="application\object\AnimationTest.cpp" />
     <ClCompile Include="application\command\AIHandler.cpp" />
     <ClCompile Include="application\command\GameSceneCommand.cpp" />
     <ClCompile Include="application\object\bullet\BulletManager.cpp" />
     <ClCompile Include="application\object\bullet\Bullet.cpp" />
     <ClCompile Include="application\tool\postEffect\Darken.cpp" />
-    <ClCompile Include="Dict_Engine\3d\AnimationUtility.cpp" />
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimationMemo.cpp" />
+    <ClCompile Include="Dict_Engine\3d\Animation\AnimationUtility.cpp" />
     <ClCompile Include="Dict_Engine\io\SkeletonImGuiDebug.cpp" />
     <ClCompile Include="Dict_Engine\base\ChronoManager.cpp" />
     <ClCompile Include="Dict_Engine\tool\collision\CollisionObserver.cpp" />
@@ -474,6 +476,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />
     <ClInclude Include="application\object\AnimationTest.h" />
     <ClInclude Include="application\command\AIHandler.h" />
     <ClInclude Include="application\command\GameSceneCommand.h" />
@@ -484,7 +487,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\object\player\PlayerEvent.h" />
     <ClInclude Include="application\ui\GamePlayUIUtility.h" />
     <ClInclude Include="application\tool\postEffect\Darken.h" />
-    <ClInclude Include="Dict_Engine\3d\AnimationUtility.h" />
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimationMemo.h" />
+    <ClInclude Include="Dict_Engine\3d\Animation\AnimationUtility.h" />
     <ClInclude Include="Dict_Engine\io\SkeletonImGuiDebug.h" />
     <ClInclude Include="Dict_Engine\base\ChronoManager.h" />
     <ClInclude Include="Dict_Engine\tool\collision\CollisionObserver.h" />

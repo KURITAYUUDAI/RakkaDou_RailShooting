@@ -7,7 +7,8 @@
 #include <vector>
 #include "../tool/effect/DissolveManager.h"
 
-#include "AnimationUtility.h"
+#include "Animation/AnimationUtility.h"
+#include "Animation/AnimationMemo.h"
 
 class AnimationTest
 {
@@ -75,8 +76,10 @@ private:
 
 	DissolveParams dissolveParams_;
 
-	Animation animation_;
+	AnimationSet animationSet_;
+	const Animation* animation_ = nullptr;
 	float animationTime = 0.0f;
+
 	Skeleton skeleton_;
 	SkinCluster skinCluster_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;

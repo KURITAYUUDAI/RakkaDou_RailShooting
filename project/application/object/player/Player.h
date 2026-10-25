@@ -20,7 +20,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "AnimationUtility.h"
+#include "Animation/AnimationUtility.h"
+#include "Animation/AnimationMemo.h"
 
 class Player : public ICollisionObserver
 {
