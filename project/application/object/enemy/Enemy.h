@@ -110,6 +110,7 @@ public:	//外部入出力
 	const Vector3& GetSpawnPosition() const { return basePosition_; }
 	// デスフラグ
 	bool GetIsDead() const { return isDead_; }
+	bool IsReadyForRemoval() const { return isReadyForRemoval_; }
 
 	// HPゲージUI設定
 	EnemyID GetEnemyID() const { return enemyID_; }
@@ -167,10 +168,19 @@ protected:
 	}
 	void UpdateCameraFade();
 	void ApplyVisualColor(float alphaScale = 1.0f);
-	void MarkForRemoval() { isDead_ = true; }
+	bool IsDeathEffectActive() const { return isDeathEffectActive_; }
+	float GetDeathEffectProgress() const;
+	void MarkForRemoval()
+	{
+		isDead_ = true;
+		isReadyForRemoval_ = true;
+	}
 	void SetBodyCollisionDamage(int damage) { collider_->SetDamage(damage); }
 
 private:
+	void SpawnHitCircle(const Vector3& localHitPosition);
+	void BeginDeathEffect();
+	void UpdateDeathEffect(float deltaTime);
 
 	EnemyID enemyID_ = 0;
 
@@ -221,12 +231,19 @@ private:
 
 	// デスフラグ
 	bool isDead_ = false;
+	bool isDeathEffectActive_ = false;
+	bool isReadyForRemoval_ = false;
+	float deathEffectElapsedTime_ = 0.0f;
+	static constexpr float kDeathEffectDuration_ = 0.8f;
+
+	static constexpr float kHitCircleDuration_ = 0.25f;
 
 	bool isHPChanged_ = false;
 
 	Vector3 playerWorldPosition_{};
 
 	std::unique_ptr<ParticleEmitter> slashEmitter_ = nullptr;
+	ParticleParentHandle particleParentHandle_;
 
 	DissolveParams dissolveParams_;
 };

@@ -8,6 +8,8 @@
 #include "EnemyEvent.h"
 #include "PlayerEvent.h"
 #include "Player.h"
+#include "PrimitiveManager.h"
+#include "ParticleManager.h"
 
 #include "Dict_Engine/tool/effect/DissolveManager.h"
 
@@ -55,9 +57,35 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 	slashEmitter_ = std::make_unique<ParticleEmitter>();
 	slashEmitter_->Initialize("slash",
 		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 3, 0.2f);
+	particleParentHandle_ =
+		ParticleManager::GetInstance()->RegisterParticleParent();
+	slashEmitter_->SetParentHandle(particleParentHandle_);
 
 	dissolveParams_.threshold = 0.0f;
 	dissolveParams_.edgeColor = { 2.0f, 0.3f, 0.3f, 1.0f };
+
+	PrimitiveManager::RingConfig hitCircleConfig;
+	hitCircleConfig.segments = 48;
+	hitCircleConfig.doubleSided = true;
+	hitCircleConfig.innerRadius = 0.72f;
+	hitCircleConfig.outerRadius = 1.0f;
+	hitCircleConfig.innerColor = { 1.0f, 1.0f, 1.0f, 0.35f };
+	hitCircleConfig.outerColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	PrimitiveManager::GetInstance()->CreateRing(
+		"enemy_hit_circle_primitive", hitCircleConfig);
+	ParticleManager::GetInstance()->CreateParticleGroup(
+		"enemy_hit_ring", "gradationLine.png");
+	ParticleManager::GetInstance()->SetModel(
+		"enemy_hit_ring", "enemy_hit_circle_primitive");
+	ParticleManager::GetInstance()->SetIsMoveAccelerationField(
+		"enemy_hit_ring", false);
+	ParticleManager::GetInstance()->SetIsBillboard("enemy_hit_ring", true);
+	ParticleManager::GetInstance()->SetScaleOverLife(
+		"enemy_hit_ring", { 0.2f, 0.2f, 0.2f }, { 2.0f, 2.0f, 2.0f });
+	ParticleManager::GetInstance()->SetParticleLifeTime(
+		"enemy_hit_ring", kHitCircleDuration_);
+	ParticleManager::GetInstance()->SetBlendMode(
+		"enemy_hit_ring", PSOManager::BlendMode::Add);
 
 
 	InitializeSpecific(config);
@@ -99,7 +127,14 @@ void Enemy::Update(const float& deltaTime)
 	deltaTime_ = deltaTime;
 	const Vector3 previousWorldPosition = GetWorldPosition();
 
-	UpdateBehavior(deltaTime);
+	if (isDeathEffectActive_)
+	{
+		UpdateDeathEffect(deltaTime);
+	}
+	else
+	{
+		UpdateBehavior(deltaTime);
+	}
 
 #ifdef _DEBUG
 	ImGui::Begin("EnemySetting");
@@ -132,6 +167,8 @@ void Enemy::Update(const float& deltaTime)
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update();
+	ParticleManager::GetInstance()->UpdateParticleParent(
+		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
 	const Vector3 currentWorldPosition = GetWorldPosition();
 	if (hasWorldVelocitySample_ && deltaTime_ > 0.000001f)
 	{
@@ -194,13 +231,9 @@ void Enemy::Draw()
 
 	if (isDraw_)
 	{
-		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
-		{
-			object3d_->Draw();
-			DrawAdditional();
-		}
+		object3d_->Draw();
+		DrawAdditional();
 	}
-
 #ifdef _DEBUG
 	if (DebugDrawManager::GetInstance()->IsCollisionDebugDrawEnabled())
 	{
@@ -221,6 +254,12 @@ void Enemy::Draw()
 
 void Enemy::Finalize()
 {
+	if (particleParentHandle_.IsValid())
+	{
+		ParticleManager::GetInstance()->UnregisterParticleParent(
+			particleParentHandle_);
+		particleParentHandle_ = {};
+	}
 	eventSubscriber_.Finalize();
 }
 
@@ -249,7 +288,7 @@ void Enemy::OnCollision(
 	}
 	if (hitPoint_ <= 0)
 	{
-		isDead_ = true;
+		BeginDeathEffect();
 		//PlaySEDead();
 	}
 }
@@ -266,7 +305,7 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 	}
 	if (hitPoint_ == 0)
 	{
-		isDead_ = true;
+		BeginDeathEffect();
 	}
 
 	if (hitPoint_ == previousHP)
@@ -274,8 +313,11 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 		return;
 	}
 
-	slashEmitter_->SetTranslate(hitPosition);
+	const Vector3 localHitPosition = TransformPosition(
+		hitPosition, Inverse(object3d_->GetWorldTransform()->worldMatrix_));
+	slashEmitter_->SetTranslate(localHitPosition);
 	slashEmitter_->EmitSlash();
+	SpawnHitCircle(localHitPosition);
 
 	if (eventBus_)
 	{
@@ -327,12 +369,70 @@ void Enemy::SetAttackChargeProgress(float progress)
 
 void Enemy::ApplyVisualColor(float alphaScale)
 {
+	if (isDeathEffectActive_)
+	{
+		const float progress = GetDeathEffectProgress();
+		const Vector4 magenta = { 1.0f, 0.0f, 1.0f, 1.0f };
+		Vector4 color = {
+			baseColor_.x + (magenta.x - baseColor_.x) * progress,
+			baseColor_.y + (magenta.y - baseColor_.y) * progress,
+			baseColor_.z + (magenta.z - baseColor_.z) * progress,
+			baseColor_.w * (1.0f - progress) * alphaScale
+		};
+		object3d_->SetColor(color);
+		return;
+	}
+
 	Vector4 color = baseColor_;
 	color.x += (1.0f - color.x) * attackChargeProgress_;
 	color.y *= 1.0f - attackChargeProgress_;
 	color.z *= 1.0f - attackChargeProgress_;
 	color.w *= alphaScale;
 	object3d_->SetColor(color);
+}
+
+void Enemy::SpawnHitCircle(const Vector3& localHitPosition)
+{
+	ParticleManager::GetInstance()->EmitParticle(
+		"enemy_hit_ring",
+		{ { 0.2f, 0.2f, 0.2f }, {}, localHitPosition },
+		{},
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
+		kHitCircleDuration_,
+		particleParentHandle_);
+}
+
+void Enemy::BeginDeathEffect()
+{
+	if (isDeathEffectActive_ || isReadyForRemoval_)
+	{
+		return;
+	}
+
+	isDead_ = true;
+	isDeathEffectActive_ = true;
+	deathEffectElapsedTime_ = 0.0f;
+	dissolveParams_.threshold = 0.0f;
+	dissolveParams_.edgeColor = { 2.0f, 0.0f, 2.0f, 1.0f };
+	collider_->SetDamage(0);
+}
+
+void Enemy::UpdateDeathEffect(float deltaTime)
+{
+	deathEffectElapsedTime_ += deltaTime;
+	dissolveParams_.threshold = GetDeathEffectProgress();
+	ApplyVisualColor();
+	if (deathEffectElapsedTime_ >= kDeathEffectDuration_)
+	{
+		isDeathEffectActive_ = false;
+		isReadyForRemoval_ = true;
+	}
+}
+
+float Enemy::GetDeathEffectProgress() const
+{
+	return std::clamp(
+		deathEffectElapsedTime_ / kDeathEffectDuration_, 0.0f, 1.0f);
 }
 
 void Enemy::UpdateCameraFade()
@@ -426,4 +526,6 @@ void Enemy::SetParent(WorldTransform* worldTransform)
 	// EventDispatch() の画面座標計算より先にワールド行列を確定する。
 	object3d_->SetTransform(transform_);
 	object3d_->Update();
+	ParticleManager::GetInstance()->UpdateParticleParent(
+		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
 }

@@ -54,12 +54,12 @@ void EnemyManager::Update(const float& deltaTime)
 	}
 
 	enemies_.remove_if([](const std::unique_ptr<Enemy>& enemy){
-		return enemy->GetIsDead();
+		return enemy->IsReadyForRemoval();
 	});
 
-	if (!enemies_.empty())
+	const EnemyID nearestID = FindNearestEnemyID(lastPlayerPosition_);
+	if (nearestID != 0)
 	{
-		EnemyID nearestID = FindNearestEnemyID(lastPlayerPosition_);
 		Vector3 nearestPos{};
 		GetEnemyPosition(nearestID, nearestPos);
 
@@ -235,29 +235,24 @@ bool EnemyManager::GetIsDead(EnemyID id) const
 
 EnemyID EnemyManager::FindNearestEnemyID(const Vector3& position) const
 {
-	
-	//std::vector<float> length;
-
-	//for (auto& enemy : enemies_)
-	//{
-	//	length.push_back(Length(enemy->GetWorldPosition()));
-	//}
-
-	//float maxLength = *max_element(length.begin(), length.end());
-
-	
-	auto closest_it = std::min_element(enemies_.begin(), enemies_.end(),
-		[&position](const auto& a, const auto& b){
-			// targetPos への距離の2乗を計算
-			float dist_a_sq = Length(a.get()->GetWorldPosition() - position);
-
-			float dist_b_sq = Length(b.get()->GetWorldPosition() - position);
-
-			return dist_a_sq < dist_b_sq; // 小さい方を優先
+	const Enemy* nearestEnemy = nullptr;
+	float nearestDistance = 0.0f;
+	for (const auto& enemy : enemies_)
+	{
+		if (enemy->GetIsDead())
+		{
+			continue;
 		}
-	);
 
-	return closest_it->get()->GetEnemyID();
+		const float distance = Length(enemy->GetWorldPosition() - position);
+		if (!nearestEnemy || distance < nearestDistance)
+		{
+			nearestEnemy = enemy.get();
+			nearestDistance = distance;
+		}
+	}
+
+	return nearestEnemy ? nearestEnemy->GetEnemyID() : 0;
 }
 
 void EnemyManager::SetEventBus(EventBus* eventBus)

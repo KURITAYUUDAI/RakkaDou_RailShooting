@@ -27,6 +27,7 @@ private:
 	std::vector<std::unique_ptr<Object3d>> object3ds_;
 
 	std::list<std::unique_ptr<ParticleEmitter>> emitters_;
+	ParticleParentHandle movingBoxParticleParent_;
 
 
 private:

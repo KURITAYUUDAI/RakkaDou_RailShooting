@@ -1,18 +1,35 @@
 #pragma once
+#define NOMINMAX
 #include "DirectXBase.h"
 #include "myMath.h"
 
 #include <memory>
+#include <vector>
 
 #include "PSOManager.h"
 
 #include "MaterialInstance.h"
 
-class Model;
+#include <limits>
 
+class Model;
 class Camera;
 
 class SrvManager;
+
+
+struct ParticleParentHandle
+{
+	static constexpr uint32_t kInvalidIndex = 0xFFFFFFFF;
+
+	uint32_t index = kInvalidIndex;
+	uint32_t generation = 0;
+
+	bool IsValid() const
+	{
+		return index != kInvalidIndex;
+	}
+};
 
 class ParticleManager
 {
@@ -85,6 +102,7 @@ public:
 		float initialAlpha = 1.0f; // 寿命フェード前の不透明度
 		float lifeTime;			// 生存時間
 		float currentTime;		// 経過時間
+		ParticleParentHandle parentHandle;
 	};
 
 	struct Emitter
@@ -142,20 +160,31 @@ public:
 	// PSO等を残したままParticleやAccelerationFieldをリセットする
 	void Reset();
 
+	ParticleParentHandle RegisterParticleParent();
+	void UpdateParticleParent(
+		ParticleParentHandle handle, const Matrix4x4& worldMatrix);
+	void UnregisterParticleParent(ParticleParentHandle handle);
+	const Matrix4x4* ResolveParticleParent(
+		ParticleParentHandle handle) const;
+
 	void DrawingCommon();
 
 	void CreateParticleGroup(const std::string name, const std::string textureFilePath);
 
-	void RandomEmit(const std::string name, const Vector3& position, uint32_t count);
+	void RandomEmit(const std::string name, const Vector3& position, uint32_t count,
+		ParticleParentHandle parentHandle = {});
 
 	void CreateAccelerationField(const Vector3& acceleration, const AABB& area);
 
-	void EmitSlash(const std::string name, const Vector3& position, uint32_t count);
+	void EmitSlash(const std::string name, const Vector3& position, uint32_t count,
+		ParticleParentHandle parentHandle = {});
 
-	void Emit(const std::string name, const Vector3& position, uint32_t count);
+	void Emit(const std::string name, const Vector3& position, uint32_t count,
+		ParticleParentHandle parentHandle = {});
 	void EmitParticle(
 		const std::string& name, const EulerTransform& transform,
-		const Vector3& velocity, const Vector4& color, float lifeTime);
+		const Vector3& velocity, const Vector4& color, float lifeTime,
+		ParticleParentHandle parentHandle = {});
 
 public: // 外部入出力
 
@@ -180,6 +209,12 @@ public: // 外部入出力
 	const std::list<std::string> GetParticleGroupName();
 
 private:
+	struct ParticleParentSlot
+	{
+		Matrix4x4 worldMatrix = MakeIdentity4x4();
+		uint32_t generation = 1;
+		bool active = false;
+	};
 
 	/*void CreateRootSignature(ID3DBlob* signatureBlob);
 
@@ -207,6 +242,10 @@ private:
 
 	// テクスチャグループのコンテナ
 	std::unordered_map<std::string, ParticleGroup> particleGroups_;
+
+	// Particleが参照する親のワールド行列と、再利用可能なスロット番号
+	std::vector<ParticleParentSlot> particleParentSlots_;
+	std::vector<uint32_t> freeParticleParentIndices_;
 
 	// 場のコンテナ
 	std::list<AccelerationField> accelerationFields_;

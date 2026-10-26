@@ -1,6 +1,7 @@
 #pragma once
 #include "myMath.h"
 #include "DirectXBase.h"
+#include "ParticleManager.h"
 
 class ParticleEmitter
 {
@@ -22,6 +23,11 @@ public: // 外部入出力
 	void SetTranslate(const Vector3& translate){ transform_.translate = translate; }
 	void SetCount(const uint32_t& count){ count_ = count; }
 	void SetFrequency(const float& frequency){ frequency_ = frequency; }
+	void SetParentHandle(ParticleParentHandle parentHandle)
+	{
+		parentHandle_ = parentHandle;
+	}
+	void ClearParentHandle() { parentHandle_ = {}; }
 
 	const std::string& GetName() const { return name_; }
 	const Vector3& GetTranslate() const { return transform_.translate; }
@@ -41,5 +47,7 @@ private:
 	float frequency_;
 
 	float frequencyTime_;
+
+	ParticleParentHandle parentHandle_;
 };
 

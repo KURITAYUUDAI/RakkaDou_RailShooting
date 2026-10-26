@@ -104,6 +104,8 @@ void TestScene::Initialize()
 
 	particleManager_->SetModel("plane.obj");
 	particleManager_->CreateParticleGroup("circle", "circle.png");
+	particleManager_->SetModel("circle", "plane.obj");
+	movingBoxParticleParent_ = particleManager_->RegisterParticleParent();
 
 
 	AABB  aabb;
@@ -117,6 +119,7 @@ void TestScene::Initialize()
 		std::unique_ptr<ParticleEmitter> emitter = std::make_unique<ParticleEmitter>();
 		EulerTransform transform = { { 1.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 0.0f },{ 0.0f, 0.0f, 0.0f } };
 		emitter->Initialize("circle", transform, 3, 0.2f);
+		emitter->SetParentHandle(movingBoxParticleParent_);
 		emitters_.push_back(std::move(emitter));
 	}
 
@@ -135,6 +138,8 @@ void TestScene::Finalize()
 
 	}
 	emitters_.clear();
+	particleManager_->UnregisterParticleParent(movingBoxParticleParent_);
+	movingBoxParticleParent_ = {};
 	particleManager_->Reset();
 
 	animationTest_->Finalize();
@@ -288,6 +293,9 @@ void TestScene::Update(const float& deltaTime)
 		Object3d* object3d = it->get();
 		object3d->Update();
 	}
+	particleManager_->UpdateParticleParent(
+		movingBoxParticleParent_,
+		object3ds_[kMovingBoxIndex]->GetWorldTransform()->worldMatrix_);
 
 	for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
 	{
@@ -321,7 +329,7 @@ void TestScene::Draw()
 	}
 
 
-	/*particleManager_->Draw();*/
+	particleManager_->Draw();
 
 	/*for (size_t i = 0; i < particle3ds.size(); i++)
 	{

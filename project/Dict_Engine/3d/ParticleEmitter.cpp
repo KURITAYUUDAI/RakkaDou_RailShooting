@@ -19,14 +19,16 @@ void ParticleEmitter::Update(const float& deltaTime)
 	frequencyTime_ += deltaTime_;
 	if (frequency_ <= frequencyTime_)
 	{
-		ParticleManager::GetInstance()->RandomEmit(name_, transform_.translate, count_);
+		ParticleManager::GetInstance()->RandomEmit(
+			name_, transform_.translate, count_, parentHandle_);
 		frequencyTime_ -= frequency_;
 	}
 }
 
 void ParticleEmitter::Emit()
 {
-	ParticleManager::GetInstance()->Emit(name_, transform_.translate, count_);
+	ParticleManager::GetInstance()->Emit(
+		name_, transform_.translate, count_, parentHandle_);
 }
 
 void ParticleEmitter::RandomEmit(const float& deltaTime)
@@ -36,13 +38,15 @@ void ParticleEmitter::RandomEmit(const float& deltaTime)
 	frequencyTime_ += deltaTime_;
 	if (frequency_ <= frequencyTime_)
 	{
-		ParticleManager::GetInstance()->RandomEmit(name_, transform_.translate, count_);
+		ParticleManager::GetInstance()->RandomEmit(
+			name_, transform_.translate, count_, parentHandle_);
 		frequencyTime_ -= frequency_;
 	}
 }
 
 void ParticleEmitter::EmitSlash()
 {
-	ParticleManager::GetInstance()->EmitSlash(name_, transform_.translate, count_);
+	ParticleManager::GetInstance()->EmitSlash(
+		name_, transform_.translate, count_, parentHandle_);
 }
 

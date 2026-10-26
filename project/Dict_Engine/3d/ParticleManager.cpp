@@ -131,6 +131,87 @@ void ParticleManager::Finalize()
 	instance_.reset();
 }
 
+ParticleParentHandle ParticleManager::RegisterParticleParent()
+{
+	uint32_t index = 0;
+	if (!freeParticleParentIndices_.empty())
+	{
+		index = freeParticleParentIndices_.back();
+		freeParticleParentIndices_.pop_back();
+	}
+	else
+	{
+		index = static_cast<uint32_t>(particleParentSlots_.size());
+		particleParentSlots_.push_back({});
+	}
+
+	ParticleParentSlot& slot = particleParentSlots_[index];
+	slot.worldMatrix = MakeIdentity4x4();
+	slot.active = true;
+
+	return {
+		.index = index,
+		.generation = slot.generation,
+	};
+}
+
+void ParticleManager::UpdateParticleParent(
+	ParticleParentHandle handle, const Matrix4x4& worldMatrix)
+{
+	if (handle.index >= particleParentSlots_.size())
+	{
+		return;
+	}
+
+	ParticleParentSlot& slot = particleParentSlots_[handle.index];
+	if (!slot.active || slot.generation != handle.generation)
+	{
+		return;
+	}
+
+	slot.worldMatrix = worldMatrix;
+}
+
+void ParticleManager::UnregisterParticleParent(ParticleParentHandle handle)
+{
+	if (handle.index >= particleParentSlots_.size())
+	{
+		return;
+	}
+
+	ParticleParentSlot& slot = particleParentSlots_[handle.index];
+	if (!slot.active || slot.generation != handle.generation)
+	{
+		return;
+	}
+
+	slot.active = false;
+	slot.worldMatrix = MakeIdentity4x4();
+	++slot.generation;
+	if (slot.generation == 0)
+	{
+		slot.generation = 1;
+	}
+	freeParticleParentIndices_.push_back(handle.index);
+}
+
+const Matrix4x4* ParticleManager::ResolveParticleParent(
+	ParticleParentHandle handle) const
+{
+	if (handle.index >= particleParentSlots_.size())
+	{
+		return nullptr;
+	}
+
+	const ParticleParentSlot& slot = particleParentSlots_[handle.index];
+	if (!slot.active || slot.generation != handle.generation)
+	{
+		return nullptr;
+	}
+
+	return &slot.worldMatrix;
+}
+
 void ParticleManager::Update(const float& deltaTime)
 {
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Effect);
@@ -151,12 +232,31 @@ void ParticleManager::Update(const float& deltaTime)
 				continue;
 			}
 
+			const Matrix4x4* parentWorldMatrix = nullptr;
+			if (particle.parentHandle.IsValid())
+			{
+				parentWorldMatrix = ResolveParticleParent(particle.parentHandle);
+				if (!parentWorldMatrix)
+				{
+					it = particleGroup.second.particles.erase(it);
+					continue;
+				}
+			}
+
+			const Vector3 worldPositionBeforeMovement = parentWorldMatrix ?
+				TransformPosition(particle.transform.translate, *parentWorldMatrix) :
+				particle.transform.translate;
+
 			for (const AccelerationField& accelerationField : accelerationFields_)
 			{
-				if (IsCollision(accelerationField.area, particle.transform.translate) 
+				if (IsCollision(accelerationField.area, worldPositionBeforeMovement)
 					&& particleGroup.second.isMoveAccelerationField)
 				{
-					particle.velocity += accelerationField.acceleration * deltaTime_;
+					const Vector3 localAcceleration = parentWorldMatrix ?
+						TransformNormal(accelerationField.acceleration,
+							Inverse(*parentWorldMatrix)) :
+						accelerationField.acceleration;
+					particle.velocity += localAcceleration * deltaTime_;
 				}
 			}
 
@@ -187,15 +287,22 @@ void ParticleManager::Update(const float& deltaTime)
 
 			if (particleGroup.second.isBillboard)
 			{
+				const Vector3 worldPosition = parentWorldMatrix ?
+					TransformPosition(particle.transform.translate, *parentWorldMatrix) :
+					particle.transform.translate;
 				worldMatrix = CameraManager::GetInstance()->GetMainCamera()->GetBillboardWorldMatrix(
 					particle.transform.scale,
 					particle.transform.rotate,
-					particle.transform.translate);
+					worldPosition);
 			}
 			else
 			{
 				worldMatrix = MakeAffineMatrix(particle.transform.scale,
 					particle.transform.rotate, particle.transform.translate);
+				if (parentWorldMatrix)
+				{
+					worldMatrix *= *parentWorldMatrix;
+				}
 			}
 			
 			/*particle.uvTransform.translate.x += 0.01f;
@@ -330,7 +437,8 @@ void ParticleManager::CreateParticleGroup(const std::string name, const std::str
 	particleGroup.fillMode_ = PSOManager::FillMode::kSolid;
 }
 
-void ParticleManager::RandomEmit(const std::string name, const Vector3& position, uint32_t count)
+void ParticleManager::RandomEmit(const std::string name, const Vector3& position,
+	uint32_t count, ParticleParentHandle parentHandle)
 {
 	if (!particleGroups_.contains(name))
 	{
@@ -377,12 +485,14 @@ void ParticleManager::RandomEmit(const std::string name, const Vector3& position
 			: SeedManager::GetInstance()->GenerateFloat(1.0f, 3.0f);
 
 		particle.currentTime = 0.0f;
+		particle.parentHandle = parentHandle;
 
 		particleGroups_[name].particles.push_back(particle);
 	}
 }
 
-void ParticleManager::EmitSlash(const std::string name, const Vector3& position, uint32_t count)
+void ParticleManager::EmitSlash(const std::string name, const Vector3& position,
+	uint32_t count, ParticleParentHandle parentHandle)
 {
 	if (!particleGroups_.contains(name))
 	{
@@ -400,12 +510,14 @@ void ParticleManager::EmitSlash(const std::string name, const Vector3& position,
 		particle.color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		particle.lifeTime = 1.0f;
 		particle.currentTime = 0.0f;
+		particle.parentHandle = parentHandle;
 
 		particleGroups_[name].particles.push_back(particle);
 	}
 }
 
-void ParticleManager::Emit(const std::string name, const Vector3& position, uint32_t count)
+void ParticleManager::Emit(const std::string name, const Vector3& position,
+	uint32_t count, ParticleParentHandle parentHandle)
 {
 	if (!particleGroups_.contains(name))
 	{
@@ -428,6 +540,7 @@ void ParticleManager::Emit(const std::string name, const Vector3& position, uint
 			? particleGroup.fixedLifeTime
 			: 1.0f;
 		particle.currentTime = 0.0f;
+		particle.parentHandle = parentHandle;
 
 		particleGroups_[name].particles.push_back(particle);
 	}
@@ -435,7 +548,8 @@ void ParticleManager::Emit(const std::string name, const Vector3& position, uint
 
 void ParticleManager::EmitParticle(
 	const std::string& name, const EulerTransform& transform,
-	const Vector3& velocity, const Vector4& color, float lifeTime)
+	const Vector3& velocity, const Vector4& color, float lifeTime,
+	ParticleParentHandle parentHandle)
 {
 	if (!particleGroups_.contains(name))
 	{
@@ -457,6 +571,7 @@ void ParticleManager::EmitParticle(
 	particle.color.w = particle.initialAlpha;
 	particle.lifeTime = std::max(lifeTime, 0.001f);
 	particle.currentTime = 0.0f;
+	particle.parentHandle = parentHandle;
 	particleGroup.particles.push_back(particle);
 }
 

@@ -49,9 +49,18 @@ void BossEnemy::UpdateBehavior(const float& deltaTime)
 void BossEnemy::UpdateAfterTransform()
 {
 	ApplyVisualColor();
-	const float chargeProgress = GetAttackChargeProgress();
-	objectRightHand_->SetColor({
-		1.0f, 1.0f - chargeProgress, 1.0f - chargeProgress, 1.0f });
+	if (IsDeathEffectActive())
+	{
+		const float progress = GetDeathEffectProgress();
+		objectRightHand_->SetColor({
+			1.0f, 1.0f - progress, 1.0f, 1.0f - progress });
+	}
+	else
+	{
+		const float chargeProgress = GetAttackChargeProgress();
+		objectRightHand_->SetColor({
+			1.0f, 1.0f - chargeProgress, 1.0f - chargeProgress, 1.0f });
+	}
 	objectRightHand_->SetTransform(rightHandTransform_);
 	objectRightHand_->Update();
 	colliderAttack_->UpdateWorldPosition();
