@@ -1175,6 +1175,18 @@ void GamePlayScene::Update(const float& deltaTime)
 		return;
 	}
 
+#ifdef _DEBUG
+	if (enemyStagePhase_ == EnemyStagePhase::SmallEnemies &&
+		inputManager_->TriggerKey(DIK_F2))
+	{
+		const float spawnDelay =
+			enemyStageSpawnDelay_ > 0.0f ? enemyStageSpawnDelay_ : 0.0f;
+		railCameraController_->SeekTravelledDistance(
+			spawnDelay + enemyStageConfig_.smallEnemyPhaseDistance);
+		StartBossPhase();
+	}
+#endif
+
 	WorldTransform::AdvanceFrame();
 
 #ifdef _DEBUG

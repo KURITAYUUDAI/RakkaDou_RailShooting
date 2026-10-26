@@ -24,7 +24,7 @@
         "nearDuration": 4.0,
         "escapeSpeed": 12.0,
 		"farLineZ": 48.0,
-        "nearLineZ": -2.0,
+        "nearLineZ": 0.0,
         "despawnLineZ": -15.0,
         "contactDamage": 1
     },

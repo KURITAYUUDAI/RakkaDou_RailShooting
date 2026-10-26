@@ -194,6 +194,7 @@ private:
 	static constexpr int kMeleeDamage_ = 5;
 	static constexpr int kMeleeFollowUpDamage_ = 3;
 	Vector3 meleeAttackDirection_{ 0.0f, 0.0f, 1.0f };
+	float meleeAttackDistance_ = 6.0f;
 	std::unordered_set<ICollisionObserver*> meleeHitEnemies_;
 
 	EulerTransform transform_;

@@ -197,6 +197,29 @@ void RailCameraController::SetVerticalStartHeight(float height)
 	worldTransform_.UpdateMatrix();
 }
 
+void RailCameraController::SeekTravelledDistance(float distance)
+{
+	travelledDistance_ = std::max(distance, 0.0f);
+	if (mode_ == Mode::VerticalDescent)
+	{
+		if (stageProgressSpeed_ > 0.000001f)
+		{
+			const float elapsedTime = travelledDistance_ / stageProgressSpeed_;
+			currentDistance_ = elapsedTime * std::max(moveSpeed_, 0.0f);
+		}
+		return;
+	}
+
+	if (isLoop_ && totalLength_ > 0.0f)
+	{
+		currentDistance_ = std::fmod(travelledDistance_, totalLength_);
+	}
+	else
+	{
+		currentDistance_ = std::min(travelledDistance_, totalLength_);
+	}
+}
+
 void RailCameraController::SetBattleSpaceParent(WorldTransform* parent)
 {
 	if (battleWorldTransform_.parent_ == parent)

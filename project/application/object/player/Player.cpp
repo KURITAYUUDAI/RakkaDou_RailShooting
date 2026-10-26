@@ -368,7 +368,7 @@ void Player::Update(const float& deltaTime)
 
 	collider_->SetWorldPosition(GetWorldPosition());
 	// 大型Enemyの近接停止位置まで届くよう、攻撃判定を前方へ伸ばす。
-	colliderAttack_->SetWorldPosition(GetWorldPosition() + meleeAttackDirection_ * 4.0f);
+	colliderAttack_->SetWorldPosition(GetWorldPosition() + meleeAttackDirection_ * meleeAttackDistance_);
 }
 
 void Player::UpdateTitleFalling()

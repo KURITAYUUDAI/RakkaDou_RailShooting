@@ -67,18 +67,21 @@ private:
 	static constexpr float kShotInterval_ = 1.0f;
 	static constexpr float kMoveToRangedDuration_ = 0.3f;
 	static constexpr float kApproachDuration_ = 0.3f;
-	static constexpr float kCloseWaitDuration_ = 3.0f;
-	static constexpr float kCloseAttackDuration_ = 1.0f;
-	// 攻撃全体の前半を長めの振り上げ予兆にして、ジャスト回避の入力猶予を作る。
-	static constexpr float kCloseAttackWindupRate_ = 0.45f;
-	static constexpr float kCloseAttackHitEndRate_ = 0.75f;
+	static constexpr float kCloseArmRaiseDuration_ = 0.45f;
+	static constexpr float kCloseChargeDuration_ = 3.0f;
+	static constexpr float kCloseWaitDuration_ =
+		kCloseArmRaiseDuration_ + kCloseChargeDuration_;
+	static constexpr float kCloseAttackSwingDuration_ = 0.30f;
+	static constexpr float kCloseAttackReturnDuration_ = 0.25f;
+	static constexpr float kCloseAttackDuration_ =
+		kCloseAttackSwingDuration_ + kCloseAttackReturnDuration_;
 	static constexpr float kRecoveryDuration_ = 3.0f;
 	// 接近中は攻撃中より遅く追従させ、Playerの移動に少し遅れて左右へ動かす。
 	static constexpr float kApproachHomingSpeed_ = 4.0f;
 	static constexpr float kCloseAttackHomingSpeed_ = 8.0f;
 	static constexpr Vector3 kRangedOffset_ = { 0.0f, 0.0f, 20.0f };
 	// 2倍サイズの腕先だけがPlayer付近へ届く距離で止まり、モデルのめり込みを防ぐ。
-	static constexpr Vector3 kCloseOffset_ = { 0.0f, 0.0f, 7.0f };
+	static constexpr Vector3 kCloseOffset_ = { 0.0f, 0.0f, 9.0f };
 };
 
 class EnemyShotState : public IEnemyState

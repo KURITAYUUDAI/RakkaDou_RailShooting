@@ -122,9 +122,22 @@ void EnemyBossBattleState::Update(BossEnemy* enemy, const float& deltaTime)
 		break;
 
 	case EnemyBattlePhase::CloseWait:
+		// 腕を上げ終えてからチャージを開始する。
+		if (timer_ < kCloseArmRaiseDuration_)
+		{
+			enemy->SetAttackChargeProgress(0.0f);
+			enemy->SetRightHandTranslate(Lerp(
+				handStartPosition_, { 0.0f, 5.0f, 0.0f },
+				std::min(timer_ / kCloseArmRaiseDuration_, 1.0f)));
+		}
+		else
+		{
+			enemy->SetRightHandTranslate({ 0.0f, 5.0f, 0.0f });
+			enemy->SetAttackChargeProgress(std::min(
+				(timer_ - kCloseArmRaiseDuration_) /
+				kCloseChargeDuration_, 1.0f));
+		}
 		// 攻撃前の隙も間合いから外れないよう、接近時と同じ遅さで追従を続ける。
-		enemy->SetAttackChargeProgress(std::min(
-			timer_ / kCloseWaitDuration_, 1.0f));
 		trackedPlayerPosition_ = Lerp(
 			trackedPlayerPosition_, GetHorizontalTrackingTarget(enemy),
 			std::min(deltaTime * kApproachHomingSpeed_, 1.0f));
@@ -146,28 +159,21 @@ void EnemyBossBattleState::Update(BossEnemy* enemy, const float& deltaTime)
 			closePosition_, homingTarget,
 			std::min(deltaTime * kCloseAttackHomingSpeed_, 1.0f));
 		enemy->SetTranslate(closePosition_);
-		const float attackT = std::min(timer_ / kCloseAttackDuration_, 1.0f);
-		if (attackT < kCloseAttackWindupRate_)
-		{
-			enemy->SetRightHandTranslate(Lerp(
-				handStartPosition_, { 0.0f, 5.0f, 0.0f },
-				attackT / kCloseAttackWindupRate_));
-		}
-		else if (attackT < kCloseAttackHitEndRate_)
+		if (timer_ < kCloseAttackSwingDuration_)
 		{
 			enemy->SetAttackColliderActive(true);
 			enemy->SetRightHandTranslate(Lerp(
-				{ 0.0f, 5.0f, 0.0f }, { 0.0f, -5.0f, 0.0f },
-				(attackT - kCloseAttackWindupRate_) /
-				(kCloseAttackHitEndRate_ - kCloseAttackWindupRate_)));
+				{ 0.0f, 5.0f, -2.0f }, { 0.0f, -5.0f, -2.0f },
+				std::min(timer_ / kCloseAttackSwingDuration_, 1.0f)));
 		}
 		else
 		{
 			enemy->SetAttackColliderActive(false);
 			enemy->SetRightHandTranslate(Lerp(
 				{ 0.0f, -5.0f, 0.0f }, handStartPosition_,
-				(attackT - kCloseAttackHitEndRate_) /
-				(1.0f - kCloseAttackHitEndRate_)));
+				std::min(
+					(timer_ - kCloseAttackSwingDuration_) /
+					kCloseAttackReturnDuration_, 1.0f)));
 		}
 		if (timer_ >= kCloseAttackDuration_)
 		{
@@ -218,7 +224,7 @@ void EnemyBossBattleState::ChangePhase(BossEnemy* enemy, EnemyBattlePhase phase)
 	{
 		phaseStartPosition_ = enemy->GetTranslate();
 	}
-	if (phase_ == EnemyBattlePhase::CloseAttack)
+	if (phase_ == EnemyBattlePhase::CloseWait)
 	{
 		handStartPosition_ = enemy->GetRightHandTransform().translate;
 	}
