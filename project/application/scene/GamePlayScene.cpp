@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "GamePlayScene.h"
 #include "SceneManager.h"
 #include "LightManager.h"
@@ -13,6 +14,8 @@
 #include "BulletManager.h"
 #include "SplineCurve.h"
 #include "HPGageUI.h"
+#include "Vignette.h"
+#include "HSVAdjust.h"
 #include "DistanceFogManager.h"
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
@@ -390,6 +393,14 @@ void GamePlayScene::InitializeStageEntry()
 	stageTitleText_->SetPosition({ 491.0f, 240.0f });
 	stageTitleText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 	stageTitleText_->Update();
+
+	gameOverText_ = std::make_unique<Text>();
+	gameOverText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"GAME OVER");
+	gameOverText_->SetAnchorPoint({ 0.5f, 0.5f });
+	gameOverText_->SetPosition({ 640.0f, 240.0f });
+	gameOverText_->SetColor({ 1.0f, 0.0f, 0.0f, 1.0f });
+	gameOverText_->Update();
 
 	player_->SetScale({ 1.0f, 1.0f, 1.0f });
 	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
@@ -913,6 +924,16 @@ void GamePlayScene::DrawStageTitle()
 	stageTitleText_->Draw();
 }
 
+void GamePlayScene::DrawGameOverText()
+{
+	if (!isGameOverTextVisible_ || !gameOverText_)
+	{
+		return;
+	}
+
+	gameOverText_->Draw();
+}
+
 void GamePlayScene::CompleteStageEntry()
 {
 	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
@@ -1034,6 +1055,22 @@ void GamePlayScene::StopStageEntryBlur()
 
 void GamePlayScene::Finalize()
 {
+	if (isGameOverSequenceActive_)
+	{
+		railCameraController_->SetOffset(gameOverCameraBaseOffset_);
+	}
+	if (gameOverHSVHandle_.IsValid())
+	{
+		SceneManager::GetInstance()->GetPostEffectController()->Cancel(
+			gameOverHSVHandle_);
+		gameOverHSVHandle_ = kInvalidPostEffectHandle;
+	}
+	if (gameOverVignetteHandle_.IsValid())
+	{
+		SceneManager::GetInstance()->GetPostEffectController()->Cancel(
+			gameOverVignetteHandle_);
+		gameOverVignetteHandle_ = kInvalidPostEffectHandle;
+	}
 	StopStageEntryBlur();
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
 	DistanceFogManager::GetInstance()->SetEnabled(false);
@@ -1052,6 +1089,11 @@ void GamePlayScene::Finalize()
 	{
 		stageTitleText_->Finalize();
 		stageTitleText_.reset();
+	}
+	if (gameOverText_)
+	{
+		gameOverText_->Finalize();
+		gameOverText_.reset();
 	}
 	FontManager::GetInstance()->Finalize();
 	TextManager::GetInstance()->Finalize();
@@ -1136,8 +1178,6 @@ void GamePlayScene::Update(const float& deltaTime)
 	if (isTransitionIdle && inputManager_->TriggerKey(DIK_F1))
 	{
 		player_->Damage(player_->GetHitPoint());
-		SceneManager::GetInstance()->SetSceneRequest("RESULT");
-		return;
 	}
 
 	const bool isGameplayActive =
@@ -1167,11 +1207,23 @@ void GamePlayScene::Update(const float& deltaTime)
 		return;
 	}
 
+	// PlayerがGameplayになった後は、StageEntryの早期returnより前に
+	// ゲームオーバーシーケンスを開始する。
+	if (isGameplayActive && player_->GetIsDead() &&
+		!isGameOverSequenceActive_)
+	{
+		StartGameOverSequence();
+	}
+
 	if (!IsStageEntryComplete())
 	{
 		WorldTransform::AdvanceFrame();
 		lightManager_->Update();
 		UpdateStageEntry(deltaTime);
+		if (isGameOverSequenceActive_)
+		{
+			UpdateGameOverSequence(deltaTime);
+		}
 		return;
 	}
 
@@ -1382,6 +1434,10 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 
 	UpdateGameplaySystems(deltaTime);
+	if (isGameOverSequenceActive_)
+	{
+		UpdateGameOverSequence(deltaTime);
+	}
 
 }
 
@@ -1437,12 +1493,159 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	if (enemyStagePhase_ == EnemyStagePhase::Boss && bossEnemyID_ != 0 &&
 		enemyManager_->GetIsDead(bossEnemyID_))
 	{
-		SceneManager::GetInstance()->SetSceneRequest("RESULT");
+		SceneManager::GetInstance()->SetSceneRequest("TITLE");
 	}
 
 	if (player_->GetIsDead())
 	{
-		SceneManager::GetInstance()->SetSceneRequest("RESULT");
+		StartGameOverSequence();
+	}
+}
+
+void GamePlayScene::StartGameOverSequence()
+{
+	if (isGameOverSequenceActive_)
+	{
+		return;
+	}
+
+	isGameOverSequenceActive_ = true;
+	isGameOverFalling_ = false;
+	isGameOverCameraReleased_ = false;
+	isPaused_ = false;
+	pauseMenu_->SetVisible(false);
+	inputMapping_->SetContext(InputContext::Gameplay);
+	player_->StartGameOverSequence();
+	gameOverCameraBaseOffset_ = railCameraController_->GetOffset();
+	isGameOverTextVisible_ = false;
+	gameOverTextTimer_ = 0.0f;
+
+	gameOverVignetteHandle_ =
+		SceneManager::GetInstance()->GetPostEffectController()->Emit<Vignette>(
+			"Vignette", std::nullopt,
+			[this](Vignette& vignette, float, float elapsedTime)
+			{
+				const float fadeIn = std::clamp(elapsedTime / 0.5f, 0.0f, 1.0f);
+				vignette.SetThreshold(gameOverVignetteThreshold_);
+				vignette.SetSoftness(gameOverVignetteSoftness_);
+				vignette.SetIntensity(gameOverVignetteIntensity_ * fadeIn);
+				vignette.SetDarkColor({ 0.0f, 0.0f, 0.0f, 1.0f });
+			});
+}
+
+void GamePlayScene::UpdateGameOverSequence(float deltaTime)
+{
+#ifdef _DEBUG
+	ImGui::Begin("Game Over Vignette");
+	ImGui::SliderFloat(
+		"Threshold", &gameOverVignetteThreshold_, 0.0f, 0.7f);
+	ImGui::SliderFloat(
+		"Softness", &gameOverVignetteSoftness_, 0.01f, 0.7f);
+	ImGui::SliderFloat(
+		"Intensity", &gameOverVignetteIntensity_, 0.0f, 1.0f);
+	ImGui::End();
+
+	ImGui::Begin("Game Over HSV");
+	ImGui::SliderFloat(
+		"Hue Shift", &gameOverHueShift_, -0.5f, 0.5f);
+	ImGui::SliderFloat(
+		"Saturation", &gameOverSaturation_, 0.0f, 2.0f);
+	ImGui::SliderFloat(
+		"Value", &gameOverValue_, 0.0f, 2.0f);
+	ImGui::SliderFloat(
+		"Fade Duration", &gameOverHSVFadeDuration_, 0.1f, 10.0f);
+	ImGui::End();
+
+	ImGui::Begin("Game Over Text");
+	ImGui::SliderFloat(
+		"Display Duration", &gameOverTextDuration_, 0.1f, 10.0f);
+	ImGui::End();
+
+	ImGui::Begin("Game Over Camera");
+	ImGui::SliderFloat(
+		"Zoom Distance", &gameOverCameraZoomDistance_, 0.0f, 15.0f);
+	ImGui::Text(
+		"Recoil Angle: %.1f deg",
+		player_->GetGameOverRecoilAngle() * 180.0f / pi);
+	ImGui::End();
+
+#endif
+
+	const float recoilAngle = player_->GetGameOverRecoilAngle();
+	const float impactEnd = pi / 3.0f;
+	const float cameraReleaseAngle = 2.0f * pi / 3.0f;
+
+	if (!isGameOverCameraReleased_)
+	{
+		float zoomRate = 1.0f;
+		if (recoilAngle < impactEnd)
+		{
+			zoomRate = SmoothStep01(std::clamp(
+				recoilAngle / impactEnd, 0.0f, 1.0f));
+		}
+
+		Vector3 offset = gameOverCameraBaseOffset_;
+		offset.z += gameOverCameraZoomDistance_ * zoomRate;
+		railCameraController_->SetOffset(offset);
+	}
+
+	if (recoilAngle >= cameraReleaseAngle && !isGameOverCameraReleased_)
+	{
+		isGameOverCameraReleased_ = true;
+		railCameraController_->SetMovementEnabled(true);
+		railCameraController_->StartCameraCoast(
+			kGameOverFallDecelerationDuration_,
+			kGameOverFallEndSpeedRate_);
+
+		gameOverHSVHandle_ =
+			SceneManager::GetInstance()->GetPostEffectController()->Emit<HSVAdjust>(
+				"HSVAdjust", std::nullopt,
+				[this](HSVAdjust& hsv, float, float elapsedTime)
+				{
+					const float fadeDuration =
+						std::max(gameOverHSVFadeDuration_, 0.0001f);
+					const float fade = std::clamp(
+						elapsedTime / fadeDuration, 0.0f, 1.0f);
+					hsv.SetHueShift(gameOverHueShift_ * fade);
+					hsv.SetSaturation(
+						std::lerp(1.0f, gameOverSaturation_, fade));
+					hsv.SetValue(std::lerp(1.0f, gameOverValue_, fade));
+					hsv.SetIntensity(1.0f);
+				});
+	}
+
+	if (player_->IsGameOverFalling() && !isGameOverFalling_)
+	{
+		isGameOverFalling_ = true;
+	}
+
+	if (!player_->IsGameOverSequenceFinished())
+	{
+		return;
+	}
+
+	if (!isGameOverTextVisible_)
+	{
+		isGameOverTextVisible_ = true;
+		gameOverTextTimer_ = 0.0f;
+		if (gameOverText_)
+		{
+			gameOverText_->Update();
+		}
+		return;
+	}
+
+	gameOverTextTimer_ += deltaTime;
+	if (gameOverText_)
+	{
+		gameOverText_->Update();
+	}
+
+	if (gameOverTextTimer_ >= gameOverTextDuration_ &&
+		SceneManager::GetInstance()->GetSceneTransition().GetState() ==
+		SceneTransition::SceneTransitionState::Idle)
+	{
+		SceneManager::GetInstance()->SetSceneRequest("TITLE");
 	}
 }
 
@@ -1720,6 +1923,7 @@ void GamePlayScene::Draw()
 			sceneUI_->DrawLayer(UILayer::Screen);
 			sceneUI_->DrawLayer(UILayer::Overlay);
 			DrawStageTitle();
+			DrawGameOverText();
 		}
 
 		if (stageEntryWhiteSprite_ && stageEntryWhiteSprite_->GetColor().w > 0.0f)
@@ -1808,6 +2012,7 @@ void GamePlayScene::Draw()
 	sceneUI_->DrawLayer(UILayer::Screen);
 	sceneUI_->DrawLayer(UILayer::Overlay);
 	DrawStageTitle();
+	DrawGameOverText();
 
 	pauseMenu_->Draw();
 }

@@ -58,9 +58,11 @@ public: // 外部入力＆出力
         const std::string& boldItalicPath = "");
 
     void SetPosition(const Vector2& position);
+    void SetAnchorPoint(const Vector2& anchorPoint);
     void SetColor(const Vector4& color) { materialData_->color = color; }
 
     const Vector2 GetPosition(){ return position_; }
+    const Vector2& GetAnchorPoint() const { return anchorPoint_; }
     const Vector4& GetColor() const { return materialData_->color; }
 
 private:
@@ -145,6 +147,7 @@ private:
 
     WorldTransform worldTransform_;
     Vector2 position_ = { 0.0f, 0.0f };
+    Vector2 anchorPoint_ = { 0.0f, 0.0f };
     float lineHeight_ = 32.0f;
 
     std::u32string text_;

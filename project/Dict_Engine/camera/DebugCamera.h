@@ -30,6 +30,7 @@ private:
 	WorldTransform* target_ = nullptr;
 
 	float radius = 6.0f;    // 原点からの距離
+	float distanceOffset_ = 0.0f;
 	const float rotationSpeed = 0.005f; // ドラッグ速度の調整係数
 
 	float theta = 0.0f;

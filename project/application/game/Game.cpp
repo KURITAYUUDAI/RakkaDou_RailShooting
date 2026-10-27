@@ -9,6 +9,8 @@
 #include "Random.h"
 #include "Darken.h"
 #include "Grayscale.h"
+#include "Vignette.h"
+#include "HSVAdjust.h"
 #include "application/command/input/InputMapping.h"
 
 void Game::Initialize()
@@ -33,6 +35,10 @@ void Game::Initialize()
 		[]{ return std::make_unique<Darken>(); });
 	postEffectManager_->RegisterFactory("Grayscale",
 		[]{ return std::make_unique<Grayscale>(); });
+	postEffectManager_->RegisterFactory("Vignette",
+		[]{ return std::make_unique<Vignette>(); });
+	postEffectManager_->RegisterFactory("HSVAdjust",
+		[]{ return std::make_unique<HSVAdjust>(); });
 
 	// シーンマネージャーに最初のシーンをセット
 	sceneManager_->Initialize("TITLE");

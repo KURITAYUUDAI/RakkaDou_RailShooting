@@ -39,6 +39,8 @@ void Player::Initialize(Mode mode)
 	object3d_->Initialize();
 	object3d_->SetModel("player.obj");
 	object3d_->SetEnvironmentCoefficient(0.2f);
+	particleParentHandle_ =
+		ParticleManager::GetInstance()->RegisterParticleParent();
 
 	objectMeleeHand_ = std::make_unique<Object3d>();
 	objectMeleeHand_->Initialize();
@@ -150,6 +152,27 @@ void Player::Initialize(Mode mode)
 		"ring_avoid", { 0.35f, 0.35f, 0.35f }, { 2.5f, 2.5f, 2.5f });
 	ParticleManager::GetInstance()->SetParticleLifeTime("ring_avoid", 0.35f);
 
+	PrimitiveManager::RingConfig hitRingConfig;
+	hitRingConfig.segments = 48;
+	hitRingConfig.innerRadius = 0.72f;
+	hitRingConfig.outerRadius = 1.0f;
+	hitRingConfig.innerColor = { 1.0f, 0.0f, 0.0f, 0.35f };
+	hitRingConfig.outerColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+	hitRingConfig.doubleSided = true;
+	PrimitiveManager::GetInstance()->CreateRing("ring_player_hit", hitRingConfig);
+
+	ParticleManager::GetInstance()->CreateParticleGroup(
+		"ring_player_hit", "gradationLine.png");
+	ParticleManager::GetInstance()->SetModel("ring_player_hit", "ring_player_hit");
+	ParticleManager::GetInstance()->SetIsMoveAccelerationField(
+		"ring_player_hit", false);
+	ParticleManager::GetInstance()->SetIsBillboard("ring_player_hit", true);
+	ParticleManager::GetInstance()->SetLockToParentOrigin("ring_player_hit", true);
+	ParticleManager::GetInstance()->SetScaleOverLife(
+		"ring_player_hit", { 0.2f, 0.2f, 0.2f }, { 2.0f, 2.0f, 2.0f });
+	ParticleManager::GetInstance()->SetParticleLifeTime("ring_player_hit", 0.25f);
+	ParticleManager::GetInstance()->SetBlendMode("ring_player_hit", PSOManager::BlendMode::Add);
+
 	justAvoidEmitter_ = std::make_unique<ParticleEmitter>();
 	justAvoidEmitter_->Initialize("ring_avoid",
 		{ {1.0f, 2.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.1f);
@@ -214,6 +237,11 @@ void Player::Update(const float& deltaTime)
 	}
 
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Player);
+	if (isGameOverSequenceActive_)
+	{
+		UpdateGameOverSequence(deltaTime_);
+		return;
+	}
 
 	IInputHandler* handler = inputAdapter_.GetHandler();
 	if (handler->IsActionPressed(InputAction::LockOn))
@@ -311,6 +339,7 @@ void Player::Update(const float& deltaTime)
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
+	SyncParticleParent();
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
 	UpdateMeleeFollowUpEffect(deltaTime_);
@@ -361,6 +390,111 @@ void Player::Update(const float& deltaTime)
 	colliderAttack_->SetWorldPosition(GetWorldPosition() + meleeAttackDirection_ * 4.0f);
 }
 
+void Player::StartGameOverSequence()
+{
+	if (isGameOverSequenceActive_)
+	{
+		return;
+	}
+
+	isGameOverSequenceActive_ = true;
+	isGameOverSequenceFinished_ = false;
+	isGameOverFalling_ = false;
+	gameOverSequenceTimer_ = 0.0f;
+	gameOverRecoilPhase_ = GameOverRecoilPhase::Impact;
+	gameOverRecoilTimer_ = 0.0f;
+	gameOverRecoilStartRotationX_ = transform_.rotate.x;
+	gameOverRecoilAngle_ = 0.0f;
+	velocity_ = {};
+	ClearLockOn();
+	SetAttackColliderActive(false);
+	StopChargeEffect();
+	isMeleeFollowUpEffectActive_ = false;
+	isMeleeHandVisible_ = false;
+	damageTimer_ = 0.0f;
+}
+
+void Player::UpdateGameOverSequence(float deltaTime)
+{
+	if (!isGameOverSequenceActive_ || isGameOverSequenceFinished_)
+	{
+		return;
+	}
+
+	if (!isGameOverFalling_)
+	{
+		gameOverRecoilTimer_ += deltaTime;
+		switch (gameOverRecoilPhase_)
+		{
+		case GameOverRecoilPhase::Impact:
+		{
+			const float progress = std::clamp(
+				gameOverRecoilTimer_ / kGameOverImpactDuration_, 0.0f, 1.0f);
+			const float inverse = 1.0f - progress;
+			const float eased = 1.0f - inverse * inverse * inverse;
+			gameOverRecoilAngle_ = kGameOverImpactAngle_ * eased;
+			if (progress >= 1.0f)
+			{
+				gameOverRecoilAngle_ = kGameOverImpactAngle_;
+				gameOverRecoilPhase_ = GameOverRecoilPhase::Deceleration;
+				gameOverRecoilTimer_ = 0.0f;
+			}
+			break;
+		}
+		case GameOverRecoilPhase::Deceleration:
+		{
+			const float progress = std::clamp(
+				gameOverRecoilTimer_ / kGameOverDecelerationDuration_,
+				0.0f, 1.0f);
+			const float inverse = 1.0f - progress;
+			const float eased = 1.0f - inverse * inverse * inverse;
+			gameOverRecoilAngle_ = std::lerp(
+				kGameOverImpactAngle_, kGameOverDecelerationAngle_, eased);
+			if (progress >= 1.0f)
+			{
+				gameOverRecoilAngle_ = kGameOverDecelerationAngle_;
+				gameOverRecoilPhase_ = GameOverRecoilPhase::Gravity;
+				gameOverRecoilTimer_ = 0.0f;
+			}
+			break;
+		}
+		case GameOverRecoilPhase::Gravity:
+		{
+			const float progress = std::clamp(
+				gameOverRecoilTimer_ / kGameOverGravityDuration_, 0.0f, 1.0f);
+			const float eased = progress * progress;
+			gameOverRecoilAngle_ = std::lerp(
+				kGameOverDecelerationAngle_, kGameOverGravityAngle_, eased);
+			if (progress >= 1.0f)
+			{
+				gameOverRecoilAngle_ = kGameOverGravityAngle_;
+				isGameOverFalling_ = true;
+				gameOverSequenceTimer_ = 0.0f;
+			}
+			break;
+		}
+		}
+
+		transform_.rotate.x =
+			gameOverRecoilStartRotationX_ + gameOverRecoilAngle_;
+	}
+	else
+	{
+		gameOverSequenceTimer_ += deltaTime;
+	}
+
+	object3d_->SetTransform(transform_);
+	object3d_->Update(nullptr, nullptr, false);
+	SyncParticleParent();
+
+	if (isGameOverFalling_ &&
+		gameOverSequenceTimer_ >= kGameOverFallDuration_)
+	{
+		isDraw_ = false;
+		isGameOverSequenceFinished_ = true;
+	}
+}
+
 void Player::UpdateTitleFalling()
 {
 #ifdef _DEBUG
@@ -381,6 +515,7 @@ void Player::UpdateTitleFalling()
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
+	SyncParticleParent();
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
 	objectLeftHand_->SetTransform(leftHandTransform_);
@@ -452,10 +587,7 @@ void Player::Draw()
 
 	if (isDraw_)
 	{
-		if (static_cast<int>(damageTimer_ * 60.0f) % 5 == 0)
-		{
-			object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
-		}
+		object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 	}
 	if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
 	{
@@ -515,6 +647,12 @@ void Player::Draw()
 
 void Player::Finalize()
 {
+	if (particleParentHandle_.IsValid())
+	{
+		ParticleManager::GetInstance()->UnregisterParticleParent(
+			particleParentHandle_);
+		particleParentHandle_ = {};
+	}
 	eventSubscriber_.Finalize();
 }
 
@@ -587,11 +725,30 @@ void Player::Damage(int damage)
 	{
 		hitPoint_ = 0;
 	}
+	if (hitPoint_ == 0)
+	{
+		isDead_ = true;
+	}
 
 	if (hitPoint_ == previousHP)
 	{
 		return;
 	}
+
+	ParticleManager::GetInstance()->EmitParticle(
+		"ring_player_hit",
+		{ { 0.2f, 0.2f, 0.2f }, {}, {} },
+		{}, { 1.0f, 0.05f, 0.05f, 1.0f }, 0.25f,
+		particleParentHandle_);
+	if (hitPoint_ == 0)
+	{
+		CameraManager::GetInstance()->StartShake(0.45f, 0.8f);
+	}
+	else
+	{
+		CameraManager::GetInstance()->StartShake(0.25f, 0.35f);
+	}
+
 	if (eventBus_)
 	{
 		eventBus_->Publish(PlayerHPChangeEvent
@@ -949,6 +1106,18 @@ void Player::SetParent(WorldTransform* worldTransform)
 	// EventDispatch() は最初の Update() より前にワールド座標を配信する。
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
+	SyncParticleParent();
+}
+
+void Player::SyncParticleParent()
+{
+	if (!particleParentHandle_.IsValid())
+	{
+		return;
+	}
+
+	ParticleManager::GetInstance()->UpdateParticleParent(
+		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
 }
 
 void Player::UpdateParentWorldVelocity(float deltaTime)

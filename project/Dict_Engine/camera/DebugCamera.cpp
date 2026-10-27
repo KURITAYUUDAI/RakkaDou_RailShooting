@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "DebugCamera.h"
 #include "InputManager.h"
 #include "ImGuiManager.h"
@@ -47,20 +48,24 @@ void DebugCamera::Update()
 
 	LONG wheel = InputManager::GetInstance()->MouseWheel(); // 前フレームとの差分
 	radius -= wheel * 0.005f;              // 感度は 0.1f などで調整
-	radius = max(1.0f, min(radius, 20.0f)); // クランプして近づきすぎ防止
+	radius = std::max(1.0f, std::min(radius, 20.0f)); // クランプして近づきすぎ防止
+	ImGui::DragFloat(
+		"Distance Offset", &distanceOffset_, 0.1f, -19.0f, 100.0f);
+	const float effectiveRadius = std::max(1.0f, radius + distanceOffset_);
 
 	rotate_.x = phi;
 	rotate_.y = theta;
 
-	translate_.x = target_->translate_.x + radius * std::cos(theta) * std::sin(phi);
-	translate_.y = target_->translate_.y + radius * std::sin(theta);
-	translate_.z = target_->translate_.z + radius * std::cos(theta) * std::cos(phi);
+	translate_.x = target_->translate_.x + effectiveRadius * std::cos(theta) * std::sin(phi);
+	translate_.y = target_->translate_.y + effectiveRadius * std::sin(theta);
+	translate_.z = target_->translate_.z + effectiveRadius * std::cos(theta) * std::cos(phi);
 
 	viewMatrix_ = MakeLookAtMatrix(translate_, target_->translate_, { 0.0f, 1.0f, 0.0f });
 
 	ImGui::Text("Target Pos : X:%3.2f, Y:%3.2f, Z:%3.2f", 
 		target_->translate_.x, target_->translate_.y, target_->translate_.z);
 	ImGui::Text("Camera Distance : %3.2f", radius);
+	ImGui::Text("Effective Distance : %3.2f", effectiveRadius);
 
 	ImGui::End();
 

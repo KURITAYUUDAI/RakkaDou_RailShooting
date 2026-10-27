@@ -41,6 +41,8 @@ public:
 	void Initialize(Mode mode = Mode::Gameplay);
 	void EventDispatch();
 	void Update(const float& deltaTime);
+	void StartGameOverSequence();
+	void UpdateGameOverSequence(float deltaTime);
 
 
 	void Draw();
@@ -108,6 +110,10 @@ public:	//外部入出力
 	const int& GetMaxHitPoint() const { return kMaxHitPoint; }
 	// デスフラグ
 	bool GetIsDead() const { return isDead_; }
+	bool IsGameOverSequenceActive() const { return isGameOverSequenceActive_; }
+	bool IsGameOverSequenceFinished() const { return isGameOverSequenceFinished_; }
+	bool IsGameOverFalling() const { return isGameOverFalling_; }
+	float GetGameOverRecoilAngle() const { return gameOverRecoilAngle_; }
 
 	const float& GetThreshold() { return dissolveParams_.threshold; }
 	const Vector4& GetEdgeColor() { return dissolveParams_.edgeColor; }
@@ -147,6 +153,7 @@ private:
 	void UpdateParentWorldVelocity(float deltaTime);
 	void UpdateMeleeFollowUpEffect(float deltaTime);
 	void UpdateTitleFalling();
+	void SyncParticleParent();
 
 	// 入力ハンドル
 	PlayerInputAdapter inputAdapter_;
@@ -213,13 +220,36 @@ private:
 	// HP
 	int hitPoint_;
 	// 最大HP
-	static inline const int kMaxHitPoint = 25;
+	static inline const int kMaxHitPoint = 3;
 
 	float damageTimer_ = 0.0f;
 	const float kDamageInvincible_ = 1.0f;
 
 	// デスフラグ
 	bool isDead_ = false;
+	bool isGameOverSequenceActive_ = false;
+	bool isGameOverSequenceFinished_ = false;
+	bool isGameOverFalling_ = false;
+	float gameOverSequenceTimer_ = 0.0f;
+	enum class GameOverRecoilPhase
+	{
+		Impact,
+		Deceleration,
+		Gravity,
+	};
+	GameOverRecoilPhase gameOverRecoilPhase_ = GameOverRecoilPhase::Impact;
+	float gameOverRecoilTimer_ = 0.0f;
+	float gameOverRecoilStartRotationX_ = 0.0f;
+	float gameOverRecoilAngle_ = 0.0f;
+	static constexpr float kGameOverImpactAngle_ = pi / 3.0f;
+	static constexpr float kGameOverDecelerationAngle_ = 2.0f * pi / 3.0f;
+	static constexpr float kGameOverGravityAngle_ = pi;
+	static constexpr float kGameOverImpactDuration_ = 0.12f;
+	static constexpr float kGameOverDecelerationDuration_ = 0.55f;
+	static constexpr float kGameOverGravityDuration_ = 0.9f;
+	const float kGameOverFallDuration_ = 3.0f;
+
+	
 
 	bool isHPChanged_ = false;
 
@@ -237,6 +267,7 @@ private:
 	bool justAvoidAccept_ = false;
 
 	std::unique_ptr<ParticleEmitter> justAvoidEmitter_;
+	ParticleParentHandle particleParentHandle_{};
 	bool isChargeEffectActive_ = false;
 
 

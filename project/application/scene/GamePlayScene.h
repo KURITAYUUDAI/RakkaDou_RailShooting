@@ -69,6 +69,7 @@ private:
 	void UpdateCaveFogEndPlane();
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
+	void DrawGameOverText();
 	void CompleteStageEntry();
 	void UpdateStageEntryObjects();
 	void DrawStageEntryDarkSpace();
@@ -84,6 +85,8 @@ private:
 	void InitializeEnemyStage();
 	void UpdateGameplayDebugUI();
 	void UpdateGameplaySystems(const float& deltaTime);
+	void StartGameOverSequence();
+	void UpdateGameOverSequence(float deltaTime);
 	void UpdateEnemyStage(const float& deltaTime);
 	void SpawnSmallEnemy(
 		const SmallEnemySpawnConfig& spawnConfig, size_t spawnIndex);
@@ -173,6 +176,7 @@ private:
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
+	std::unique_ptr<Text> gameOverText_ = nullptr;
 	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 stageEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
@@ -256,8 +260,27 @@ private:
 
 	std::unique_ptr<PauseMenu> pauseMenu_;
 	bool isPaused_ = false;
+	bool isGameOverSequenceActive_ = false;
+	bool isGameOverFalling_ = false;
+	bool isGameOverCameraReleased_ = false;
+	static constexpr float kGameOverFallDecelerationDuration_ = 3.0f;
+	static constexpr float kGameOverFallEndSpeedRate_ = 0.15f;
+	Vector3 gameOverCameraBaseOffset_ = { 1.0f, 1.0f, 0.0f };
+	float gameOverCameraZoomDistance_ = 6.0f;
 
 	PostEffectHandle bloomHandle_;
 	PostEffectHandle glayscaleHandle_;
+	PostEffectHandle gameOverVignetteHandle_ = kInvalidPostEffectHandle;
+	float gameOverVignetteThreshold_ = 0.32f;
+	float gameOverVignetteSoftness_ = 0.32f;
+	float gameOverVignetteIntensity_ = 0.85f;
+	PostEffectHandle gameOverHSVHandle_ = kInvalidPostEffectHandle;
+	float gameOverHueShift_ = 0.0f;
+	float gameOverSaturation_ = 0.15f;
+	float gameOverValue_ = 0.9f;
+	float gameOverHSVFadeDuration_ = kGameOverFallDecelerationDuration_;
+	bool isGameOverTextVisible_ = false;
+	float gameOverTextTimer_ = 0.0f;
+	float gameOverTextDuration_ = 2.0f;
 };
 

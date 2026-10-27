@@ -135,6 +135,7 @@ public:
 
 		bool isMoveAccelerationField = true;						// 加速場の影響を受けるかどうか
 		bool isBillboard = true;
+		bool lockToParentOrigin = false;
 		bool isScaleOverLife = false;
 		bool useFixedLifeTime = false;
 		Vector3 startScale = { 1.0f, 1.0f, 1.0f };
@@ -195,6 +196,7 @@ public: // 外部入出力
 	void SetModel(const std::string& name, std::string filePath);
 	void SetIsMoveAccelerationField(const std::string& name, bool isMove);
 	void SetIsBillboard(const std::string& name, bool isBillboard);
+	void SetLockToParentOrigin(const std::string& name, bool enabled);
 	void SetScaleOverLife(
 		const std::string& name, const Vector3& startScale, const Vector3& endScale);
 	void SetParticleLifeTime(const std::string& name, float lifeTime);

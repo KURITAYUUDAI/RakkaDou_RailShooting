@@ -242,6 +242,11 @@ void ParticleManager::Update(const float& deltaTime)
 					continue;
 				}
 			}
+			if (parentWorldMatrix && particleGroup.second.lockToParentOrigin)
+			{
+				particle.transform.translate = {};
+				particle.velocity = {};
+			}
 
 			const Vector3 worldPositionBeforeMovement = parentWorldMatrix ?
 				TransformPosition(particle.transform.translate, *parentWorldMatrix) :
@@ -621,6 +626,18 @@ void ParticleManager::SetIsBillboard(const std::string& name, bool isBillboard)
 	}
 
 	particleGroups_[name].isBillboard = isBillboard;
+}
+
+void ParticleManager::SetLockToParentOrigin(
+	const std::string& name, bool enabled)
+{
+	if (!particleGroups_.contains(name))
+	{
+		assert(false);
+		return;
+	}
+
+	particleGroups_[name].lockToParentOrigin = enabled;
 }
 
 void ParticleManager::SetScaleOverLife(

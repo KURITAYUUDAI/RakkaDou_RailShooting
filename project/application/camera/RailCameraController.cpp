@@ -6,6 +6,8 @@
 #include "SplineCurve.h"
 #include "ImGuiManager.h"
 
+#include <algorithm>
+
 void RailCameraController::Initialize()
 {
 	Initialize(Mode::Loop);
@@ -33,6 +35,9 @@ void RailCameraController::Initialize(Mode mode)
 	moveSpeed_ = mode_ == Mode::VerticalDescent ? 300.0f : 1.0f;
 	stageProgressSpeed_ = 1.0f;
 	isMovementEnabled_ = true;
+	isCameraFollowEnabled_ = true;
+	isCameraCoasting_ = false;
+	cameraCoastTimer_ = 0.0f;
 	currentDistance_ = 0.0f;
 	travelledDistance_ = 0.0f;
 	verticalStartHeight_ = 0.0f;
@@ -55,8 +60,7 @@ void RailCameraController::Initialize(Mode mode)
 		totalLength_ = 0.0f;
 		railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
 		target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
-		worldTransform_.translate_ =
-			{ railPos_.x + offset_.x, railPos_.y, railPos_.z + offset_.y };
+		worldTransform_.translate_ = CalculateEyePosition();
 		worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
 	}
 	else
@@ -64,7 +68,7 @@ void RailCameraController::Initialize(Mode mode)
 		BuildLenghthTable();
 		railPos_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_));
 		target_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_ + targetRange_));
-		worldTransform_.translate_ = railPos_;
+		worldTransform_.translate_ = CalculateEyePosition();
 	}
 	// GamePlayScene::Initialize() で戦闘空間の親として即座に使われるため、
 	// 最初のフレームを待たずにレールカメラの行列を確定する。
@@ -78,7 +82,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	ImGui::Begin("ReilCamera");
 
 	ImGui::Text("Mode: %s", mode_ == Mode::VerticalDescent ? "VerticalDescent" : "Loop");
-	ImGui::DragFloat2("Offset", &offset_.x, 0.1f);
+	ImGui::DragFloat3("Offset", &offset_.x, 0.1f);
 	ImGui::DragFloat("MoveSpeed", &moveSpeed_, 0.1f);
 	ImGui::Checkbox("MovementEnabled", &isMovementEnabled_);
 	if (mode_ == Mode::VerticalDescent)
@@ -97,6 +101,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 #endif
 
 	if (!mainCamera) return;
+	const Vector3 previousCameraPosition = worldTransform_.translate_;
 
 	// 1. 毎フレーム「時間 × 速度」で実際の移動距離を加算する
 	const float moveDistance = isMovementEnabled_
@@ -160,9 +165,9 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	Vector3 localUp = Cross(forward, xAxis);
 
 	Vector3 eyePos = {
-		railPos_.x + xAxis.x * offset_.x + localUp.x * offset_.y,
-		railPos_.y + xAxis.y * offset_.x + localUp.y * offset_.y,
-		railPos_.z + xAxis.z * offset_.x + localUp.z * offset_.y
+		railPos_.x + xAxis.x * offset_.x + localUp.x * offset_.y + forward.x * offset_.z,
+		railPos_.y + xAxis.y * offset_.x + localUp.y * offset_.y + forward.y * offset_.z,
+		railPos_.z + xAxis.z * offset_.x + localUp.z * offset_.y + forward.z * offset_.z
 	};
 
 	// (前回提案した行列による回転制御への移行を推奨しますが、一旦既存のオイラー角のままでも動作します)
@@ -175,8 +180,34 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	worldTransform_.SetRotate(rotate);
 	worldTransform_.UpdateMatrix();
 
-	mainCamera->SetRotate(worldTransform_.GetRotate());
-	mainCamera->SetTranslate(worldTransform_.translate_);
+	if (isCameraFollowEnabled_)
+	{
+		mainCamera->SetRotate(worldTransform_.GetRotate());
+		mainCamera->SetTranslate(worldTransform_.translate_);
+	}
+	else if (isCameraCoasting_)
+	{
+		const float progress = std::clamp(
+			cameraCoastTimer_ / cameraCoastDuration_, 0.0f, 1.0f);
+		const float easedProgress = progress * progress * (3.0f - 2.0f * progress);
+		const float speedRate =
+			1.0f + (cameraCoastEndSpeedRate_ - 1.0f) * easedProgress;
+		cameraCoastPosition_ +=
+			(worldTransform_.translate_ - previousCameraPosition) * speedRate;
+		mainCamera->SetTranslate(cameraCoastPosition_);
+		cameraCoastTimer_ += deltaTime;
+	}
+}
+
+void RailCameraController::StartCameraCoast(
+	float decelerationDuration, float endSpeedRate)
+{
+	isCameraFollowEnabled_ = false;
+	isCameraCoasting_ = true;
+	cameraCoastPosition_ = worldTransform_.translate_;
+	cameraCoastTimer_ = 0.0f;
+	cameraCoastDuration_ = std::max(decelerationDuration, 0.0001f);
+	cameraCoastEndSpeedRate_ = std::clamp(endSpeedRate, 0.0f, 1.0f);
 }
 
 void RailCameraController::SetVerticalStartHeight(float height)
@@ -191,10 +222,38 @@ void RailCameraController::SetVerticalStartHeight(float height)
 	travelledDistance_ = 0.0f;
 	railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
 	target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
-	worldTransform_.translate_ =
-		{ railPos_.x + offset_.x, railPos_.y, railPos_.z + offset_.y };
+	worldTransform_.translate_ = CalculateEyePosition();
 	worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
 	worldTransform_.UpdateMatrix();
+}
+
+void RailCameraController::SetOffset(const Vector3& offset)
+{
+	offset_ = offset;
+	worldTransform_.translate_ = CalculateEyePosition();
+	worldTransform_.UpdateMatrix();
+}
+
+Vector3 RailCameraController::CalculateEyePosition() const
+{
+	Vector3 forward = Normalize(target_ - railPos_);
+	const Vector3 worldUp = { 0.0f, 1.0f, 0.0f };
+	Vector3 right = Cross(worldUp, forward);
+	const float rightLength = Length(right);
+	if (rightLength > 0.001f)
+	{
+		right = right * (1.0f / rightLength);
+	}
+	else
+	{
+		right = { 1.0f, 0.0f, 0.0f };
+	}
+	const Vector3 cameraUp = Cross(forward, right);
+
+	return railPos_ +
+		right * offset_.x +
+		cameraUp * offset_.y +
+		forward * offset_.z;
 }
 
 void RailCameraController::SetBattleSpaceParent(WorldTransform* parent)

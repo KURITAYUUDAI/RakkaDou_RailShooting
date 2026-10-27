@@ -45,6 +45,7 @@ private:
 		kCaveSegmentLength_ * static_cast<float>(kCaveObjectCount_);
 	static constexpr float kCaveRecycleHalfDistance_ = kCaveRecycleDistance_ * 0.5f;
 	static constexpr float kOutFieldBoundingRadius_ = 55.3f;
+	static constexpr float kOutFieldVisibilityMargin_ = kCaveSegmentLength_;
 
 	bool isDraw_ = true;
 };

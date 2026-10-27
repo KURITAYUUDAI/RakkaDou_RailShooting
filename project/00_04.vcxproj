@@ -165,6 +165,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\object\bullet\BulletManager.cpp" />
     <ClCompile Include="application\object\bullet\Bullet.cpp" />
     <ClCompile Include="application\tool\postEffect\Darken.cpp" />
+    <ClCompile Include="application\tool\postEffect\Vignette.cpp" />
+    <ClCompile Include="application\tool\postEffect\HSVAdjust.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimationMemo.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimationUtility.cpp" />
     <ClCompile Include="Dict_Engine\io\SkeletonImGuiDebug.cpp" />
@@ -446,6 +448,11 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="resources\shaders\PostEffect\HSVAdjust.PS.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="resources\shaders\PostEffect\BoxFilter.PS.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -491,6 +498,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\object\player\PlayerEvent.h" />
     <ClInclude Include="application\ui\GamePlayUIUtility.h" />
     <ClInclude Include="application\tool\postEffect\Darken.h" />
+    <ClInclude Include="application\tool\postEffect\Vignette.h" />
+    <ClInclude Include="application\tool\postEffect\HSVAdjust.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationMemo.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationUtility.h" />
     <ClInclude Include="Dict_Engine\io\SkeletonImGuiDebug.h" />

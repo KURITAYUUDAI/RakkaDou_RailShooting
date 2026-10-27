@@ -104,7 +104,8 @@ void Terrain::Update(float deltaTime, const Vector3& referencePosition)
 
 			const Vector3 difference = caveTransforms_[i].translate - referencePosition;
 			caveVisibility_[i] = !isFogEnabled ||
-				Length(difference) - kOutFieldBoundingRadius_ <= fogEndDistance;
+				Length(difference) - kOutFieldBoundingRadius_ <=
+				fogEndDistance + kOutFieldVisibilityMargin_;
 
 			caveObjects_[i]->SetTransform(caveTransforms_[i]);
 			caveObjects_[i]->Update();

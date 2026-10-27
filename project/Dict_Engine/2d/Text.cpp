@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "Text.h"
 #include "PSOManager.h"
 #include "ImGuiManager.h"
@@ -253,6 +254,12 @@ void Text::SetPosition(const Vector2& position)
     worldTransform_.translate_ = Vector3{ position.x, position.y, 0.0f };
 }
 
+void Text::SetAnchorPoint(const Vector2& anchorPoint)
+{
+    anchorPoint_ = anchorPoint;
+    RebuildMesh();
+}
+
 void Text::CreateVertexResource()
 {
     const uint32_t vertexCount = kMaxQuadCount * 4;
@@ -427,6 +434,30 @@ void Text::RebuildMesh()
     }
 
     finishUnderline();
+
+    if (quadCount > 0)
+    {
+        float minX = vertexData_[0].position.x;
+        float maxX = vertexData_[0].position.x;
+        float minY = vertexData_[0].position.y;
+        float maxY = vertexData_[0].position.y;
+        const uint32_t vertexCount = quadCount * 4;
+        for (uint32_t i = 1; i < vertexCount; ++i)
+        {
+            minX = std::min(minX, vertexData_[i].position.x);
+            maxX = std::max(maxX, vertexData_[i].position.x);
+            minY = std::min(minY, vertexData_[i].position.y);
+            maxY = std::max(maxY, vertexData_[i].position.y);
+        }
+
+        const float anchorX = minX + (maxX - minX) * anchorPoint_.x;
+        const float anchorY = minY + (maxY - minY) * anchorPoint_.y;
+        for (uint32_t i = 0; i < vertexCount; ++i)
+        {
+            vertexData_[i].position.x -= anchorX;
+            vertexData_[i].position.y -= anchorY;
+        }
+    }
 
     currentIndexCount_ = quadCount * 6;
 }

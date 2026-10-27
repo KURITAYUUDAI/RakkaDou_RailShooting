@@ -1,7 +1,11 @@
+#define NOMINMAX
 #include "CameraManager.h"
 //#include "Camera.h"
 #include "ICameraController.h"
 #include "time/DeltaTimeManager.h"
+
+#include <algorithm>
+#include <cmath>
 
 std::unique_ptr<CameraManager> CameraManager::instance_ = nullptr;
 
@@ -65,12 +69,38 @@ void CameraManager::Update(const float& deltaTime)
 		{
 			activeCameraController_->GetWorldTransform()->translate_ = cameraTranslate;
 		}
+		ImGui::DragFloat(
+			"Camera Distance Offset", &cameraDistanceOffset_, 0.1f, -100.0f, 100.0f);
 
 		ImGui::End();
 
 	#endif
 
 		activeCameraController_->Update(mainCamera_.get(), deltaTime_);
+		if (std::abs(cameraDistanceOffset_) > 0.0001f)
+		{
+			const Vector3& rotate = mainCamera_->GetRotate();
+			const float cosPitch = std::cos(rotate.x);
+			const Vector3 forward = {
+				std::sin(rotate.y) * cosPitch,
+				-std::sin(rotate.x),
+				std::cos(rotate.y) * cosPitch
+			};
+			mainCamera_->SetTranslate(
+				mainCamera_->GetTranslate() - forward * cameraDistanceOffset_);
+		}
+		if (shakeTimer_ < shakeDuration_)
+		{
+			shakeTimer_ += deltaTime_;
+			const float progress = std::clamp(
+				shakeTimer_ / shakeDuration_, 0.0f, 1.0f);
+			const float strength = shakeMagnitude_ * (1.0f - progress);
+			const float phase = shakeTimer_ * 95.0f;
+			Vector3 shakenPosition = mainCamera_->GetTranslate();
+			shakenPosition.x += std::sin(phase) * strength;
+			shakenPosition.y += std::sin(phase * 1.37f) * strength;
+			mainCamera_->SetTranslate(shakenPosition);
+		}
 		// DebugCamera の表示中も、ゲーム用カメラはプレイヤーの移動範囲の
 		// 基準として使うため、毎フレーム行列を更新しておく。
 		mainCamera_->Update();
@@ -104,6 +134,13 @@ void CameraManager::Update(const float& deltaTime)
 	//	// カメラの逆行列をGPU用構造体に転送
 	//	projectionInverseData_->projectionInverse = Inverse(activeCamera_->GetProjectionMatrix());
 	//}
+}
+
+void CameraManager::StartShake(float duration, float magnitude)
+{
+	shakeDuration_ = std::max(duration, 0.0f);
+	shakeMagnitude_ = std::max(magnitude, 0.0f);
+	shakeTimer_ = 0.0f;
 }
 
 void CameraManager::DrawDebugUI()

@@ -69,6 +69,7 @@ public:
 	void Update(const float& deltaTime);
 
 	void DrawDebugUI();
+	void StartShake(float duration, float magnitude);
 
 	void SetCbufferCameraResource(UINT RootParameterIndex);
 
@@ -120,6 +121,10 @@ private:
 private:
 
 	float deltaTime_ = 0.0f;
+	float shakeTimer_ = 0.0f;
+	float shakeDuration_ = 0.0f;
+	float shakeMagnitude_ = 0.0f;
+	float cameraDistanceOffset_ = 0.0f;
 
 	std::unique_ptr<Camera> mainCamera_;
 	std::unordered_map<std::string, ICameraController*> cameraControllers_;

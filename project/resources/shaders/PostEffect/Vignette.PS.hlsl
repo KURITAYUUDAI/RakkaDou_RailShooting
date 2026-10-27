@@ -3,10 +3,15 @@
 Texture2D<float4> gTexture : register(t0);
 SamplerState gSampler : register(s0);
 
-// ===== [テキストより独自で変換したポイント] =======
-// float32_t4 → float4
-//                                         by ChatGPT
-// ==================================================
+struct Material
+{
+    float threshold;
+    float softness;
+    float intensity;
+    float padding;
+    float4 darkColor;
+};
+ConstantBuffer<Material> gMaterial : register(b0);
 
 struct PixelShaderOutput
 {
@@ -18,16 +23,17 @@ struct PixelShaderOutput
 PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
-    output.color = gTexture.Sample(gSampler, input.texcoord);
-    
-    // 周囲を0に、中心になるほど明るくなるように計算で調整
-    float2 correct = input.texcoord * (1.0f - input.texcoord.xy);
-    // correctだけで計算すると中心の最大値が0.0625で暗すぎるのでScaleで調整。この例は16倍にして1にしている
-    float vignette = correct.x * correct.y * 16.0f;
-    // とりあえず0.8乗でそれっぽくしてみる
-    vignette = saturate(pow(vignette, 0.8f));
-    // 係数として乗算
-    output.color.rgb *= vignette;
+    float4 source = gTexture.Sample(gSampler, input.texcoord);
+    float2 centered = input.texcoord - float2(0.5f, 0.5f);
+    float distanceFromCenter = length(centered);
+    float edgeMask = smoothstep(
+        gMaterial.threshold,
+        gMaterial.threshold + max(gMaterial.softness, 0.0001f),
+        distanceFromCenter);
+    float blendRate = saturate(edgeMask * gMaterial.intensity);
+    output.color = float4(
+        lerp(source.rgb, gMaterial.darkColor.rgb, blendRate),
+        source.a);
     
     return output;
 }

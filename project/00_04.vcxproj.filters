@@ -357,6 +357,12 @@
     <ClCompile Include="application\tool\postEffect\Darken.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="application\tool\postEffect\Vignette.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\tool\postEffect\HSVAdjust.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="application\object\player\JustAvoidDarken.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -426,6 +432,7 @@
     <FxCompile Include="resources\shaders\PostEffect\Fullscreen.VS.hlsl" />
     <FxCompile Include="resources\shaders\PostEffect\Grayscale.PS.hlsl" />
     <FxCompile Include="resources\shaders\PostEffect\Vignette.PS.hlsl" />
+    <FxCompile Include="resources\shaders\PostEffect\HSVAdjust.PS.hlsl" />
     <FxCompile Include="resources\shaders\PostEffect\BoxFilter.PS.hlsl" />
     <FxCompile Include="resources\shaders\PostEffect\GaussianFilter.PS.hlsl" />
     <FxCompile Include="resources\shaders\PostEffect\GaussianBlurH.PS.hlsl" />
@@ -749,6 +756,12 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\tool\postEffect\Darken.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\tool\postEffect\Vignette.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\tool\postEffect\HSVAdjust.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\object\player\JustAvoidDarken.h">

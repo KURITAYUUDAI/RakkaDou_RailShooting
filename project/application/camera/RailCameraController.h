@@ -26,8 +26,13 @@ public:
 	bool IsLoop() const { return isLoop_; }
 	void SetMovementEnabled(bool enabled) { isMovementEnabled_ = enabled; }
 	bool IsMovementEnabled() const { return isMovementEnabled_; }
+	void SetCameraFollowEnabled(bool enabled) { isCameraFollowEnabled_ = enabled; }
+	bool IsCameraFollowEnabled() const { return isCameraFollowEnabled_; }
+	void StartCameraCoast(float decelerationDuration, float endSpeedRate);
 	void SetMoveSpeed(float speed) { moveSpeed_ = speed < 0.0f ? 0.0f : speed; }
 	float GetMoveSpeed() const { return moveSpeed_; }
+	void SetOffset(const Vector3& offset);
+	const Vector3& GetOffset() const { return offset_; }
 	void ResetTravelledDistance() { travelledDistance_ = 0.0f; }
 	void SetVerticalStartHeight(float height);
 	Mode GetMode() const { return mode_; }
@@ -38,6 +43,8 @@ public:
 	void RecenterBattleSpace(Vector3& playerLocalPosition, Vector3& enemyLocalPosition);
 
 private:
+	Vector3 CalculateEyePosition() const;
+
 	Mode mode_ = Mode::Loop;
 
 	std::vector<Vector3> controlPoints_;
@@ -54,11 +61,17 @@ private:
 	float moveSpeed_ = 5.0f;                // 移動速度 (1秒間に進むメートル数)
 	float stageProgressSpeed_ = 1.0f;        // 垂直降下中の敵出現進行速度
 	bool isMovementEnabled_ = true;
+	bool isCameraFollowEnabled_ = true;
+	bool isCameraCoasting_ = false;
+	Vector3 cameraCoastPosition_{};
+	float cameraCoastTimer_ = 0.0f;
+	float cameraCoastDuration_ = 1.0f;
+	float cameraCoastEndSpeedRate_ = 0.0f;
 	bool isLoop_ = true;                    // 終端到達後に先頭へ戻って周回するか
 
 	float targetRange_ = 0.5f;
 	
-	Vector2 offset_ = {1.0f, 1.0f};
+	Vector3 offset_ = { 1.0f, 1.0f, 0.0f };
 
 	WorldTransform battleWorldTransform_;
 };
