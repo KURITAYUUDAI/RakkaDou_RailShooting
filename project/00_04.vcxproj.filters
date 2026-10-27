@@ -207,7 +207,10 @@
     <ClCompile Include="application\command\InputHandler.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="application\command\InputHandlerSelector.cpp">
+    <ClCompile Include="application\command\PlayerInputAdapter.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\command\input\InputMapping.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="Dict_Engine\tool\postEffect\PostEffectManager.cpp">
@@ -577,7 +580,13 @@
     <ClInclude Include="application\command\InputHandler.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="application\command\InputHandlerSelector.h">
+    <ClInclude Include="application\command\PlayerInputAdapter.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\command\input\InputAction.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\command\input\InputMapping.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectManager.h">
@@ -788,6 +797,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\command\InputCommand.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

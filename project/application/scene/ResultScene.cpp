@@ -4,15 +4,10 @@
 #include "CameraManager.h"
 #include "PrimitiveManager.h"
 
-namespace
-{
-	constexpr size_t kScalingBoxIndex = 0;
-	constexpr size_t kRotatingBoxIndex = 1;
-	constexpr size_t kMovingBoxIndex = 2;
-}
-
 void ResultScene::Initialize()
 {
+	inputMapping_->SetContext(InputContext::Result);
+
 	// Textureを読んで転送する
 	textureManager_->LoadTexture("uvChecker.png");
 	textureManager_->LoadTexture("monsterBall.png");
@@ -75,24 +70,14 @@ void ResultScene::Initialize()
 	PrimitiveManager::GetInstance()->Initialize();
 	PrimitiveManager::GetInstance()->CreateBox("box_primitive");
 
-	for (size_t i = 0; i < 3; i++)
-	{
-		std::unique_ptr<Object3d> newObject3d = std::make_unique<Object3d>();
-		newObject3d->Initialize();
-		newObject3d->SetModel("box_primitive");
-		newObject3d->SetEnableLighting(false);
-		object3ds_.push_back(std::move(newObject3d));
-	}
-
-	object3ds_[kScalingBoxIndex]->SetTranslate({ -4.0f, 0.0f, 0.0f });
-	object3ds_[kScalingBoxIndex]->SetColor({ 1.0f, 0.2f, 0.2f, 1.0f });
-
-	object3ds_[kRotatingBoxIndex]->SetTranslate({ 0.0f, 0.0f, 0.0f });
-	object3ds_[kRotatingBoxIndex]->SetColor({ 0.2f, 1.0f, 0.2f, 1.0f });
-
-	object3ds_[kMovingBoxIndex]->SetTranslate({ 4.0f, 0.0f, 0.0f });
-	object3ds_[kMovingBoxIndex]->SetColor({ 0.2f, 0.4f, 1.0f, 1.0f });
-	boxAnimationTime_ = 0.0f;
+	//for (size_t i = 0; i < 3; i++)
+	//{
+	//	std::unique_ptr<Object3d> newObject3d = std::make_unique<Object3d>();
+	//	newObject3d->Initialize();
+	//	newObject3d->SetModel("box_primitive");
+	//	newObject3d->SetEnableLighting(false);
+	//	object3ds_.push_back(std::move(newObject3d));
+	//}
 
 
 	particleManager_->SetModel("plane.obj");
@@ -113,9 +98,24 @@ void ResultScene::Initialize()
 		emitters_.push_back(std::move(emitter));
 	}
 
-	enterSprite_ = std::make_unique<Sprite>();
-	enterSprite_->Initialize("ENTER.png");
-	enterSprite_->SetPosition({ 20.0f, 540.0f });
+	FreeTypeManager::GetInstance()->Initialize();
+	TextManager::GetInstance()->Initialize();
+
+	keyboardConfirmPromptText_ = std::make_unique<Text>();
+	keyboardConfirmPromptText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 48,
+		inputMapping_->GetBindingLabel(
+			InputContext::Result, InputAction::Confirm, InputDevice::Keyboard));
+	keyboardConfirmPromptText_->SetPosition({ 20.0f, 540.0f });
+	keyboardConfirmPromptText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+
+	controllerConfirmPromptText_ = std::make_unique<Text>();
+	controllerConfirmPromptText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 48,
+		inputMapping_->GetBindingLabel(
+			InputContext::Result, InputAction::Confirm, InputDevice::Gamepad));
+	controllerConfirmPromptText_->SetPosition({ 20.0f, 540.0f });
+	controllerConfirmPromptText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 
 	// シーン初期化終わり
 
@@ -125,6 +125,20 @@ void ResultScene::Initialize()
 
 void ResultScene::Finalize()
 {
+	if (controllerConfirmPromptText_)
+	{
+		controllerConfirmPromptText_->Finalize();
+		controllerConfirmPromptText_.reset();
+	}
+	if (keyboardConfirmPromptText_)
+	{
+		keyboardConfirmPromptText_->Finalize();
+		keyboardConfirmPromptText_.reset();
+	}
+	FontManager::GetInstance()->Finalize();
+	TextManager::GetInstance()->Finalize();
+	FreeTypeManager::GetInstance()->Finalize();
+
 	for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
 	{
 		std::unique_ptr<ParticleEmitter> emitter = std::move(*it);
@@ -171,7 +185,7 @@ void ResultScene::Update(const float& deltaTime)
 		return;
 	}
 
-	if (inputManager_->TriggerKey(DIK_RETURN))
+	if (inputMapping_->IsTriggered(InputAction::Confirm))
 	{
 		// シーン切り替え
 		SceneManager::GetInstance()->SetSceneRequest("TITLE");
@@ -222,14 +236,14 @@ void ResultScene::Update(const float& deltaTime)
 
 	ImGui::Begin("LightSetting");
 
-	int32_t enableLighting = object3ds_[0]->GetEnableLighting();
+	/*int32_t enableLighting = object3ds_[0]->GetEnableLighting();*/
 	Vector4 directionLightColor = LightManager::GetInstance()->GetDirectionalLightColor();
 	Vector3 directionLightDirection = LightManager::GetInstance()->GetDirectionalLightDirection();
 	float directionLightIntensity = LightManager::GetInstance()->GetDirectionalLightIntensity();
-	if (ImGui::Checkbox("EnableLighting", (bool*)&enableLighting))
+	/*if (ImGui::Checkbox("EnableLighting", (bool*)&enableLighting))
 	{
 		object3ds_[0]->SetEnableLighting(enableLighting);
-	}
+	}*/
 	if (ImGui::ColorEdit4("LightColor", &directionLightColor.x))
 	{
 		LightManager::GetInstance()->SetDirectionalLightColor(directionLightColor);
@@ -271,13 +285,6 @@ void ResultScene::Update(const float& deltaTime)
 	cameraManager_->Update(deltaTime);
 	skyBox_->Update();
 
-	boxAnimationTime_ += deltaTime;
-	const float scale = 1.0f + std::sinf(boxAnimationTime_ * 2.0f) * 0.5f;
-	object3ds_[kScalingBoxIndex]->SetScale({ scale, scale, scale });
-	object3ds_[kRotatingBoxIndex]->SetRotate({ 0.0f, boxAnimationTime_, 0.0f });
-	object3ds_[kMovingBoxIndex]->SetTranslate(
-		{ 4.0f, std::sinf(boxAnimationTime_ * 2.0f) * 2.0f, 0.0f });
-
 
 	for (auto it = sprites_.begin(); it != sprites_.end(); ++it)
 	{
@@ -285,11 +292,11 @@ void ResultScene::Update(const float& deltaTime)
 		sprite->Update();
 	}
 
-	for (auto it = object3ds_.begin(); it != object3ds_.end(); ++it)
-	{
-		Object3d* object3d = it->get();
-		object3d->Update();
-	}
+	//for (auto it = object3ds_.begin(); it != object3ds_.end(); ++it)
+	//{
+	//	Object3d* object3d = it->get();
+	//	object3d->Update();
+	//}
 
 	for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
 	{
@@ -297,7 +304,8 @@ void ResultScene::Update(const float& deltaTime)
 		emitter->Update(deltaTime);
 	}
 
-	enterSprite_->Update();
+	keyboardConfirmPromptText_->Update();
+	controllerConfirmPromptText_->Update();
 
 	particleManager_->Update(deltaTime);
 
@@ -314,10 +322,10 @@ void ResultScene::Draw()
 
 	if (isDrawObject3d_)
 	{
-		for (size_t i = 0; i < object3ds_.size(); i++)
+		/*for (size_t i = 0; i < object3ds_.size(); i++)
 		{
 			object3ds_[i]->Draw();
-		}
+		}*/
 	}
 
 
@@ -337,7 +345,13 @@ void ResultScene::Draw()
 		}
 	}
 
-	enterSprite_->Draw();
+	if (inputMapping_->GetActiveDevice() == InputDevice::Gamepad)
+	{
+		controllerConfirmPromptText_->Draw();
+	} else
+	{
+		keyboardConfirmPromptText_->Draw();
+	}
 
 	if (inputManager_->TriggerKey(DIK_0))
 	{

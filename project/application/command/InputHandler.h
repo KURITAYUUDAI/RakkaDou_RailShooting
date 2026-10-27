@@ -1,48 +1,31 @@
 #pragma once
-#include "myMath.h"
-#include "InputManager.h"
-#include <cmath>
-#include <string>
-#include <vector>
-#include <unordered_map>
+
+#include "application/command/input/InputMapping.h"
 
 class IInputHandler
 {
-	public:
+public:
 	virtual ~IInputHandler() = default;
 	virtual Vector2 GetDirection() = 0;
-    virtual bool IsActionPressed(const std::string& actionName) { return false; }
-	virtual bool IsActionTriggerd(const std::string& actionName) { return false; }
-	virtual bool IsActionReleased(const std::string& actionName) { return false; }
+	virtual bool IsActionPressed(InputAction action) = 0;
+	virtual bool IsActionTriggered(InputAction action) = 0;
 };
 
-class KeyboardInputHandler : public IInputHandler
+// InputMappingを既存のPlayerCommandから利用するための安定したアダプター。
+// 接続デバイスが変わっても、このオブジェクト自体のアドレスは変わらない。
+class MappedInputHandler final : public IInputHandler
 {
 public:
-    void AssignKey(const std::string& actionName, int keyCode);
-    Vector2 GetDirection() override;
-    bool IsActionPressed(const std::string& actionName) override;
-	bool IsActionTriggerd(const std::string& actionName) override;
-	bool IsActionReleased(const std::string& actionName) override;
+	explicit MappedInputHandler(
+		InputMapping* inputMapping = InputMapping::GetInstance())
+		: inputMapping_(inputMapping)
+	{
+	}
+
+	Vector2 GetDirection() override;
+	bool IsActionPressed(InputAction action) override;
+	bool IsActionTriggered(InputAction action) override;
 
 private:
-
-    std::unordered_map<std::string, int> keyBindings_;
-};
-
-class GamepadInputHandler : public IInputHandler
-{
-public:
-    explicit GamepadInputHandler(float deadzone = 0.2f)
-        : deadzone_(deadzone) {}
-
-    void AssignKey(const std::string& actionName, int buttonCode);
-    Vector2 GetDirection() override;
-    bool IsActionPressed(const std::string& actionName) override;
-	bool IsActionTriggerd(const std::string& actionName) override;
-	bool IsActionReleased(const std::string& actionName) override;
-
-private:
-    std::unordered_map<std::string, int> buttonBindings_;
-    float deadzone_;
+	InputMapping* inputMapping_ = nullptr;
 };

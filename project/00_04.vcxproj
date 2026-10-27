@@ -196,7 +196,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\3d\LightManager.cpp" />
     <ClCompile Include="Dict_Engine\3d\DistanceFogManager.cpp" />
     <ClCompile Include="application\command\InputHandler.cpp" />
-    <ClCompile Include="application\command\InputHandlerSelector.cpp" />
+    <ClCompile Include="application\command\PlayerInputAdapter.cpp" />
+    <ClCompile Include="application\command\input\InputMapping.cpp" />
     <ClCompile Include="application\tool\postEffect\GaussianBlur.cpp" />
     <ClCompile Include="Dict_Engine\camera\ICameraController.cpp" />
     <ClCompile Include="application\object\enemy\Enemy.cpp" />
@@ -477,6 +478,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="application\command\InputCommand.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />
     <ClInclude Include="application\object\AnimationTest.h" />
@@ -545,7 +547,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\base\OffscreenRender.h" />
     <ClInclude Include="application\object\player\PlayerState.h" />
     <ClInclude Include="application\command\InputHandler.h" />
-    <ClInclude Include="application\command\InputHandlerSelector.h" />
+    <ClInclude Include="application\command\PlayerInputAdapter.h" />
+    <ClInclude Include="application\command\input\InputAction.h" />
+    <ClInclude Include="application\command\input\InputMapping.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectManager.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffect.h" />
     <ClInclude Include="application\tool\postEffect\GaussianBlur.h" />

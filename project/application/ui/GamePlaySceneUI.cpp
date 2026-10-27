@@ -13,17 +13,41 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
     gameUIController_ = std::make_unique<GameUIController>();
     gameUIController_->Initialize(eventBus);
 
-	controlText_ = std::make_unique<Text>();
-	controlText_->Initialize(
+	keyboardControlText_ = std::make_unique<Text>();
+	const auto keyboardLabel = [this](InputAction action)
+	{
+		return inputMapping_->GetBindingLabel(
+			InputContext::Gameplay, action, InputDevice::Keyboard);
+	};
+	keyboardControlText_->Initialize(
 		"fonts/x8y12pxTheStrongGamer.ttf",
-		36,
-		U"WASD   : MOVE\n"
-		U"SPACE  : SHOT\n"
-		U"E      : AVOID\n"
-		U"LSHIFT : LOCKON\n"
-		U"TAB    : PAUSE");
-	controlText_->SetPosition({ 10.0f, 530.0f });
-	controlText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+		30,
+		keyboardLabel(InputAction::Move) + U" : MOVE\n" +
+		keyboardLabel(InputAction::Shot) + U" : SHOT\n" +
+		keyboardLabel(InputAction::Avoid) + U" : AVOID\n" +
+		keyboardLabel(InputAction::LockOn) + U" : LOCKON\n" +
+		keyboardLabel(InputAction::Melee) + U" : MELEE\n" +
+		keyboardLabel(InputAction::Pause) + U" : PAUSE");
+	keyboardControlText_->SetPosition({ 10.0f, 500.0f });
+	keyboardControlText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+
+	controllerControlText_ = std::make_unique<Text>();
+	const auto controllerLabel = [this](InputAction action)
+	{
+		return inputMapping_->GetBindingLabel(
+			InputContext::Gameplay, action, InputDevice::Gamepad);
+	};
+	controllerControlText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf",
+		30,
+		controllerLabel(InputAction::Move) + U" : MOVE\n" +
+		controllerLabel(InputAction::Shot) + U" : SHOT\n" +
+		controllerLabel(InputAction::Avoid) + U" : AVOID\n" +
+		controllerLabel(InputAction::LockOn) + U" : LOCKON\n" +
+		controllerLabel(InputAction::Melee) + U" : MELEE\n" +
+		controllerLabel(InputAction::Pause) + U" : PAUSE");
+	controllerControlText_->SetPosition({ 10.0f, 500.0f });
+	controllerControlText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 
     auto playerHPGage = std::make_unique<HPGageUI>();
     HPGageUIConfig playerConfig{};
@@ -77,10 +101,16 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
 
 void GamePlaySceneUI::Finalize()
 {
-    if (controlText_)
+	if (keyboardControlText_)
     {
-        controlText_->Finalize();
-        controlText_.reset();
+		keyboardControlText_->Finalize();
+		keyboardControlText_.reset();
+	}
+
+	if (controllerControlText_)
+	{
+		controllerControlText_->Finalize();
+		controllerControlText_.reset();
     }
 
     if (gameUIController_)
@@ -103,7 +133,8 @@ void GamePlaySceneUI::Update(float deltaTime)
     SyncLockOnUI();
 
     uiManager_->Update(gameUIController_->GetViewModel(), deltaTime_);
-	controlText_->Update();
+	keyboardControlText_->Update();
+	controllerControlText_->Update();
 }
 
 void GamePlaySceneUI::DrawLayer(const UILayer& layer)
@@ -112,7 +143,13 @@ void GamePlaySceneUI::DrawLayer(const UILayer& layer)
 
 	if (isVisible_ && layer == UILayer::Screen)
 	{
-		controlText_->Draw();
+		if (inputMapping_->GetActiveDevice() == InputDevice::Gamepad)
+		{
+			controllerControlText_->Draw();
+		} else
+		{
+			keyboardControlText_->Draw();
+		}
 	}
 }
 

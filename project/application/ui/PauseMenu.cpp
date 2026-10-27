@@ -1,6 +1,5 @@
 #include "PauseMenu.h"
 
-#include "InputManager.h"
 #include "WindowsAPI.h"
 
 namespace
@@ -49,10 +48,31 @@ void PauseMenu::Initialize()
 	titleText_->Initialize(kPauseFontPath, 32, U"TITLE");
 	titleText_->SetPosition({ 584.0f, 401.0f });
 
-	helpText_ = std::make_unique<Text>();
-	helpText_->Initialize(kPauseFontPath, 18, U"W/S: SELECT   SPACE: ENTER");
-	helpText_->SetPosition({ 488.0f, 488.0f });
-	helpText_->SetColor({ 0.65f, 0.72f, 0.8f, 1.0f });
+	keyboardHelpText_ = std::make_unique<Text>();
+	keyboardHelpText_->Initialize(
+		kPauseFontPath, 18,
+		inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::MenuUp, InputDevice::Keyboard) +
+		U" / " + inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::MenuDown, InputDevice::Keyboard) +
+		U" : SELECT\n" + inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::Confirm, InputDevice::Keyboard) +
+		U" : ENTER");
+	keyboardHelpText_->SetPosition({ 470.0f, 475.0f });
+	keyboardHelpText_->SetColor({ 0.65f, 0.72f, 0.8f, 1.0f });
+
+	controllerHelpText_ = std::make_unique<Text>();
+	controllerHelpText_->Initialize(
+		kPauseFontPath, 18,
+		inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::MenuUp, InputDevice::Gamepad) +
+		U" / " + inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::MenuDown, InputDevice::Gamepad) +
+		U" : SELECT\n" + inputMapping_->GetBindingLabel(
+			InputContext::Pause, InputAction::Confirm, InputDevice::Gamepad) +
+		U" : ENTER");
+	controllerHelpText_->SetPosition({ 470.0f, 475.0f });
+	controllerHelpText_->SetColor({ 0.65f, 0.72f, 0.8f, 1.0f });
 
 	selectedIndex_ = kContinueIndex;
 	isVisible_ = false;
@@ -61,10 +81,15 @@ void PauseMenu::Initialize()
 
 void PauseMenu::Finalize()
 {
-	if (helpText_)
+	if (controllerHelpText_)
 	{
-		helpText_->Finalize();
-		helpText_.reset();
+		controllerHelpText_->Finalize();
+		controllerHelpText_.reset();
+	}
+	if (keyboardHelpText_)
+	{
+		keyboardHelpText_->Finalize();
+		keyboardHelpText_.reset();
 	}
 	if (titleText_)
 	{
@@ -107,13 +132,12 @@ PauseMenu::Action PauseMenu::Update()
 		return Action::None;
 	}
 
-	auto* input = InputManager::GetInstance();
-	if (input->TriggerKey(DIK_UP) || input->TriggerKey(DIK_W))
+	if (inputMapping_->IsTriggered(InputAction::MenuUp))
 	{
 		selectedIndex_ = (selectedIndex_ + kMenuItemCount - 1) % kMenuItemCount;
 		RefreshSelection();
 	}
-	else if (input->TriggerKey(DIK_DOWN) || input->TriggerKey(DIK_S))
+	else if (inputMapping_->IsTriggered(InputAction::MenuDown))
 	{
 		selectedIndex_ = (selectedIndex_ + 1) % kMenuItemCount;
 		RefreshSelection();
@@ -125,9 +149,10 @@ PauseMenu::Action PauseMenu::Update()
 	heading_->Update();
 	continueText_->Update();
 	titleText_->Update();
-	helpText_->Update();
+	keyboardHelpText_->Update();
+	controllerHelpText_->Update();
 
-	if (input->TriggerKey(DIK_SPACE))
+	if (inputMapping_->IsTriggered(InputAction::Confirm))
 	{
 		return selectedIndex_ == kContinueIndex
 			? Action::ContinueGame
@@ -150,7 +175,13 @@ void PauseMenu::Draw()
 	heading_->Draw();
 	continueText_->Draw();
 	titleText_->Draw();
-	helpText_->Draw();
+	if (inputMapping_->GetActiveDevice() == InputDevice::Gamepad)
+	{
+		controllerHelpText_->Draw();
+	} else
+	{
+		keyboardHelpText_->Draw();
+	}
 }
 
 void PauseMenu::SetVisible(bool visible)
@@ -175,3 +206,4 @@ void PauseMenu::RefreshSelection()
 		? Vector4{ 0.9f, 0.0f, 0.0f, 1.0f }
 		: Vector4{ 0.85f, 0.85f, 0.85f, 1.0f });
 }
+

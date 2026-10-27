@@ -5,33 +5,33 @@
 void PlayerIdleState::Initialize(Player* player)
 {
 	moveCommand_ = std::make_unique<MoveHorizontalCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 	shotCommand_ = std::make_unique<LongPressShotCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 	avoidCommand_ = std::make_unique<AvoidCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 	meleeAttackCommand_ = std::make_unique<MeleeAttackCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 }
 
 void PlayerIdleState::Update(Player * player, const float& deltaTime)
 {
-	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
+	IInputHandler* handler = player->GetInputHandler();
 
 	moveCommand_->Execute(player);
 	
-	if (handler->IsActionTriggerd("shot"))
+	if (handler->IsActionTriggered(InputAction::Shot))
 	{
 		shotCommand_->Update(player, deltaTime);
 		return; // ★ 追加: Shot()内部でChangeStateされる
 	}
-	if (handler->IsActionTriggerd("avoid"))
+	if (handler->IsActionTriggered(InputAction::Avoid))
 	{
 		shotCommand_->Cancel(player);
 		avoidCommand_->Execute(player);
 		return; // ★ 追加: Avoid()内部でChangeStateされる
 	}
-	if (handler->IsActionTriggerd("melee"))
+	if (handler->IsActionTriggered(InputAction::Melee))
 	{
 		shotCommand_->Cancel(player);
 		meleeAttackCommand_->Execute(player);
@@ -63,13 +63,11 @@ void PlayerIdleState::Finalize(Player* player)
 void PlayerShotState::Initialize(Player* player)
 {
 	moveCommand_ = std::make_unique<MoveHorizontalCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 }
 
 void PlayerShotState::Update(Player* player, const float& deltaTime)
 {
-	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
-
 	moveCommand_->Execute(player);
 
 	timer_ += deltaTime;
@@ -138,8 +136,6 @@ void PlayerAvoidState::Initialize(Player* player)
 
 void PlayerAvoidState::Update(Player* player, const float& deltaTime)
 {
-	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
-
 	timer_ += deltaTime;
 
 	float progress = timer_ / duration_;
@@ -205,7 +201,7 @@ void PlayerAvoidState::Finalize(Player * player)
 void PlayerJustAvoidState::Initialize(Player* player)
 {
 	shotCommand_ = std::make_unique<ShotCommand>(
-		player->GetInputHandlerSelector()->GetHandler());
+		player->GetInputHandler());
 
 	justAvoidDarken_->SetSetting(setting);
 	justAvoidDarken_->Play();
@@ -217,7 +213,7 @@ void PlayerJustAvoidState::Initialize(Player* player)
 
 void PlayerJustAvoidState::Update(Player* player, const float& deltaTime)
 {
-	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
+	IInputHandler* handler = player->GetInputHandler();
 
 	timer_ += deltaTime;
 
@@ -251,13 +247,13 @@ void PlayerJustAvoidState::Update(Player* player, const float& deltaTime)
 	}
 	else
 	{
-		if (handler->IsActionTriggerd("shot"))
+		if (handler->IsActionTriggered(InputAction::Shot))
 		{
 			shotCommand_->Execute(player);
 			isCounter_ = true;
 			return; // ★ 追加: Shot()内部でChangeStateされる
 		}
-		if (handler->IsActionTriggerd("melee"))
+		if (handler->IsActionTriggered(InputAction::Melee))
 		{
 			player->CounterMeleeAttack();
 			return;
@@ -354,7 +350,7 @@ Vector3 PlayerMeleeAttackState::GetAttackEndPosition() const
 
 void PlayerMeleeAttackState::Update(Player* player, const float& deltaTime)
 {
-	IInputHandler* handler = player->GetInputHandlerSelector()->GetHandler();
+	IInputHandler* handler = player->GetInputHandler();
 	const Vector3 windupPosition = GetWindupPosition();
 	const Vector3 attackEndPosition = GetAttackEndPosition();
 	timer_ += deltaTime;
@@ -392,7 +388,7 @@ void PlayerMeleeAttackState::Update(Player* player, const float& deltaTime)
 		// 通常コンボより短い受付時間内で、押した瞬間だけ追撃を発動する。
 		if (timer_ >= kFollowUpInputStart_ &&
 			timer_ <= kFollowUpDuration_ &&
-			handler->IsActionTriggerd("shot"))
+			handler->IsActionTriggered(InputAction::Shot))
 		{
 			UpdateAttackDirection(player);
 			player->MeleeFollowUpAttack();
@@ -428,7 +424,7 @@ void PlayerMeleeAttackState::Update(Player* player, const float& deltaTime)
 		player->SetMeleeHandTranslate(kRestPosition_);
 
 		if (comboIndex_ + 1 < kMaxComboCount_ &&
-			handler->IsActionTriggerd("melee"))
+			handler->IsActionTriggered(InputAction::Melee))
 		{
 			++comboIndex_;
 			BeginAttack(player);

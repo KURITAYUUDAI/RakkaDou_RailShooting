@@ -22,7 +22,7 @@ void ShotCommand::Execute(Player* player)
 
 LongPressShotCommand::Result LongPressShotCommand::Update(Player* player, float deltaTime)
 {
-	if (inputHandler_->IsActionPressed("shot"))
+	if (inputHandler_->IsActionPressed(InputAction::Shot))
 	{
 		if (!isCharging_)
 		{
@@ -43,7 +43,8 @@ LongPressShotCommand::Result LongPressShotCommand::Update(Player* player, float 
 		return Result::None;
 	}
 
-	if (isCharging_ && inputHandler_->IsActionReleased("shot"))
+	// デバイスの切り替え・切断時にもチャージを確実に終了する。
+	if (isCharging_)
 	{
 		const bool isChargedShot = holdTime_ >= kChargeDuration;
 		isCharging_ = false;

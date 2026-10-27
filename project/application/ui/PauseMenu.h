@@ -4,6 +4,7 @@
 
 #include "Sprite.h"
 #include "Text.h"
+#include "application/command/input/InputMapping.h"
 
 class PauseMenu
 {
@@ -33,7 +34,9 @@ private:
 	std::unique_ptr<Text> heading_;
 	std::unique_ptr<Text> continueText_;
 	std::unique_ptr<Text> titleText_;
-	std::unique_ptr<Text> helpText_;
+	std::unique_ptr<Text> keyboardHelpText_;
+	std::unique_ptr<Text> controllerHelpText_;
+	InputMapping* inputMapping_ = InputMapping::GetInstance();
 
 	bool isVisible_ = false;
 	uint32_t selectedIndex_ = 0;

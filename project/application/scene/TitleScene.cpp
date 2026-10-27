@@ -32,6 +32,8 @@ namespace
 
 void TitleScene::Initialize()
 {
+	inputMapping_->SetContext(InputContext::Title);
+
 	camera_ = std::make_unique<Camera>();
 	camera_->Initialize();
 
@@ -254,11 +256,21 @@ void TitleScene::Initialize()
 	FreeTypeManager::GetInstance()->Initialize();
 	TextManager::GetInstance()->Initialize();
 
-	spacePromptText_ = std::make_unique<Text>();
-	spacePromptText_->Initialize(
-		"fonts/x8y12pxTheStrongGamer.ttf", 48, U"SPACE");
-	spacePromptText_->SetPosition({ 562.0f, 580.0f });
-	spacePromptText_->SetColor({ 0.9f, 0.9f, 0.9f, 1.0f });
+	keyboardPromptText_ = std::make_unique<Text>();
+	keyboardPromptText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 48,
+		inputMapping_->GetBindingLabel(
+			InputContext::Title, InputAction::Confirm, InputDevice::Keyboard));
+	keyboardPromptText_->SetPosition({ 562.0f, 580.0f });
+	keyboardPromptText_->SetColor({ 0.9f, 0.9f, 0.9f, 1.0f });
+
+	controllerPromptText_ = std::make_unique<Text>();
+	controllerPromptText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 48,
+		inputMapping_->GetBindingLabel(
+			InputContext::Title, InputAction::Confirm, InputDevice::Gamepad));
+	controllerPromptText_->SetPosition({ 625.0f, 580.0f });
+	controllerPromptText_->SetColor({ 0.9f, 0.9f, 0.9f, 1.0f });
 
 
 	debugManager_->Initialize();
@@ -267,6 +279,17 @@ void TitleScene::Initialize()
 void TitleScene::Finalize()
 {
 	StopExitBlur();
+
+	if (controllerPromptText_)
+	{
+		controllerPromptText_->Finalize();
+		controllerPromptText_.reset();
+	}
+	if (keyboardPromptText_)
+	{
+		keyboardPromptText_->Finalize();
+		keyboardPromptText_.reset();
+	}
 
 	// 次のシーンへタイトル専用フォグを持ち越さない。
 	DistanceFogManager::GetInstance()->SetEnabled(false);
@@ -344,7 +367,7 @@ void TitleScene::Update(const float& deltaTime)
 	bool skippedEntranceThisFrame = false;
 	if (entranceSequenceState_ != EntranceSequenceState::Complete &&
 		exitSequenceState_ == ExitSequenceState::WaitingForInput &&
-		inputManager_->TriggerKey(DIK_SPACE))
+		inputMapping_->IsTriggered(InputAction::Confirm))
 	{
 		SkipEntranceSequence();
 		skippedEntranceThisFrame = true;
@@ -521,7 +544,8 @@ void TitleScene::Update(const float& deltaTime)
 	//// ImGuiの内部コマンドを生成する
 	//ImGui::Render();
 
-	spacePromptText_->Update();
+	keyboardPromptText_->Update();
+	controllerPromptText_->Update();
 }
 
 void TitleScene::UpdateCaveFogEndPlane()
@@ -701,7 +725,7 @@ void TitleScene::UpdateExitSequence(float deltaTime)
 	{
 	case ExitSequenceState::WaitingForInput:
 		if (entranceSequenceState_ == EntranceSequenceState::Complete &&
-			inputManager_->TriggerKey(DIK_SPACE) &&
+			inputMapping_->IsTriggered(InputAction::Confirm) &&
 			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
 		{
 			exitStartPlayerPosition_ = player_->GetTranslate();
@@ -861,7 +885,13 @@ void TitleScene::Draw()
 	if (entranceSequenceState_ == EntranceSequenceState::Complete &&
 		exitSequenceState_ == ExitSequenceState::WaitingForInput)
 	{
-		spacePromptText_->Draw();
+		if (inputMapping_->GetActiveDevice() == InputDevice::Gamepad)
+		{
+			controllerPromptText_->Draw();
+		} else
+		{
+			keyboardPromptText_->Draw();
+		}
 	}
 
 	if (openingFadeSprite_->GetColor().w > 0.0f)

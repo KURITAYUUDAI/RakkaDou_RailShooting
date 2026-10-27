@@ -28,16 +28,6 @@ void Player::Initialize(Mode mode)
 	mode_ = mode;
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
 
-	selector_.GetKeyboardHandler()->AssignKey("shot", DIK_SPACE);
-	selector_.GetKeyboardHandler()->AssignKey("avoid", DIK_E);
-	selector_.GetKeyboardHandler()->AssignKey("lockOn", DIK_LSHIFT);   // 追加
-	selector_.GetKeyboardHandler()->AssignKey("melee", DIK_B);
-
-	selector_.GetGamepadHandler()->AssignKey("shot", XINPUT_GAMEPAD_RIGHT_SHOULDER);
-	selector_.GetGamepadHandler()->AssignKey("avoid", XINPUT_GAMEPAD_X);
-	selector_.GetGamepadHandler()->AssignKey("lockOn", XINPUT_GAMEPAD_LEFT_SHOULDER); // 追加
-	selector_.GetGamepadHandler()->AssignKey("melee", XINPUT_GAMEPAD_B);
-
 	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
 	ModelManager::GetInstance()->LoadModel("player", "player.obj");
 	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
@@ -225,8 +215,8 @@ void Player::Update(const float& deltaTime)
 
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Player);
 
-	IInputHandler* handler = selector_.GetHandler();
-	if (handler->IsActionPressed("lockOn"))
+	IInputHandler* handler = inputAdapter_.GetHandler();
+	if (handler->IsActionPressed(InputAction::LockOn))
 	{
 		// 押した瞬間だけ対象を決定する。
 		// 押し続けている間は最近敵が変わっても対象を切り替えない。

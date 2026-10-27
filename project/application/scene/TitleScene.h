@@ -13,6 +13,7 @@
 #include "Terrain.h"
 #include "player/Player.h"
 #include "PostEffectController.h"
+#include "application/command/input/InputMapping.h"
 
 class TitleScene : public BaseScene
 {
@@ -78,6 +79,7 @@ private:
 
 	// インプットマネージャー
 	InputManager* inputManager_ = InputManager::GetInstance();
+	InputMapping* inputMapping_ = InputMapping::GetInstance();
 
 	// スプライトマネージャー
 	SpriteManager* spriteManager_ = SpriteManager::GetInstance();
@@ -137,7 +139,8 @@ private:
 
 	std::unique_ptr<Sprite> openingFadeSprite_;
 
-	std::unique_ptr<Text> spacePromptText_;
+	std::unique_ptr<Text> keyboardPromptText_;
+	std::unique_ptr<Text> controllerPromptText_;
 
 	std::unique_ptr<ParticleEmitter> ringEmitter_;
 

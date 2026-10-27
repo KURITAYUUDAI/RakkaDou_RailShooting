@@ -9,10 +9,12 @@
 #include "Random.h"
 #include "Darken.h"
 #include "Grayscale.h"
+#include "application/command/input/InputMapping.h"
 
 void Game::Initialize()
 {
 	Dict_Framework::Initialize();
+	InputMapping::GetInstance()->Initialize();
 
 	// 使えるエフェクトの種類を登録
 	postEffectManager_->RegisterFactory("GaussianBlur",
@@ -49,6 +51,7 @@ void Game::Finalize()
 	sceneManager_->Finalize();
 
 	postEffectManager_->Finalize();
+	InputMapping::Finalize();
 
 	Dict_Framework::Finalize();
 }

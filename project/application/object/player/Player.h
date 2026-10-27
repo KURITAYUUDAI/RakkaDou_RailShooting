@@ -5,7 +5,7 @@
 #include "Model.h"
 #include <memory>
 
-#include "InputHandlerSelector.h"
+#include "PlayerInputAdapter.h"
 #include "PlayerState.h"
 #include "collision/CollisionObserver.h"
 #include "collision/Collider.h"
@@ -82,7 +82,7 @@ public: // Command対応
 
 public:	//外部入出力
 
-	InputHandlerSelector* GetInputHandlerSelector() { return &selector_; }
+	IInputHandler* GetInputHandler() { return inputAdapter_.GetHandler(); }
 	
 	const Vector3& GetScale() const { return transform_.scale; }
 	const Vector3& GetRotate() const { return transform_.rotate; }
@@ -149,7 +149,7 @@ private:
 	void UpdateTitleFalling();
 
 	// 入力ハンドル
-	InputHandlerSelector selector_;
+	PlayerInputAdapter inputAdapter_;
 
 	// 現在の状態
 	std::unique_ptr<IPlayerState> state_;

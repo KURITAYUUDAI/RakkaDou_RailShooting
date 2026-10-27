@@ -57,6 +57,8 @@ namespace
 
 void GamePlayScene::Initialize()
 {
+	inputMapping_->SetContext(InputContext::Gameplay);
+
 	camera_ = std::make_unique<Camera>();
 	camera_->Initialize();
 
@@ -1120,12 +1122,6 @@ void GamePlayScene::Finalize()
 
 void GamePlayScene::Update(const float& deltaTime)
 {
-	//if (inputManager_->TriggerKey(DIK_RETURN))
-	//{
-	//	// シーン切り替え
-	//	SceneManager::GetInstance()->SetSceneRequest("TITLE");
-	//}
-
 	if (inputManager_->TriggerKey(DIK_F12))
 	{
 		// シーン切り替え
@@ -1146,10 +1142,13 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	const bool isGameplayActive =
 		IsStageEntryComplete() || isStageEntryPlayerControlEnabled_;
-	if (isGameplayActive && isTransitionIdle && inputManager_->TriggerKey(DIK_TAB))
+	if (isGameplayActive && isTransitionIdle &&
+		inputMapping_->IsTriggered(InputAction::Pause))
 	{
 		isPaused_ = !isPaused_;
 		pauseMenu_->SetVisible(isPaused_);
+		inputMapping_->SetContext(
+			isPaused_ ? InputContext::Pause : InputContext::Gameplay);
 	}
 
 	if (isGameplayActive && isPaused_)
@@ -1159,6 +1158,7 @@ void GamePlayScene::Update(const float& deltaTime)
 		{
 			isPaused_ = false;
 			pauseMenu_->SetVisible(false);
+			inputMapping_->SetContext(InputContext::Gameplay);
 		}
 		else if (isTransitionIdle && action == PauseMenu::Action::ReturnToTitle)
 		{

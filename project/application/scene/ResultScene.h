@@ -4,6 +4,8 @@
 #include "CameraManager.h"
 #include "DefaultCameraController.h"
 #include "SkyBox.h"
+#include "Text.h"
+#include "application/command/input/InputMapping.h"
 
 class ResultScene : public BaseScene
 {
@@ -41,6 +43,7 @@ private:
 
 	// インプットマネージャー
 	InputManager* inputManager_ = InputManager::GetInstance();
+	InputMapping* inputMapping_ = InputMapping::GetInstance();
 
 	// スプライトマネージャー
 	SpriteManager* spriteManager_ = SpriteManager::GetInstance();
@@ -56,7 +59,6 @@ private:
 	bool isDrawSprite_ = true;
 
 	bool isDrawObject3d_ = true;
-	float boxAnimationTime_ = 0.0f;
 
 	// カメラ
 	std::unique_ptr<Camera> camera_ = nullptr;
@@ -67,6 +69,7 @@ private:
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 
-	std::unique_ptr<Sprite> enterSprite_;
+	std::unique_ptr<Text> keyboardConfirmPromptText_;
+	std::unique_ptr<Text> controllerConfirmPromptText_;
 };
 

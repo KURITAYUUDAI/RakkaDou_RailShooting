@@ -6,6 +6,7 @@
 #include "GameUIController.h"
 #include "GamePlayUIUtility.h"
 #include "Text.h"
+#include "application/command/input/InputMapping.h"
 
 class GamePlaySceneUI : public SceneUIBase
 {
@@ -34,7 +35,9 @@ private:
 
     std::unique_ptr<UIManager<GameUIViewModel>> uiManager_;
     std::unique_ptr<GameUIController> gameUIController_;
-    std::unique_ptr<Text> controlText_;
+	InputMapping* inputMapping_ = InputMapping::GetInstance();
+    std::unique_ptr<Text> keyboardControlText_;
+    std::unique_ptr<Text> controllerControlText_;
     bool isVisible_ = true;
 
     UIID screenBossHPGageUIID_ = kInvalidUIID;

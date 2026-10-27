@@ -21,6 +21,7 @@
 #include "PauseMenu.h"
 
 #include "PostEffectController.h"
+#include "application/command/input/InputMapping.h"
 
 #include <array>
 
@@ -108,6 +109,7 @@ private:
 
 	// インプットマネージャー
 	InputManager* inputManager_ = InputManager::GetInstance();
+	InputMapping* inputMapping_ = InputMapping::GetInstance();
 
 	// スプライトマネージャー
 	SpriteManager* spriteManager_ = SpriteManager::GetInstance();
