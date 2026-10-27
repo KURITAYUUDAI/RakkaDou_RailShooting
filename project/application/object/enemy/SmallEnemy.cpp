@@ -12,6 +12,11 @@ void SmallEnemy::InitializeSpecific(const EnemyCreateConfig& config)
 {
 	config_ = config;
 	role_ = config.role;
+	if (role_ == SmallEnemyRole::Charger)
+	{
+		ModelManager::GetInstance()->LoadModel("enemy", "CrossEnemy.obj");
+		GetObject3d()->SetModel("CrossEnemy.obj");
+	}
 	SetBodyCollisionDamage(role_ == SmallEnemyRole::Charger ? 0 : 1);
 
 	spawnTargetPosition_ = config.position;
