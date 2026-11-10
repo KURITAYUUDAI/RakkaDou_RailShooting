@@ -67,11 +67,11 @@ void SceneManager::Update(const float& deltaTime)
 	}
 }
 
-void SceneManager::Draw()
+void SceneManager::Draw(CanvasId canvasId)
 {
 	if (currentScene_)
 	{
-		currentScene_->Draw();
+		currentScene_->Draw(canvasId);
 	}
 }
 

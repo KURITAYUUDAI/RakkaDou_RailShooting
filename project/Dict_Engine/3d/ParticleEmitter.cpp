@@ -44,9 +44,10 @@ void ParticleEmitter::RandomEmit(const float& deltaTime)
 	}
 }
 
-void ParticleEmitter::EmitSlash()
+void ParticleEmitter::EmitSlash(
+	const Vector4& color, float length, float lifeTime)
 {
 	ParticleManager::GetInstance()->EmitSlash(
-		name_, transform_.translate, count_, parentHandle_);
+		name_, transform_.translate, count_, parentHandle_, color, length, lifeTime);
 }
 

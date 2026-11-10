@@ -253,6 +253,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\base\OffscreenRender.cpp" />
     <ClCompile Include="application\object\player\PlayerState.cpp" />
     <ClCompile Include="Dict_Engine\tool\postEffect\PostEffectManager.cpp" />
+    <ClCompile Include="Dict_Engine\tool\postEffect\PostEffectChain.cpp" />
+    <ClCompile Include="Dict_Engine\tool\postEffect\RenderCanvas.cpp" />
+    <ClCompile Include="Dict_Engine\tool\postEffect\CanvasManager.cpp" />
     <ClCompile Include="Dict_Engine\tool\postEffect\PostEffect.cpp" />
     <ClCompile Include="application\camera\RailCameraController.cpp" />
     <ClCompile Include="Dict_Engine\math\WorldTransform.cpp" />
@@ -560,6 +563,9 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\command\input\InputAction.h" />
     <ClInclude Include="application\command\input\InputMapping.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectManager.h" />
+    <ClInclude Include="Dict_Engine\tool\postEffect\PostEffectChain.h" />
+    <ClInclude Include="Dict_Engine\tool\postEffect\RenderCanvas.h" />
+    <ClInclude Include="Dict_Engine\tool\postEffect\CanvasManager.h" />
     <ClInclude Include="Dict_Engine\tool\postEffect\PostEffect.h" />
     <ClInclude Include="application\tool\postEffect\GaussianBlur.h" />
     <ClInclude Include="Dict_Engine\camera\ICameraController.h" />

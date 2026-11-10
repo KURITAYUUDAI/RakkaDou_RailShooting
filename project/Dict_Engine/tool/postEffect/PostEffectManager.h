@@ -6,6 +6,7 @@
 #include <functional>
 #include <cstdint>
 #include "PostEffect.h"
+#include "PostEffectChain.h"
 #include "myMath.h"
 
 #include <optional>
@@ -43,14 +44,7 @@ public:
     template<typename T>
     T* Get(const std::string& name)
     {
-        for (auto& entry : effectChain_)
-        {
-            if (entry->GetName() == name)
-            {
-                return dynamic_cast<T*>(entry.effect.get());
-            }
-        }
-        return nullptr; // 見つからなかった場合
+        return defaultChain_.Get<T>(name);
     }
 
 public:
@@ -67,19 +61,6 @@ public:
     explicit PostEffectManager(ConstructorKey){}
 
 public:
-
-    struct EffectEntry
-    {
-        std::unique_ptr<PostEffect> effect;
-        int32_t priority = 0;
-        uint64_t insertionOrder = 0;
-    };
-
-    struct PassEntry
-    {
-        PostEffect::PassFunc                    pass;
-        std::vector<PostEffect::PassBarrier>    barriers; // このパス専用のバリア
-    };
 
 private:
     static std::unique_ptr<PostEffectManager> instance_;
@@ -111,6 +92,16 @@ public:
     /// <param name="name">エフェクト名（Add()で使う文字列）</param>
     /// <param name="factory">エフェクトを生成するラムダ</param>
     void RegisterFactory(const std::string& name, FactoryFunc factory);
+
+    /// <summary>
+    /// Canvasが所有する独立チェーンを、登録済みFactoryと同じ条件で初期化する。
+    /// </summary>
+    void InitializeChain(PostEffectChain& chain);
+
+    /// <summary>
+    /// 既存のPostEffectControllerが操作するWorld用チェーン。
+    /// </summary>
+    PostEffectChain& GetDefaultChain() { return defaultChain_; }
 
     // -------------------------------------------------------
     //  エフェクトチェーンの構築（Scene::Initialize等から呼ぶ）
@@ -161,7 +152,7 @@ public:
     // -------------------------------------------------------
 
     /// <summary>現在のチェーンに含まれるエフェクト数</summary>
-    uint32_t GetEffectCount() const { return static_cast<uint32_t>(effectChain_.size()); }
+    uint32_t GetEffectCount() const { return defaultChain_.GetEffectCount(); }
 
     /// <summary>指定インデックスのエフェクト名を返す</summary>
     const std::string& GetEffectName(uint32_t index) const;
@@ -182,10 +173,8 @@ private:
     /// <summary>
     /// エフェクトが0個のときのフォールバック描画（シーンRTをそのままSwapChainへ）
     /// </summary>
-    void DrawPassthrough(ID3D12Resource* srcResource, uint32_t srcSRVIndex);
-    void CreatePingPongBuffers(uint32_t width, uint32_t height);
     void RegisterPassthroughPSO();
-    void SortEffectChain();
+	std::unique_ptr<PostEffect> CreateEffect(const std::string& name);
 
     /// <summary>
    /// 現在のエフェクトチェーンをすべてクリアする。
@@ -197,23 +186,16 @@ public: // 外部入出力
 
 	const PostEffect* GetEffect(uint32_t index) const
 	{
-		assert(index < effectChain_.size() && "PostEffectManager: GetEffect インデックスが範囲外です");
-		return effectChain_[index].effect.get();
+		return defaultChain_.GetEffect(index);
 	}
 
 private:
     // 登録されたファクトリ関数（名前 → 生成関数）
     std::unordered_map<std::string, FactoryFunc> factories_;
 
-    // 現在のエフェクトチェーン（適用順）
-    std::vector<EffectEntry> effectChain_;
-    uint64_t nextInsertionOrder_ = 0;
-
-    // ピンポンバッファ（2本固定）
-    ComPtr<ID3D12Resource>      pingPongRT_[2];
-    D3D12_CPU_DESCRIPTOR_HANDLE pingPongRTV_[2] = {};
-    uint32_t                    pingPongRTVIndex_[2] = {};
-    uint32_t                    pingPongSRVIndex_[2] = {};
+    // 既存APIが操作するWorld用のデフォルトチェーン。
+    // Canvas導入後もPostEffectControllerとの互換性を維持する。
+    PostEffectChain defaultChain_;
 
     // 初期化時のRT解像度（Add()時のInitializeに渡す）
     uint32_t width_ = 0;

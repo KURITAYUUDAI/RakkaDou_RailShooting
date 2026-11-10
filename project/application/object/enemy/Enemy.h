@@ -237,6 +237,7 @@ private:
 	static constexpr float kDeathEffectDuration_ = 0.8f;
 
 	static constexpr float kHitCircleDuration_ = 0.25f;
+	static constexpr float kHitEffectPositionRatio_ = 0.5f;
 
 	bool isHPChanged_ = false;
 

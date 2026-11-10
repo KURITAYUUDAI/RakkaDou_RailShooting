@@ -314,8 +314,13 @@ void TestScene::Update(const float& deltaTime)
 void TestScene::FinishFadeIn()
 {}
 
-void TestScene::Draw()
+void TestScene::Draw(CanvasId canvasId)
 {
+	if (canvasId != BuiltinCanvas::World)
+	{
+		return;
+	}
+
 	skyBox_->Draw();
 
 	if (isDrawObject3d_)

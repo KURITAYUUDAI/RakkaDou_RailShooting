@@ -23,7 +23,7 @@ public:
 
 	void FinishFadeIn() override;
 
-	void Draw() override;
+	void Draw(CanvasId canvasId) override;
 
 private:
 

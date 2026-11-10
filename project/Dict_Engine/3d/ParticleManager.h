@@ -178,7 +178,9 @@ public:
 	void CreateAccelerationField(const Vector3& acceleration, const AABB& area);
 
 	void EmitSlash(const std::string name, const Vector3& position, uint32_t count,
-		ParticleParentHandle parentHandle = {});
+		ParticleParentHandle parentHandle = {},
+		const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f },
+		float length = 2.0f, float lifeTime = 0.25f);
 
 	void Emit(const std::string name, const Vector3& position, uint32_t count,
 		ParticleParentHandle parentHandle = {});

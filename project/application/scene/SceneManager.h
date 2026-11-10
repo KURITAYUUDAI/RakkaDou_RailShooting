@@ -47,7 +47,7 @@ public:
 
 	void Update(const float& deltaTime);
 
-	void Draw();
+	void Draw(CanvasId canvasId);
 
 private:
 	void ChangeScene(const std::string& sceneName);

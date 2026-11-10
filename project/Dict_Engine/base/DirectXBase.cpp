@@ -162,6 +162,73 @@ void DirectXBase::DrawSwapChain()
 	commandList_->RSSetScissorRects(1, &scissorRect_);	// Scissorを設定
 }
 
+void DirectXBase::BeginRenderTexture(
+	ID3D12Resource* resource,
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
+	const Vector4& clearColor,
+	bool useDepth)
+{
+	D3D12_RESOURCE_BARRIER transition{};
+	transition.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	transition.Transition.pResource = resource;
+	transition.Transition.StateBefore =
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	transition.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.Transition.Subresource =
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	commandList_->ResourceBarrier(1, &transition);
+
+	if (useDepth)
+	{
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle =
+			dsvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart();
+		commandList_->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
+		commandList_->ClearDepthStencilView(
+			dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	}
+	else
+	{
+		commandList_->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+	}
+
+	const float color[4] = {
+		clearColor.x, clearColor.y, clearColor.z, clearColor.w };
+	commandList_->ClearRenderTargetView(rtvHandle, color, 0, nullptr);
+	commandList_->RSSetViewports(1, &viewport_);
+	commandList_->RSSetScissorRects(1, &scissorRect_);
+}
+
+void DirectXBase::EndRenderTexture(ID3D12Resource* resource)
+{
+	D3D12_RESOURCE_BARRIER transition{};
+	transition.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	transition.Transition.pResource = resource;
+	transition.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.Transition.StateAfter =
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	transition.Transition.Subresource =
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	commandList_->ResourceBarrier(1, &transition);
+}
+
+void DirectXBase::BeginBackBuffer()
+{
+	const UINT backBufferIndex = swapChain_->GetCurrentBackBufferIndex();
+	D3D12_RESOURCE_BARRIER transition{};
+	transition.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	transition.Transition.pResource = swapChainResources_[backBufferIndex].Get();
+	transition.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	transition.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.Transition.Subresource =
+		D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	commandList_->ResourceBarrier(1, &transition);
+
+	commandList_->OMSetRenderTargets(
+		1, &rtvHandles_[backBufferIndex], false, nullptr);
+	commandList_->RSSetViewports(1, &viewport_);
+	commandList_->RSSetScissorRects(1, &scissorRect_);
+}
+
 void DirectXBase::PostDraw()
 {
 	HRESULT hr;

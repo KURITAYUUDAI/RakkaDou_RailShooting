@@ -497,7 +497,8 @@ void ParticleManager::RandomEmit(const std::string name, const Vector3& position
 }
 
 void ParticleManager::EmitSlash(const std::string name, const Vector3& position,
-	uint32_t count, ParticleParentHandle parentHandle)
+	uint32_t count, ParticleParentHandle parentHandle,
+	const Vector4& color, float length, float lifeTime)
 {
 	if (!particleGroups_.contains(name))
 	{
@@ -508,12 +509,14 @@ void ParticleManager::EmitSlash(const std::string name, const Vector3& position,
 	for (uint32_t index = 0; index < count; ++index)
 	{
 		Particle particle;
-		particle.transform.scale = { 0.05f, SeedManager::GetInstance()->GenerateFloat(0.4f, 1.5f), 1.0f };
+		particle.transform.scale = { 0.1f, length, 1.0f };
 		particle.transform.rotate = { 0.0f, 0.0f, SeedManager::GetInstance()->GenerateFloat(-pi, pi) };
 		particle.transform.translate = position;
 		particle.velocity = { 0.0f, 0.0f, 0.0f };
-		particle.color = { 1.0f, 1.0f, 1.0f, 1.0f };
-		particle.lifeTime = 1.0f;
+		particle.color = color;
+		particle.initialAlpha = std::clamp(color.w, 0.0f, 1.0f);
+		particle.color.w = particle.initialAlpha;
+		particle.lifeTime = std::max(lifeTime, 0.001f);
 		particle.currentTime = 0.0f;
 		particle.parentHandle = parentHandle;
 

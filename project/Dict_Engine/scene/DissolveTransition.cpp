@@ -28,6 +28,7 @@ void DissolveTransition::Begin(TransitionPhase phase)
     if (handle_ == kInvalidPostEffectHandle)
     {
         handle_ = controller_->Emit<Dissolve>(
+			BuiltinCanvas::Final,
             "Dissolve",
             std::nullopt,
             nullptr);

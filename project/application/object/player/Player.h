@@ -41,6 +41,7 @@ public:
 	void Initialize(Mode mode = Mode::Gameplay);
 	void EventDispatch();
 	void Update(const float& deltaTime);
+	void PublishLockOnState();
 	void StartGameOverSequence();
 	void UpdateGameOverSequence(float deltaTime);
 
@@ -114,6 +115,11 @@ public:	//外部入出力
 	bool IsGameOverSequenceFinished() const { return isGameOverSequenceFinished_; }
 	bool IsGameOverFalling() const { return isGameOverFalling_; }
 	float GetGameOverRecoilAngle() const { return gameOverRecoilAngle_; }
+	float GetGameOverImpactAngle() const { return kGameOverImpactAngle_; }
+	float GetGameOverCameraReleaseAngle() const
+	{
+		return kGameOverDecelerationAngle_;
+	}
 
 	const float& GetThreshold() { return dissolveParams_.threshold; }
 	const Vector4& GetEdgeColor() { return dissolveParams_.edgeColor; }
@@ -154,6 +160,7 @@ private:
 	void UpdateMeleeFollowUpEffect(float deltaTime);
 	void UpdateTitleFalling();
 	void SyncParticleParent();
+	float CalculateDamageRecoilAngle() const;
 
 	// 入力ハンドル
 	PlayerInputAdapter inputAdapter_;
@@ -220,10 +227,12 @@ private:
 	// HP
 	int hitPoint_;
 	// 最大HP
-	static inline const int kMaxHitPoint = 3;
+	static inline const int kMaxHitPoint = 50;
 
 	float damageTimer_ = 0.0f;
 	const float kDamageInvincible_ = 1.0f;
+	static constexpr float kDamageRecoilAngle_ = -pi / 6.0f;
+	static constexpr float kDamageRecoilImpactDuration_ = 0.12f;
 
 	// デスフラグ
 	bool isDead_ = false;
@@ -241,12 +250,12 @@ private:
 	float gameOverRecoilTimer_ = 0.0f;
 	float gameOverRecoilStartRotationX_ = 0.0f;
 	float gameOverRecoilAngle_ = 0.0f;
-	static constexpr float kGameOverImpactAngle_ = pi / 3.0f;
-	static constexpr float kGameOverDecelerationAngle_ = 2.0f * pi / 3.0f;
-	static constexpr float kGameOverGravityAngle_ = pi;
-	static constexpr float kGameOverImpactDuration_ = 0.12f;
-	static constexpr float kGameOverDecelerationDuration_ = 0.55f;
-	static constexpr float kGameOverGravityDuration_ = 0.9f;
+	const float kGameOverImpactAngle_ = -pi / 3.0f;
+	const float kGameOverDecelerationAngle_ = -2.0f * pi / 3.0f;
+	const float kGameOverGravityAngle_ = -pi;
+	const float kGameOverImpactDuration_ = 0.12f;
+	const float kGameOverDecelerationDuration_ = 0.55f;
+	const float kGameOverGravityDuration_ = 0.9f;
 	const float kGameOverFallDuration_ = 3.0f;
 
 	

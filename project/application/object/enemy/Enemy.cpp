@@ -313,10 +313,15 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 		return;
 	}
 
-	const Vector3 localHitPosition = TransformPosition(
+	const Vector3 localContactPosition = TransformPosition(
 		hitPosition, Inverse(object3d_->GetWorldTransform()->worldMatrix_));
+	// コライダー表面はモデル表面より外側にあるため、敵原点側へ寄せて
+	// ビルボードのヒットエフェクトが手前に浮いて見えるのを抑える。
+	const Vector3 localHitPosition =
+		localContactPosition * kHitEffectPositionRatio_;
 	slashEmitter_->SetTranslate(localHitPosition);
-	slashEmitter_->EmitSlash();
+	slashEmitter_->EmitSlash(
+		{ 1.0f, 1.0f, 1.0f, 1.0f }, 2.0f, kHitCircleDuration_);
 	SpawnHitCircle(localHitPosition);
 
 	if (eventBus_)

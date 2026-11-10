@@ -846,8 +846,13 @@ void TitleScene::FinishFadeIn()
 	
 }
 
-void TitleScene::Draw()
+void TitleScene::Draw(CanvasId canvasId)
 {
+	if (canvasId != BuiltinCanvas::World)
+	{
+		return;
+	}
+
 	skyBox_->Draw();
 	caveFogEndPlane_->Draw();
 	terrain_->Draw();

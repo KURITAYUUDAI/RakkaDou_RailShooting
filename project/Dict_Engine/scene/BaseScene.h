@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CanvasManager.h"
+
 // シーン基底クラス
 class BaseScene
 {
@@ -14,7 +16,7 @@ public:
 
 	virtual void FinishFadeIn() = 0;
 
-	virtual void Draw() = 0;
+	virtual void Draw(CanvasId canvasId) = 0;
 
 };
 

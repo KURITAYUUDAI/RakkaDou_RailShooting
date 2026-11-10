@@ -7,8 +7,10 @@
 #include <functional>
 #include <algorithm>
 #include <cassert>
+#include <utility>
 
 #include "PostEffectManager.h"
+#include "CanvasManager.h"
 #include "Logger.h"
 
 struct PostEffectHandle
@@ -58,6 +60,14 @@ public:
         std::optional<int32_t> priority = std::nullopt);
 
     template<class EffectType>
+    PostEffectHandle Emit(
+        CanvasId canvasId,
+        const std::string& effectName,
+        std::optional<float> duration,
+        std::function<void(EffectType&, float progress, float elapsedTime)> updater = nullptr,
+        std::optional<int32_t> priority = std::nullopt);
+
+    template<class EffectType>
     void Edit(
         PostEffectHandle handle,
         std::function<void(EffectType&)> editor);
@@ -76,6 +86,8 @@ private:
 
         std::string effectName;
         PostEffect* effect = nullptr;
+        PostEffectChain* chain = nullptr;
+        CanvasId canvasId = BuiltinCanvas::World;
 
         float elapsedTime = 0.0f;
         std::optional<float> duration;
@@ -92,8 +104,6 @@ private:
     void FlushCancelRequests();
 
 private:
-    PostEffectManager* postEffectManager_ = PostEffectManager::GetInstance();
-
     std::vector<ActiveEffect> activeEffects_;
 
     uint32_t nextHandleValue_ = 1;
@@ -106,7 +116,31 @@ PostEffectHandle PostEffectController::Emit(
     std::function<void(EffectType&, float progress, float elapsedTime)> updater, 
     std::optional<int32_t> priority)
 {
-    PostEffect* effect = postEffectManager_->Add(effectName, priority);
+    return Emit<EffectType>(
+        BuiltinCanvas::World,
+        effectName,
+        duration,
+        std::move(updater),
+        priority);
+}
+
+template<class EffectType>
+PostEffectHandle PostEffectController::Emit(
+    CanvasId canvasId,
+    const std::string& effectName,
+    std::optional<float> duration,
+    std::function<void(EffectType&, float progress, float elapsedTime)> updater,
+    std::optional<int32_t> priority)
+{
+    PostEffectChain* chain =
+        CanvasManager::GetInstance()->GetPostEffectChain(canvasId);
+    assert(chain && "Emit: 指定されたCanvasが存在しません。");
+    if (!chain)
+    {
+        return kInvalidPostEffectHandle;
+    }
+
+    PostEffect* effect = chain->Add(effectName, priority);
     assert(effect);
 
     auto* typedEffect = dynamic_cast<EffectType*>(effect);
@@ -119,6 +153,8 @@ PostEffectHandle PostEffectController::Emit(
     active.handle = handle;
     active.effectName = effectName;
     active.effect = effect;
+    active.chain = chain;
+    active.canvasId = canvasId;
     active.duration = duration;
 
     if (updater)
@@ -156,15 +192,18 @@ void PostEffectController::Edit(
         return;
     }
 
-    // manager が保持しているかチェック
-    if (!postEffectManager_->HasEffect(active->effect))
+    // 追加先のchainが保持しているかチェック
+    if (!active->chain || !active->chain->HasEffect(active->effect))
     {
     #ifdef _DEBUG
-        Logger::Log("PostEffectController::Edit WARNING: active.effect not found in manager ptr=" +
+        Logger::Log("PostEffectController::Edit WARNING: active.effect not found in chain ptr=" +
             std::to_string(reinterpret_cast<uintptr_t>(active->effect)) + "\n");
     #endif
 
-        postEffectManager_->DebugPrintChain();
+        if (active->chain)
+        {
+            active->chain->DebugPrint();
+        }
         // エフェクトが削除されている場合は early return
         return;
     }

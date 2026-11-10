@@ -16,7 +16,11 @@ void DarkenTransition::Begin(TransitionPhase phase)
 
 	if (handle_ == kInvalidPostEffectHandle)
 	{
-		handle_ = controller_->Emit<Darken>("Darken", std::nullopt, nullptr);
+		handle_ = controller_->Emit<Darken>(
+			BuiltinCanvas::Final,
+			"Darken",
+			std::nullopt,
+			nullptr);
 	}
 
 	const float initialIntensity = phase == TransitionPhase::FadeOut

@@ -82,6 +82,7 @@ using namespace DirectX;
 #include "OffscreenRender.h"
 
 #include "PostEffectManager.h"
+#include "CanvasManager.h"
 #include "../tool/effect/DissolveManager.h"
 
 #include "ChronoManager.h"
@@ -157,6 +158,9 @@ protected:
 
 	// ポストエフェクトマネージャー
 	PostEffectManager* postEffectManager_ = PostEffectManager::GetInstance();
+
+	// 描画Canvasマネージャー
+	CanvasManager* canvasManager_ = CanvasManager::GetInstance();
 
 	// ImGuiマネージャー
 	ImGuiManager* imguiManager_ = ImGuiManager::GetInstance();

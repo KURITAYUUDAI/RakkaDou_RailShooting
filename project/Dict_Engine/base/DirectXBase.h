@@ -76,6 +76,17 @@ public:
 	// SwapChainへの描画前処理
 	void DrawSwapChain();
 
+	// Canvas用: 任意のRenderTextureを描画先として開始・終了する。
+	void BeginRenderTexture(
+		ID3D12Resource* resource,
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
+		const Vector4& clearColor,
+		bool useDepth);
+	void EndRenderTexture(ID3D12Resource* resource);
+
+	// Canvas用: 最終合成先のBackBufferを開始する。
+	void BeginBackBuffer();
+
 	// 描画後処理
 	void PostDraw();
 
@@ -239,10 +250,11 @@ private:
 	// 深度リソース
 	ComPtr<ID3D12Resource> depthResource_ = nullptr;
 
-	// RTV用のヒープでディスクリプタの数は2、RTVはShader内で触るものではないので、ShaderVisibleはfalse
+	// SwapChain、Canvas、PostEffectの中間Textureで共有するRTVヒープ。
+	// Canvasは描画用と出力用、各PostEffectChainは中間用に複数RTVを使う。
 	ComPtr<ID3D12DescriptorHeap> rtvDescriptorHeap_ = nullptr;
 	uint32_t rtvDescriptorSize_ = 0;
-	static const uint32_t kMaxRTVCount = 8;
+	static constexpr uint32_t kMaxRTVCount = 64;
 
 	std::queue<uint32_t> freeRTVIndices_; // 空いている（再利用可能な）インデックスのプール
 	uint32_t currentRTVCount_ = 2;        // 新規に発番するときのカウンタ

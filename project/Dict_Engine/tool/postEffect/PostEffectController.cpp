@@ -75,7 +75,7 @@ bool PostEffectController::IsActive(PostEffectHandle handle) const
         return false;
     }
 
-    if (!postEffectManager_->HasEffect(active->effect))
+    if (!active->chain || !active->chain->HasEffect(active->effect))
     {
         return false;
     }
@@ -92,9 +92,12 @@ bool PostEffectController::SetPriority(PostEffectHandle handle, int32_t priority
         return false;
     }
 
-    return postEffectManager_->SetPriority(
-        activeEffect->effect,
-        priority);
+    if (!activeEffect->chain)
+    {
+        return false;
+    }
+
+    return activeEffect->chain->SetPriority(activeEffect->effect, priority);
 }
 
 PostEffectController::ActiveEffect* PostEffectController::Find(PostEffectHandle handle)
@@ -143,8 +146,12 @@ void PostEffectController::FlushCancelRequests()
             Logger::Log("FlushCancelRequests: removing effect ptr=" + std::to_string(reinterpret_cast<uintptr_t>(active.effect)) +
                 " name=" + active.effect->GetName() + "\n");
         #endif
-            postEffectManager_->Remove(active.effect);
+            if (active.chain)
+            {
+                active.chain->Remove(active.effect);
+            }
             active.effect = nullptr;
+            active.chain = nullptr;
         }
     }
 

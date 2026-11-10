@@ -337,7 +337,9 @@ void Player::Update(const float& deltaTime)
 	UpdateSkeleton(skeleton_);
 	UpdateSkinCluster(skinCluster_, skeleton_);
 
-	object3d_->SetTransform(transform_);
+	EulerTransform renderTransform = transform_;
+	renderTransform.rotate.x += CalculateDamageRecoilAngle();
+	object3d_->SetTransform(renderTransform);
 	object3d_->Update(nullptr, nullptr, false);
 	SyncParticleParent();
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
@@ -354,27 +356,6 @@ void Player::Update(const float& deltaTime)
 		}
 	);
 
-	Vector3 lockOnTargetPosition{};
-	bool isLockOnActive = false;
-	if (lockOnEnemyID_ != 0)
-	{
-		Enemy* lockOnTarget = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
-		if (lockOnTarget && !lockOnTarget->GetIsDead())
-		{
-			lockOnTargetPosition = lockOnTarget->GetWorldPosition();
-			isLockOnActive = true;
-		}
-	}
-
-	eventBus_->Publish(PlayerLockOnEvent
-		{
-			.isLockOn = isLockOnActive,
-			.targetEnemyID = isLockOnActive ? lockOnEnemyID_ : 0,
-			.targetWorldPosition = lockOnTargetPosition,
-		}
-	);
-
-
 	if (damageTimer_ > 0.0f)
 	{
 		damageTimer_ -= deltaTime_;
@@ -388,6 +369,31 @@ void Player::Update(const float& deltaTime)
 	collider_->SetWorldPosition(GetWorldPosition());
 	// 大型Enemyの近接停止位置まで届くよう、攻撃判定を前方へ伸ばす。
 	colliderAttack_->SetWorldPosition(GetWorldPosition() + meleeAttackDirection_ * 4.0f);
+}
+
+float Player::CalculateDamageRecoilAngle() const
+{
+	if (damageTimer_ <= 0.0f || isGameOverSequenceActive_)
+	{
+		return 0.0f;
+	}
+
+	const float elapsedTime = kDamageInvincible_ - damageTimer_;
+	if (elapsedTime < kDamageRecoilImpactDuration_)
+	{
+		const float progress = std::clamp(
+			elapsedTime / kDamageRecoilImpactDuration_, 0.0f, 1.0f);
+		const float eased = 1.0f - (1.0f - progress) * (1.0f - progress);
+		return kDamageRecoilAngle_ * eased;
+	}
+
+	const float returnDuration =
+		std::max(kDamageInvincible_ - kDamageRecoilImpactDuration_, 0.001f);
+	const float progress = std::clamp(
+		(elapsedTime - kDamageRecoilImpactDuration_) / returnDuration,
+		0.0f, 1.0f);
+	const float smoothProgress = progress * progress * (3.0f - 2.0f * progress);
+	return kDamageRecoilAngle_ * (1.0f - smoothProgress);
 }
 
 void Player::StartGameOverSequence()
@@ -566,6 +572,29 @@ void Player::FinishStageEntry()
 	ChangeState(std::make_unique<PlayerIdleState>());
 }
 
+void Player::PublishLockOnState()
+{
+	Vector3 lockOnTargetPosition{};
+	bool isLockOnActive = false;
+	if (lockOnEnemyID_ != 0)
+	{
+		Enemy* lockOnTarget = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
+		if (lockOnTarget && !lockOnTarget->GetIsDead())
+		{
+			lockOnTargetPosition = lockOnTarget->GetWorldPosition();
+			isLockOnActive = true;
+		}
+	}
+
+	eventBus_->Publish(PlayerLockOnEvent
+		{
+			.isLockOn = isLockOnActive,
+			.targetEnemyID = isLockOnActive ? lockOnEnemyID_ : 0,
+			.targetWorldPosition = lockOnTargetPosition,
+		}
+	);
+}
+
 void Player::Draw()
 {
 	object3d_->SetPsoName(psoName_);
@@ -740,6 +769,9 @@ void Player::Damage(int damage)
 		{ { 0.2f, 0.2f, 0.2f }, {}, {} },
 		{}, { 1.0f, 0.05f, 0.05f, 1.0f }, 0.25f,
 		particleParentHandle_);
+	ParticleManager::GetInstance()->EmitSlash(
+		"slash", {}, 3, particleParentHandle_,
+		{ 1.0f, 0.05f, 0.05f, 1.0f }, 2.0f, 0.25f);
 	if (hitPoint_ == 0)
 	{
 		CameraManager::GetInstance()->StartShake(0.45f, 0.8f);

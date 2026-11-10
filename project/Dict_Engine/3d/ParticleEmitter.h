@@ -15,7 +15,9 @@ public:
 
 	void RandomEmit(const float& deltaTime);
 
-	void EmitSlash();
+	void EmitSlash(
+		const Vector4& color = { 1.0f, 1.0f, 1.0f, 1.0f },
+		float length = 2.0f, float lifeTime = 0.25f);
 
 public: // 外部入出力
 

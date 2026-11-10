@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 
 namespace
 {
@@ -1416,7 +1417,6 @@ void GamePlayScene::Update(const float& deltaTime)
 	player_->Update(deltaTime);
 	UpdateStageEntryWindLines(deltaTime);
 	UpdateStageTitle(deltaTime);
-	particleManager_->Update(deltaTime);
 
 	if (inputManager_->TriggerKey(DIK_0))
 	{
@@ -1434,6 +1434,8 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 
 	UpdateGameplaySystems(deltaTime);
+	// 敵の移動と衝突によるエフェクト生成後に、最新の親行列で更新する。
+	particleManager_->Update(deltaTime);
 	if (isGameOverSequenceActive_)
 	{
 		UpdateGameOverSequence(deltaTime);
@@ -1481,6 +1483,8 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	}
 	collisionManager_->CheckAllCollisions();
 
+	// 敵の移動と衝突処理が終わった同じフレームの座標をUIへ通知する。
+	player_->PublishLockOnState();
 	eventBus_->Dispatch();
 	sceneUI_->Update(deltaTime);
 
@@ -1572,13 +1576,19 @@ void GamePlayScene::UpdateGameOverSequence(float deltaTime)
 #endif
 
 	const float recoilAngle = player_->GetGameOverRecoilAngle();
-	const float impactEnd = pi / 3.0f;
-	const float cameraReleaseAngle = 2.0f * pi / 3.0f;
+	const float impactEnd = player_->GetGameOverImpactAngle();
+	const float cameraReleaseAngle =
+		player_->GetGameOverCameraReleaseAngle();
+	const auto hasReachedAngle = [](float current, float target)
+	{
+		return target >= 0.0f ? current >= target : current <= target;
+	};
 
 	if (!isGameOverCameraReleased_)
 	{
 		float zoomRate = 1.0f;
-		if (recoilAngle < impactEnd)
+		if (!hasReachedAngle(recoilAngle, impactEnd) &&
+			std::abs(impactEnd) > 0.0001f)
 		{
 			zoomRate = SmoothStep01(std::clamp(
 				recoilAngle / impactEnd, 0.0f, 1.0f));
@@ -1589,7 +1599,8 @@ void GamePlayScene::UpdateGameOverSequence(float deltaTime)
 		railCameraController_->SetOffset(offset);
 	}
 
-	if (recoilAngle >= cameraReleaseAngle && !isGameOverCameraReleased_)
+	if (hasReachedAngle(recoilAngle, cameraReleaseAngle) &&
+		!isGameOverCameraReleased_)
 	{
 		isGameOverCameraReleased_ = true;
 		railCameraController_->SetMovementEnabled(true);
@@ -1899,8 +1910,14 @@ void GamePlayScene::FinishFadeIn()
 	}
 }
 
-void GamePlayScene::Draw()
+void GamePlayScene::Draw(CanvasId canvasId)
 {
+	if (canvasId == BuiltinCanvas::UI)
+	{
+		DrawGameOverText();
+		return;
+	}
+
 	if (!IsStageEntryComplete())
 	{
 		if (isStageEntryFieldVisible_)
@@ -1923,7 +1940,6 @@ void GamePlayScene::Draw()
 			sceneUI_->DrawLayer(UILayer::Screen);
 			sceneUI_->DrawLayer(UILayer::Overlay);
 			DrawStageTitle();
-			DrawGameOverText();
 		}
 
 		if (stageEntryWhiteSprite_ && stageEntryWhiteSprite_->GetColor().w > 0.0f)
@@ -2012,7 +2028,6 @@ void GamePlayScene::Draw()
 	sceneUI_->DrawLayer(UILayer::Screen);
 	sceneUI_->DrawLayer(UILayer::Overlay);
 	DrawStageTitle();
-	DrawGameOverText();
 
 	pauseMenu_->Draw();
 }

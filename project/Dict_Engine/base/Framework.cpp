@@ -42,6 +42,8 @@ void Dict_Framework::Initialize()
 
 	postEffectManager_->Initialize(winAPI_->kClientWidth, winAPI_->kClientHeight);
 
+	canvasManager_->Initialize(winAPI_->kClientWidth, winAPI_->kClientHeight);
+
 	imguiManager_->Initialize(winAPI_.get(), dxBase_);
 
 	textureManager_->SetDxBase(dxBase_);
@@ -103,6 +105,11 @@ void Dict_Framework::Initialize()
 
 void Dict_Framework::Finalize()
 {
+	// CanvasはPostEffectChainとGPU Descriptorを所有するため、
+	// PostEffectManager / SrvManager / DirectXBaseより先に解放する。
+	canvasManager_->Finalize();
+	postEffectManager_->Finalize();
+
 	// ポインタ解放
 	object3dManager_->Finalize();
 

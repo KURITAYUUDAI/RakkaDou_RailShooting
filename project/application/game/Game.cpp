@@ -56,7 +56,6 @@ void Game::Finalize()
 {
 	sceneManager_->Finalize();
 
-	postEffectManager_->Finalize();
 	InputMapping::Finalize();
 
 	Dict_Framework::Finalize();
@@ -78,20 +77,22 @@ void Game::Update()
 
 void Game::Draw()
 {
-	// 描画の処理
-	DirectXBase::GetInstance()->PreDraw();
-
-	srvManager_->PreDraw();
-	
 	dissolveManager_->BeginFrame();
 
-	sceneManager_->Draw();
+	// World Canvasへ既存のシーン描画をまとめる。
+	canvasManager_->BeginDraw(BuiltinCanvas::World);
+	srvManager_->PreDraw();
+	sceneManager_->Draw(BuiltinCanvas::World);
+	canvasManager_->EndDraw();
 
-	DirectXBase::GetInstance()->DrawSwapChain();
+	// PostEffectの影響を受けないUIを別Canvasへ描画する。
+	canvasManager_->BeginDraw(BuiltinCanvas::UI);
+	srvManager_->PreDraw();
+	sceneManager_->Draw(BuiltinCanvas::UI);
+	canvasManager_->EndDraw();
 
-	postEffectManager_->Draw(
-		offscreenRender_->GetRenderTextureResource(),
-		offscreenRender_->GetSRVIndex());
+	canvasManager_->ApplyPostEffects();
+	canvasManager_->CompositeToBackBuffer();
 
 	imguiManager_->Draw();
 
