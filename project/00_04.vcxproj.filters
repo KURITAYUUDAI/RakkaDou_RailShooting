@@ -186,6 +186,9 @@
     <ClCompile Include="application\object\Terrain.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="application\object\cave\CaveRailPath.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="application\object\player\Player.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -561,6 +564,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\object\Terrain.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\object\cave\CaveRailPath.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="application\object\player\Player.h">

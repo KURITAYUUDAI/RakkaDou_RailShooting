@@ -16,6 +16,7 @@ protected:
 	void UpdateAfterTransform() override;
 	void UpdateDebugUI() override;
 	void OnPlayerCollision() override;
+	float GetRailFollowBlend() const override;
 
 private:
 	void ChangeState(SmallEnemyState state);

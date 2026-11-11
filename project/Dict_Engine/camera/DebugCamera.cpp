@@ -70,6 +70,12 @@ void DebugCamera::Update()
 	ImGui::End();
 
 	worldMatrix_ = Inverse(viewMatrix_);
+	Matrix4x4 cameraRotation = worldMatrix_;
+	cameraRotation.m[3][0] = 0.0f;
+	cameraRotation.m[3][1] = 0.0f;
+	cameraRotation.m[3][2] = 0.0f;
+	rotateQuat_ = Normalize(MakeFromMatrix(Transpose(cameraRotation)));
+	rotate_ = MakeToEuler(rotateQuat_);
 
 	projectionMatrix_ = MakePerspectiveFovMatrix(fovY_, aspectRatio_, nearClip_, farClip_);
 

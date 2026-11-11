@@ -12,6 +12,7 @@
 #include "RailCameraController.h"
 #include "SkyBox.h"
 #include "Terrain.h"
+#include "application/object/cave/CaveRailPath.h"
 #include "Player.h"
 #include "Enemy/EnemyManager.h"
 #include "Enemy/EnemyStageConfig.h"
@@ -157,6 +158,7 @@ private:
 	std::unique_ptr<DefaultCameraController> defaultCameraController_ = nullptr;
 
 	std::unique_ptr<RailCameraController> railCameraController_ = nullptr;
+	std::unique_ptr<CaveRailPath> caveRailPath_ = nullptr;
 
 	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
 	float stageEntryTimer_ = 0.0f;
@@ -195,7 +197,7 @@ private:
 	float stageEntryCameraTurnTimer_ = 0.0f;
 	float stageEntryRailConnectHeight_ = -30.0f;
 	float stageEntryCaveFogBaseStart_ = 20.0f;
-	float stageEntryCaveFogBaseEnd_ = 260.0f;
+	float stageEntryCaveFogBaseEnd_ = 500.0f;
 	float caveFogEndPlaneScale_ = 50.0f;
 	float caveFogEndPlaneOffset_ = 0.0f;
 	float stageEntryWindLineEmitAccumulator_ = 0.0f;

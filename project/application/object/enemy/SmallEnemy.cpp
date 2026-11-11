@@ -134,6 +134,27 @@ void SmallEnemy::UpdateDebugUI()
 #endif
 }
 
+float SmallEnemy::GetRailFollowBlend() const
+{
+	if (state_ == SmallEnemyState::Entering)
+	{
+		const float totalDistance =
+			Length(spawnTargetPosition_ - stateStartPosition_);
+		if (totalDistance <= 0.0001f)
+		{
+			return 0.0f;
+		}
+		const float remainingRate = std::clamp(
+			Length(spawnTargetPosition_ - GetTranslate()) / totalDistance,
+			0.0f, 1.0f);
+		// 登場移動と同時にレール姿勢からバトルスペース姿勢へ移行する。
+		// 両端の速度を0にして、切り替えが横滑りとして見えないようにする。
+		return remainingRate * remainingRate *
+			(3.0f - 2.0f * remainingRate);
+	}
+	return 0.0f;
+}
+
 void SmallEnemy::OnPlayerCollision()
 {
 	if (state_ != SmallEnemyState::Rushing)
@@ -220,10 +241,24 @@ void SmallEnemy::UpdateCharger(float deltaTime)
 
 	if (state_ == SmallEnemyState::Rushing)
 	{
-		const Vector3 movement = rushDirection_ * config_.chargeSpeed * deltaTime;
+		const Vector3 currentPosition = GetTranslate();
+		const Vector3 toPlayer = GetPlayerLocalPosition() - currentPosition;
+		const float movementDistance = config_.chargeSpeed * deltaTime;
+		const float remainingAlongRush = Dot(toPlayer, rushDirection_);
+		const Vector3 lateralOffset =
+			toPlayer - rushDirection_ * remainingAlongRush;
+		const float stopRadius = config_.colliderRadius + 1.0f;
+		const bool reachesPlayerPlane =
+			remainingAlongRush >= 0.0f && remainingAlongRush <= movementDistance;
+		const bool passesCloseToPlayer =
+			reachesPlayerPlane && Length(lateralOffset) <= stopRadius;
+		const float appliedDistance = passesCloseToPlayer ?
+			remainingAlongRush : movementDistance;
+		const Vector3 movement = rushDirection_ * appliedDistance;
 		SetTranslate(GetTranslate() + movement);
 		rushTravelledDistance_ += Length(movement);
-		if (rushTravelledDistance_ >= config_.maxRushDistance)
+		if (passesCloseToPlayer ||
+			rushTravelledDistance_ >= config_.maxRushDistance)
 		{
 			MarkForRemoval();
 		}
@@ -395,15 +430,29 @@ void SmallEnemy::UpdateShooting(float deltaTime)
 
 void SmallEnemy::FireProjectile()
 {
-	Vector3 direction = { 0.0f, 0.0f, -1.0f };
-	const Vector3 toPlayer = GetPlayerLocalPosition() - GetTranslate();
+	const Vector3 worldPosition = GetWorldPosition();
+	Vector3 worldDirection = { 0.0f, 0.0f, -1.0f };
+	const Vector3 toPlayer = GetPlayerWorldPosition() - worldPosition;
 	if (Length(toPlayer) > 0.0001f)
 	{
-		direction = Normalize(toPlayer);
+		worldDirection = Normalize(toPlayer);
+	}
+
+	WorldTransform* parent = GetParentWorldTransform();
+	Vector3 localPosition = worldPosition;
+	Vector3 localDirection = worldDirection;
+	if (parent)
+	{
+		const Matrix4x4 inverseParent = Inverse(parent->worldMatrix_);
+		localPosition = TransformPosition(worldPosition, inverseParent);
+		localDirection = TransformNormal(worldDirection, inverseParent);
+		if (Length(localDirection) > 0.0001f)
+		{
+			localDirection = Normalize(localDirection);
+		}
 	}
 	BulletManager::GetInstance()->CreateSmallEnemyBullet(
-		GetTranslate(), direction * config_.bulletSpeed,
-		GetParentWorldTransform());
+		localPosition, localDirection * config_.bulletSpeed, parent);
 }
 
 bool SmallEnemy::UsesBurstFire() const

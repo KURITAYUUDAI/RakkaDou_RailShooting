@@ -50,6 +50,7 @@ void EnemyManager::Update(const float& deltaTime)
 
 	for (auto& enemy : enemies_)
 	{
+		enemy->SetRailFollowContext(railFollowContext_);
 		enemy->Update(deltaTime_);
 	}
 
@@ -98,6 +99,7 @@ void EnemyManager::RegisterPSO()
 EnemyID EnemyManager::AddEnemy(const EnemyCreateConfig& config)
 {
 	std::unique_ptr<Enemy> enemy = CreateEnemy(config);
+	enemy->SetRailFollowContext(railFollowContext_);
 	enemy->SetEnemyID(nextEnemyID_);
 	const EnemyID id = nextEnemyID_;
 	++nextEnemyID_;
@@ -136,6 +138,7 @@ EnemyID EnemyManager::ActivatePrewarmedEnemy(PoolHandle handle)
 
 		std::unique_ptr<Enemy> enemy = std::move(iterator->enemy);
 		pooledEnemies_.erase(iterator);
+		enemy->SetRailFollowContext(railFollowContext_);
 		enemy->SetEnemyID(nextEnemyID_);
 		const EnemyID id = nextEnemyID_;
 		++nextEnemyID_;
@@ -144,6 +147,19 @@ EnemyID EnemyManager::ActivatePrewarmedEnemy(PoolHandle handle)
 	}
 
 	return 0;
+}
+
+void EnemyManager::SetRailFollowContext(
+	const CaveRailPath* path, float viewerDistance,
+	const Vector3& pathWorldOffset)
+{
+	railFollowContext_.path = path;
+	railFollowContext_.viewerDistance = viewerDistance;
+	railFollowContext_.pathWorldOffset = pathWorldOffset;
+	for (auto& enemy : enemies_)
+	{
+		enemy->SetRailFollowContext(railFollowContext_);
+	}
 }
 
 std::unique_ptr<Enemy> EnemyManager::CreateEnemy(const EnemyCreateConfig& config)

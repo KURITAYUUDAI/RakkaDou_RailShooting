@@ -2,6 +2,8 @@
 #include "ICameraController.h"
 #include "SplineCurve.h"
 
+class CaveRailPath;
+
 class RailCameraController :public ICameraController
 {
 public:
@@ -36,6 +38,10 @@ public:
 	void ResetTravelledDistance() { travelledDistance_ = 0.0f; }
 	void SetVerticalStartHeight(float height);
 	Mode GetMode() const { return mode_; }
+	void SetCaveRailPath(const CaveRailPath* caveRailPath) { caveRailPath_ = caveRailPath; }
+	const Vector3& GetRailPosition() const { return railPos_; }
+	Vector3 GetPathWorldOffset() const { return { 0.0f, verticalPathOffset_, 0.0f }; }
+	Matrix4x4 GetRailFrameWorldMatrix() const;
 
 	WorldTransform* GetBattleWorldTransform() { return &battleWorldTransform_; }
 	const WorldTransform* GetBattleWorldTransform() const { return &battleWorldTransform_; }
@@ -51,6 +57,10 @@ private:
 
 	Vector3 railPos_ = {0.0f, 0.0f, 0.0f};
 	Vector3 target_ = {0.0f, 0.0f, 0.0f};
+	Vector3 railRight_ = { 1.0f, 0.0f, 0.0f };
+	Vector3 railUp_ = { 0.0f, 0.0f, 1.0f };
+	Vector3 railForward_ = { 0.0f, -1.0f, 0.0f };
+	const CaveRailPath* caveRailPath_ = nullptr;
 
 	std::vector<SplineSample> lengthTable_; // 距離逆引き用テーブル
 	float totalLength_ = 0.0f;              // レール全体の総延長（長さ）
@@ -58,6 +68,7 @@ private:
 	float currentDistance_ = 0.0f;          // カメラが実際に進んだ表示上の距離
 	float travelledDistance_ = 0.0f;        // 敵フェーズ進行用。ループしても巻き戻さない累積距離
 	float verticalStartHeight_ = 0.0f;       // 垂直降下を開始するワールドY
+	float verticalPathOffset_ = 0.0f;        // JSONレールを開始高度へ合わせるワールドY補正
 	float moveSpeed_ = 5.0f;                // 移動速度 (1秒間に進むメートル数)
 	float stageProgressSpeed_ = 1.0f;        // 垂直降下中の敵出現進行速度
 	bool isMovementEnabled_ = true;

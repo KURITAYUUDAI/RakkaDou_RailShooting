@@ -5,6 +5,7 @@
 #include "DebugDrawManager.h"
 #include "SplineCurve.h"
 #include "ImGuiManager.h"
+#include "../object/cave/CaveRailPath.h"
 
 #include <algorithm>
 
@@ -58,10 +59,34 @@ void RailCameraController::Initialize(Mode mode)
 	{
 		lengthTable_.clear();
 		totalLength_ = 0.0f;
-		railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
-		target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
+		verticalPathOffset_ = caveRailPath_ ?
+			verticalStartHeight_ - caveRailPath_->GetPosition(0.0f).y : 0.0f;
+		if (caveRailPath_)
+		{
+			const RailFrame frame = caveRailPath_->GetFrame(0.0f);
+			railPos_ = frame.position + GetPathWorldOffset();
+			target_ = caveRailPath_->GetPosition(targetRange_) + GetPathWorldOffset();
+			railRight_ = frame.normal;
+			railUp_ = frame.binormal;
+			railForward_ = frame.tangent;
+		}
+		else
+		{
+			railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
+			target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
+		}
 		worldTransform_.translate_ = CalculateEyePosition();
-		worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+		Matrix4x4 cameraRotation = MakeIdentity4x4();
+		cameraRotation.m[0][0] = railRight_.x;
+		cameraRotation.m[0][1] = railRight_.y;
+		cameraRotation.m[0][2] = railRight_.z;
+		cameraRotation.m[1][0] = railUp_.x;
+		cameraRotation.m[1][1] = railUp_.y;
+		cameraRotation.m[1][2] = railUp_.z;
+		cameraRotation.m[2][0] = railForward_.x;
+		cameraRotation.m[2][1] = railForward_.y;
+		cameraRotation.m[2][2] = railForward_.z;
+		worldTransform_.SetRotateQuat(MakeFromMatrix(Transpose(cameraRotation)));
 	}
 	else
 	{
@@ -114,8 +139,21 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 		{
 			travelledDistance_ += std::max(0.0f, stageProgressSpeed_) * deltaTime;
 		}
-		railPos_ = { 0.0f, verticalStartHeight_ - currentDistance_, 0.0f };
-		target_ = { 0.0f, verticalStartHeight_ - currentDistance_ - targetRange_, 0.0f };
+		if (caveRailPath_)
+		{
+			const RailFrame frame = caveRailPath_->GetFrame(currentDistance_);
+			railPos_ = frame.position + GetPathWorldOffset();
+			target_ = caveRailPath_->GetPosition(currentDistance_ + targetRange_) +
+				GetPathWorldOffset();
+			railRight_ = frame.normal;
+			railUp_ = frame.binormal;
+			railForward_ = frame.tangent;
+		}
+		else
+		{
+			railPos_ = { 0.0f, verticalStartHeight_ - currentDistance_, 0.0f };
+			target_ = { 0.0f, verticalStartHeight_ - currentDistance_ - targetRange_, 0.0f };
+		}
 	}
 	else
 	{
@@ -163,6 +201,18 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	if (xLength > 0.001f) { xAxis.x /= xLength; xAxis.y /= xLength; xAxis.z /= xLength; } else { xAxis = { 1.0f, 0.0f, 0.0f }; }
 
 	Vector3 localUp = Cross(forward, xAxis);
+	if (mode_ == Mode::VerticalDescent && caveRailPath_)
+	{
+		forward = railForward_;
+		xAxis = railRight_;
+		localUp = railUp_;
+	}
+	else
+	{
+		railForward_ = forward;
+		railRight_ = xAxis;
+		railUp_ = localUp;
+	}
 
 	Vector3 eyePos = {
 		railPos_.x + xAxis.x * offset_.x + localUp.x * offset_.y + forward.x * offset_.z,
@@ -170,19 +220,23 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 		railPos_.z + xAxis.z * offset_.x + localUp.z * offset_.y + forward.z * offset_.z
 	};
 
-	// (前回提案した行列による回転制御への移行を推奨しますが、一旦既存のオイラー角のままでも動作します)
-	Vector3 rotate = { 0.0f, 0.0f, 0.0f };
-	rotate.y = std::atan2(forward.x, forward.z);
-	float xzlength = Length(Vector2{ forward.x, forward.z });
-	rotate.x = std::atan2(-forward.y, xzlength);
-
 	worldTransform_.translate_ = eyePos;
-	worldTransform_.SetRotate(rotate);
+	Matrix4x4 cameraRotation = MakeIdentity4x4();
+	cameraRotation.m[0][0] = xAxis.x;
+	cameraRotation.m[0][1] = xAxis.y;
+	cameraRotation.m[0][2] = xAxis.z;
+	cameraRotation.m[1][0] = localUp.x;
+	cameraRotation.m[1][1] = localUp.y;
+	cameraRotation.m[1][2] = localUp.z;
+	cameraRotation.m[2][0] = forward.x;
+	cameraRotation.m[2][1] = forward.y;
+	cameraRotation.m[2][2] = forward.z;
+	worldTransform_.SetRotateQuat(MakeFromMatrix(Transpose(cameraRotation)));
 	worldTransform_.UpdateMatrix();
 
 	if (isCameraFollowEnabled_)
 	{
-		mainCamera->SetRotate(worldTransform_.GetRotate());
+		mainCamera->SetRotateQuat(worldTransform_.GetRotateQuat());
 		mainCamera->SetTranslate(worldTransform_.translate_);
 	}
 	else if (isCameraCoasting_)
@@ -218,12 +272,36 @@ void RailCameraController::SetVerticalStartHeight(float height)
 	}
 
 	verticalStartHeight_ = height;
+	verticalPathOffset_ = caveRailPath_ ?
+		height - caveRailPath_->GetPosition(0.0f).y : 0.0f;
 	currentDistance_ = 0.0f;
 	travelledDistance_ = 0.0f;
-	railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
-	target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
+	if (caveRailPath_)
+	{
+		const RailFrame frame = caveRailPath_->GetFrame(0.0f);
+		railPos_ = frame.position + GetPathWorldOffset();
+		target_ = caveRailPath_->GetPosition(targetRange_) + GetPathWorldOffset();
+		railRight_ = frame.normal;
+		railUp_ = frame.binormal;
+		railForward_ = frame.tangent;
+	}
+	else
+	{
+		railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
+		target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
+	}
 	worldTransform_.translate_ = CalculateEyePosition();
-	worldTransform_.SetRotate({ pi / 2.0f, 0.0f, 0.0f });
+	Matrix4x4 cameraRotation = MakeIdentity4x4();
+	cameraRotation.m[0][0] = railRight_.x;
+	cameraRotation.m[0][1] = railRight_.y;
+	cameraRotation.m[0][2] = railRight_.z;
+	cameraRotation.m[1][0] = railUp_.x;
+	cameraRotation.m[1][1] = railUp_.y;
+	cameraRotation.m[1][2] = railUp_.z;
+	cameraRotation.m[2][0] = railForward_.x;
+	cameraRotation.m[2][1] = railForward_.y;
+	cameraRotation.m[2][2] = railForward_.z;
+	worldTransform_.SetRotateQuat(MakeFromMatrix(Transpose(cameraRotation)));
 	worldTransform_.UpdateMatrix();
 }
 
@@ -236,24 +314,28 @@ void RailCameraController::SetOffset(const Vector3& offset)
 
 Vector3 RailCameraController::CalculateEyePosition() const
 {
-	Vector3 forward = Normalize(target_ - railPos_);
-	const Vector3 worldUp = { 0.0f, 1.0f, 0.0f };
-	Vector3 right = Cross(worldUp, forward);
-	const float rightLength = Length(right);
-	if (rightLength > 0.001f)
-	{
-		right = right * (1.0f / rightLength);
-	}
-	else
-	{
-		right = { 1.0f, 0.0f, 0.0f };
-	}
-	const Vector3 cameraUp = Cross(forward, right);
-
 	return railPos_ +
-		right * offset_.x +
-		cameraUp * offset_.y +
-		forward * offset_.z;
+		railRight_ * offset_.x +
+		railUp_ * offset_.y +
+		railForward_ * offset_.z;
+}
+
+Matrix4x4 RailCameraController::GetRailFrameWorldMatrix() const
+{
+	Matrix4x4 matrix = MakeIdentity4x4();
+	matrix.m[0][0] = railRight_.x;
+	matrix.m[0][1] = railRight_.y;
+	matrix.m[0][2] = railRight_.z;
+	matrix.m[1][0] = railUp_.x;
+	matrix.m[1][1] = railUp_.y;
+	matrix.m[1][2] = railUp_.z;
+	matrix.m[2][0] = railForward_.x;
+	matrix.m[2][1] = railForward_.y;
+	matrix.m[2][2] = railForward_.z;
+	matrix.m[3][0] = railPos_.x;
+	matrix.m[3][1] = railPos_.y;
+	matrix.m[3][2] = railPos_.z;
+	return matrix;
 }
 
 void RailCameraController::SetBattleSpaceParent(WorldTransform* parent)
@@ -342,10 +424,35 @@ void RailCameraController::DrawDebugUI(const Camera* mainCamera, bool& isDebugCa
 	
 	if (mode_ == Mode::VerticalDescent)
 	{
-		DebugDrawManager::GetInstance()->AddLine(
-			{ 0.0f, railPos_.y + 100.0f, 0.0f },
-			{ 0.0f, railPos_.y - 100.0f, 0.0f },
-			{ 1.0f, 0.0f, 0.0f, 1.0f });
+		if (caveRailPath_)
+		{
+			constexpr float kDebugBehindDistance = 100.0f;
+			constexpr float kDebugForwardDistance = 600.0f;
+			constexpr float kDebugSegmentLength = 5.0f;
+			const Vector4 railColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+			const float startDistance = std::max(
+				0.0f, currentDistance_ - kDebugBehindDistance);
+			const float endDistance = currentDistance_ + kDebugForwardDistance;
+			Vector3 previousPosition =
+				caveRailPath_->GetPosition(startDistance) + GetPathWorldOffset();
+			for (float distance = startDistance + kDebugSegmentLength;
+				distance <= endDistance;
+				distance += kDebugSegmentLength)
+			{
+				const Vector3 position =
+					caveRailPath_->GetPosition(distance) + GetPathWorldOffset();
+				DebugDrawManager::GetInstance()->AddLine(
+					previousPosition, position, railColor);
+				previousPosition = position;
+			}
+		}
+		else
+		{
+			DebugDrawManager::GetInstance()->AddLine(
+				{ 0.0f, railPos_.y + 100.0f, 0.0f },
+				{ 0.0f, railPos_.y - 100.0f, 0.0f },
+				{ 1.0f, 0.0f, 0.0f, 1.0f });
+		}
 	}
 	else
 	{

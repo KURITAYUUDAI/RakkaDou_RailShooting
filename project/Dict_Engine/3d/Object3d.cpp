@@ -184,6 +184,24 @@ void Object3d::SetModel(const std::string& filePath)
 	}
 }
 
+void Object3d::SetTexture(
+	const std::string& texturePath, const uint32_t* materialIndex)
+{
+	if (materialIndex)
+	{
+		if (*materialIndex < material_.size())
+		{
+			material_[*materialIndex]->SetTexture(texturePath);
+		}
+		return;
+	}
+
+	for (auto& material : material_)
+	{
+		material->SetTexture(texturePath);
+	}
+}
+
 void Object3d::SetEnableLighting(const int32_t& enableLighting, const uint32_t* materialIndex)
 {
 	if (material_.size() == 0)

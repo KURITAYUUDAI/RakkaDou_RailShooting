@@ -17,6 +17,15 @@
 #include "Dict_Engine/tool/effect/DissolveUtility.h"
 #include "EnemyUtility.h"
 
+class CaveRailPath;
+
+struct EnemyRailFollowContext
+{
+	const CaveRailPath* path = nullptr;
+	float viewerDistance = 0.0f;
+	Vector3 pathWorldOffset{};
+};
+
 struct EnemyCreateConfig
 {
 	EnemyType type = EnemyType::Boss;
@@ -132,6 +141,10 @@ public:	//外部入出力
 	void SetTranslate(const Vector3& translate) { transform_.translate = translate; }
 	void SetTransform(const EulerTransform& transform) { transform_ = transform; }
 	void SetParent(WorldTransform* worldTransform);
+	void SetRailFollowContext(const EnemyRailFollowContext& context)
+	{
+		railFollowContext_ = context;
+	}
 
 	// 描画設定
 	void SetEnvironmentTextureIndex(const uint32_t& srvIndex){ environmentTextureIndex_ = srvIndex; }
@@ -160,6 +173,7 @@ protected:
 	virtual void DrawAdditional();
 	virtual void DrawAdditionalDebug();
 	virtual void OnPlayerCollision();
+	virtual float GetRailFollowBlend() const { return 0.0f; }
 
 	Object3d* GetObject3d() { return object3d_.get(); }
 	WorldTransform* GetParentWorldTransform() const
@@ -178,6 +192,8 @@ protected:
 	void SetBodyCollisionDamage(int damage) { collider_->SetDamage(damage); }
 
 private:
+	void UpdateObjectTransform();
+	bool BuildRailFollowLocalMatrix(Matrix4x4& localMatrix);
 	void SpawnHitCircle(const Vector3& localHitPosition);
 	void BeginDeathEffect();
 	void UpdateDeathEffect(float deltaTime);
@@ -242,6 +258,9 @@ private:
 	bool isHPChanged_ = false;
 
 	Vector3 playerWorldPosition_{};
+	EnemyRailFollowContext railFollowContext_{};
+	float railSampleDistance_ = 0.0f;
+	Vector3 railCenterWorldPosition_{};
 
 	std::unique_ptr<ParticleEmitter> slashEmitter_ = nullptr;
 	ParticleParentHandle particleParentHandle_;

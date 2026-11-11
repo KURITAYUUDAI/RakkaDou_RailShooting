@@ -24,7 +24,16 @@ public:	// 外部入出力
 
 	// セッター
 	/*void SetScale(const Vector3& scale){ transform_.scale = scale; }*/
-	void SetRotate(const Vector3& rotate){ rotate_ = rotate; }
+	void SetRotate(const Vector3& rotate)
+	{
+		rotate_ = rotate;
+		rotateQuat_ = MakeFromEuler(rotate);
+	}
+	void SetRotateQuat(const Quaternion& rotateQuat)
+	{
+		rotateQuat_ = Normalize(rotateQuat);
+		rotate_ = MakeToEuler(rotateQuat_);
+	}
 	void SetTranslate(const Vector3& translate){ translate_ = translate; }
 	void SetFovY(const float& fovY){ fovY_ = fovY; }
 	void SetAspectRatio(const float& aspectRatio){ aspectRatio_ = aspectRatio; }
@@ -37,6 +46,19 @@ public:	// 外部入出力
 	// ゲッター
 	/*const Vector3& GetScale() const { return transform_.scale; }*/
 	const Vector3& GetRotate() const { return rotate_; }
+	const Quaternion& GetRotateQuat() const { return rotateQuat_; }
+	Vector3 GetForward() const
+	{
+		return Normalize(RotateVector({ 0.0f, 0.0f, 1.0f }, rotateQuat_));
+	}
+	Vector3 GetRight() const
+	{
+		return Normalize(RotateVector({ 1.0f, 0.0f, 0.0f }, rotateQuat_));
+	}
+	Vector3 GetUp() const
+	{
+		return Normalize(RotateVector({ 0.0f, 1.0f, 0.0f }, rotateQuat_));
+	}
 	const Vector3& GetTranslate() const { return translate_; }
 	const Matrix4x4& GetBillboardMatrix() const { return billboardMatrix_; }	
 	const float& GetFovY() const { return fovY_; }
@@ -61,6 +83,7 @@ public:	// 外部入出力
 protected:	// メンバ変数
 
 	Vector3 rotate_;
+	Quaternion rotateQuat_ = IdentityQuaternion();
 	Vector3 translate_;
 
 	Matrix4x4 worldMatrix_;

@@ -79,13 +79,7 @@ void CameraManager::Update(const float& deltaTime)
 		activeCameraController_->Update(mainCamera_.get(), deltaTime_);
 		if (std::abs(cameraDistanceOffset_) > 0.0001f)
 		{
-			const Vector3& rotate = mainCamera_->GetRotate();
-			const float cosPitch = std::cos(rotate.x);
-			const Vector3 forward = {
-				std::sin(rotate.y) * cosPitch,
-				-std::sin(rotate.x),
-				std::cos(rotate.y) * cosPitch
-			};
+			const Vector3 forward = mainCamera_->GetForward();
 			mainCamera_->SetTranslate(
 				mainCamera_->GetTranslate() - forward * cameraDistanceOffset_);
 		}

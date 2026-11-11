@@ -64,6 +64,7 @@ public:	// 外部入出力
 	void SetShininess(const float& shiniess, const uint32_t* materialIndex = nullptr);
 	void SetEnvironmentCoefficient(const float& environmentCoefficient, const uint32_t* materialIndex = nullptr);
 	void SetAlphaReference(const float alphaReference, const uint32_t* materialIndex = nullptr);
+	void SetTexture(const std::string& texturePath, const uint32_t* materialIndex = nullptr);
 
 	void SetParent(WorldTransform* worldTransform){ worldTransform_.parent_ = worldTransform; }
 

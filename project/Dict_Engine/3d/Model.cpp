@@ -168,7 +168,9 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 	std::string relativePath = directoryPath + "/" + filename;
 	std::string fullPath = ResourcePath::MakeString(relativePath);
 
-	const aiScene* scene = importer.ReadFile(fullPath.c_str(), aiProcess_FlipWindingOrder | aiProcess_FlipUVs);
+	const aiScene* scene = importer.ReadFile(
+		fullPath.c_str(),
+		aiProcess_Triangulate | aiProcess_FlipWindingOrder | aiProcess_FlipUVs);
 	assert(scene->HasMeshes());
 
 	modelData_.meshes.clear();

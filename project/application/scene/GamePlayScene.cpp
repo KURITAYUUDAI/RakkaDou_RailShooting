@@ -82,7 +82,7 @@ void GamePlayScene::Initialize()
 	camera_->SetTranslate(
 		stageEntryPlayerStartPosition_ +
 		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
-	camera_->SetFarClip(300.0f);
+	camera_->SetFarClip(600.0f);
 
 	/*debugCamera_ = std::make_unique<DebugCamera>();
 	debugCamera_->Initialize();
@@ -101,7 +101,11 @@ void GamePlayScene::Initialize()
 		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_);
 	defaultCameraController_->GetWorldTransform()->SetRotate({ 0.0f, 0.0f, 0.0f });
 
+	caveRailPath_ = std::make_unique<CaveRailPath>();
+	caveRailPath_->Initialize();
+
 	railCameraController_ = std::make_unique<RailCameraController>();
+	railCameraController_->SetCaveRailPath(caveRailPath_.get());
 	railCameraController_->Initialize(RailCameraController::Mode::VerticalDescent);
 	railCameraController_->SetMovementEnabled(false);
 	railCameraController_->SetMoveSpeed(20.0f);
@@ -134,7 +138,7 @@ void GamePlayScene::Initialize()
 
 	auto* distanceFog = DistanceFogManager::GetInstance();
 	distanceFog->SetStartDistance(20.0f);
-	distanceFog->SetEndDistance(260.0f);
+	distanceFog->SetEndDistance(500.0f);
 	distanceFog->SetColor({ 0.005f, 0.008f, 0.015f, 1.0f });
 	distanceFog->SetEnabled(true);
 
@@ -254,7 +258,7 @@ void GamePlayScene::Initialize()
 	skyBox_->SetCamera(camera_.get());
 
 	terrain_ = std::make_unique<Terrain>();
-	terrain_->Initialize(Terrain::Mode::GameplayCave);
+	terrain_->Initialize(Terrain::Mode::GameplayCave, caveRailPath_.get());
 	terrain_->SetCaveSpeed(kStageEntryNormalRailSpeed_);
 
 	player_ = std::make_unique<Player>();
@@ -303,6 +307,9 @@ void GamePlayScene::Initialize()
 	player_->EventDispatch();
 
 	enemyManager_->Initialize(eventBus_.get());
+	enemyManager_->SetRailFollowContext(
+		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
+		railCameraController_->GetPathWorldOffset());
 	InitializeEnemyStage();
 	isEnemyStageInitialized_ = true;
 	
@@ -665,7 +672,12 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 			UpdateStageEntrySkydivingCamera();
 		}
 		skyBox_->Update();
-		terrain_->Update(deltaTime, cameraManager_->GetCameraWorldPosition());
+		terrain_->Update(
+			deltaTime,
+			cameraManager_->GetCameraWorldPosition(),
+			railCameraController_->GetCurrentDistance(),
+			railCameraController_->GetPathWorldOffset(),
+			railCameraController_->GetRailFrameWorldMatrix());
 		UpdateCaveFogEndPlane();
 	}
 
@@ -777,21 +789,21 @@ void GamePlayScene::UpdateStageEntrySkydivingCamera()
 		(stageEntryCameraTurnTimer_ - stageEntryCameraForwardHoldDuration_) / turnDuration,
 		0.0f, 1.0f);
 	const float easedProgress = SmoothStep01(turnProgress);
-	const Vector3 railRotation =
-		railCameraController_->GetWorldTransform()->GetRotate();
-	const Vector3 cameraRotation = LerpVector3(
-		{ 0.0f, 0.0f, 0.0f }, railRotation, easedProgress);
+	const Quaternion railRotation =
+		railCameraController_->GetWorldTransform()->GetRotateQuat();
+	const Quaternion cameraRotation = Slerp(
+		IdentityQuaternion(), railRotation, easedProgress);
 	const Vector3 railCameraOffset =
 		railCameraController_->GetWorldPosition() - gameplayAnchor;
-	const Vector3 forwardCameraOffset = TransformNormal(
-		railCameraOffset, MakeRotateXMatrix(-railRotation.x));
-	const Vector3 cameraOffset = TransformNormal(
-		forwardCameraOffset, MakeRotateXMatrix(cameraRotation.x));
+	const Vector3 localCameraOffset = RotateVector(
+		railCameraOffset, Inverse(railRotation));
+	const Vector3 cameraOffset = RotateVector(
+		localCameraOffset, cameraRotation);
 	const Vector3 cameraPosition = gameplayAnchor + cameraOffset;
 
 	Camera* mainCamera = cameraManager_->GetMainCamera();
 	mainCamera->SetTranslate(cameraPosition);
-	mainCamera->SetRotate(cameraRotation);
+	mainCamera->SetRotateQuat(cameraRotation);
 	mainCamera->Update();
 	cameraManager_->SetCameraWorldPosition(cameraPosition);
 }
@@ -1143,6 +1155,7 @@ void GamePlayScene::Finalize()
 		terrain_->Finalize();
 		terrain_.reset();
 	}
+	caveRailPath_.reset();
 
 	skyBox_->Finalize();
 	delete skyBox_;
@@ -1411,7 +1424,12 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	skyBox_->Update();
 
-	terrain_->Update(deltaTime, cameraManager_->GetCameraWorldPosition());
+	terrain_->Update(
+		deltaTime,
+		cameraManager_->GetCameraWorldPosition(),
+		railCameraController_->GetCurrentDistance(),
+		railCameraController_->GetPathWorldOffset(),
+		railCameraController_->GetRailFrameWorldMatrix());
 	UpdateCaveFogEndPlane();
 
 	player_->Update(deltaTime);
@@ -1448,6 +1466,9 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	// 敵の接近先計算で、同じフレームのPlayer位置を使えるよう先に配信する。
 	eventBus_->Dispatch();
 
+	enemyManager_->SetRailFollowContext(
+		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
+		railCameraController_->GetPathWorldOffset());
 	UpdateEnemyStage(deltaTime);
 	enemyManager_->Update(deltaTime);
 	BulletManager::GetInstance()->Update(deltaTime);

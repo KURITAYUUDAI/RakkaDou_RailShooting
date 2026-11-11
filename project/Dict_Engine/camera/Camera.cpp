@@ -15,6 +15,7 @@ Camera::Camera()
 void Camera::Initialize()
 {	
 	rotate_ = {0.0f, 0.0f, 0.0f};
+	rotateQuat_ = IdentityQuaternion();
 	translate_ = {0.0f, 0.0f, 0.0f};
 	// DebugCamera::Initialize() からも呼ばれるため、仮想関数呼び出しにはしない。
 	// 基底Cameraの行列計算だけを行い、ImGuiを使うDebugCamera::Update()は
@@ -24,7 +25,9 @@ void Camera::Initialize()
 
 void Camera::Update()
 {
-	worldMatrix_ = MakeAffineMatrix({1.0f, 1.0f, 1.0f}, rotate_, translate_);
+	rotateQuat_ = Normalize(rotateQuat_);
+	worldMatrix_ = MakeAffineMatrix(
+		{ 1.0f, 1.0f, 1.0f }, rotateQuat_, translate_);
 
 	//worldMatrix_ = MakeAffineMatrix(transform_.scale, transform_.rotate, transform_.translate);
 

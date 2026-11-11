@@ -77,6 +77,9 @@ public:  // 外部入出力
 	bool GetIsEmpty() const { return enemies_.empty(); }
 
 	void SetEventBus(EventBus* eventBus);
+	void SetRailFollowContext(
+		const CaveRailPath* path, float viewerDistance,
+		const Vector3& pathWorldOffset);
 
 public:
 
@@ -109,6 +112,7 @@ private:
 	EventSubscriber eventSubscriber_;
 
 	Vector3 lastPlayerPosition_{};
+	EnemyRailFollowContext railFollowContext_{};
 
 private:
 

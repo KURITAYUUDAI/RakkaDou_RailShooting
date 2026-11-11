@@ -248,6 +248,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\base\PSOManager.cpp" />
     <ClCompile Include="application\object\SkyBox.cpp" />
     <ClCompile Include="application\object\Terrain.cpp" />
+    <ClCompile Include="application\object\cave\CaveRailPath.cpp" />
     <ClCompile Include="application\object\player\Player.cpp" />
     <ClCompile Include="Dict_Engine\3d\PrimitiveManager.cpp" />
     <ClCompile Include="Dict_Engine\base\OffscreenRender.cpp" />
@@ -554,6 +555,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\3d\LightManager.h" />
     <ClInclude Include="Dict_Engine\3d\DistanceFogManager.h" />
     <ClInclude Include="application\object\Terrain.h" />
+    <ClInclude Include="application\object\cave\CaveRailPath.h" />
     <ClInclude Include="application\object\player\Player.h" />
     <ClInclude Include="Dict_Engine\3d\PrimitiveManager.h" />
     <ClInclude Include="Dict_Engine\base\OffscreenRender.h" />

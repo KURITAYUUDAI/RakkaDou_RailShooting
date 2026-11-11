@@ -5,15 +5,17 @@
 
 void BossEnemy::InitializeSpecific(const EnemyCreateConfig& config)
 {
-	(void)config;
-	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
+	ModelManager::GetInstance()->LoadModel("enemy", "BossEnemy.obj");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
 	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
-	GetObject3d()->SetModel("sphere.obj");
+	GetObject3d()->SetModel("BossEnemy.obj");
+	GetObject3d()->SetColor(config.color);
+	GetObject3d()->SetEnvironmentCoefficient(0.2f);
 
 	objectRightHand_ = std::make_unique<Object3d>();
 	objectRightHand_->Initialize();
 	objectRightHand_->SetModel("RightHand.obj");
+	objectRightHand_->SetTexture("enemy/BossEnemyHand.png");
 	objectRightHand_->SetEnvironmentCoefficient(0.2f);
 	objectRightHand_->SetShininess(0.1f);
 	objectRightHand_->SetAlphaReference(0.1f);

@@ -10,6 +10,7 @@
 #include "Player.h"
 #include "PrimitiveManager.h"
 #include "ParticleManager.h"
+#include "application/object/cave/CaveRailPath.h"
 
 #include "Dict_Engine/tool/effect/DissolveManager.h"
 
@@ -161,12 +162,25 @@ void Enemy::Update(const float& deltaTime)
 	}
 
 	UpdateDebugUI();
+	if (GetRailFollowBlend() > 0.0f && railFollowContext_.path)
+	{
+		float sampleDistance = railSampleDistance_;
+		float railBlend = GetRailFollowBlend();
+		ImGui::InputFloat3(
+			"Rail Logical XYZ", &transform_.translate.x, "%.3f",
+			ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat(
+			"Rail Sample Distance", &sampleDistance, 0.0f, 0.0f, "%.3f",
+			ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat(
+			"Rail Follow Blend", &railBlend, 0.0f, 0.0f, "%.3f",
+			ImGuiInputTextFlags_ReadOnly);
+	}
 
 	ImGui::End();
 #endif
 
-	object3d_->SetTransform(transform_);
-	object3d_->Update();
+	UpdateObjectTransform();
 	ParticleManager::GetInstance()->UpdateParticleParent(
 		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
 	const Vector3 currentWorldPosition = GetWorldPosition();
@@ -179,6 +193,16 @@ void Enemy::Update(const float& deltaTime)
 		worldVelocity_ = {};
 	}
 	hasWorldVelocitySample_ = true;
+
+#ifdef _DEBUG
+	if (GetRailFollowBlend() > 0.0f && railFollowContext_.path)
+	{
+		DebugDrawManager::GetInstance()->AddLine(
+			railCenterWorldPosition_, currentWorldPosition,
+			{ 0.2f, 1.0f, 0.4f, 1.0f });
+	}
+#endif
+
 	UpdateAfterTransform();
 
 	if (damageTimer_ > 0.0f)
@@ -529,8 +553,93 @@ void Enemy::SetParent(WorldTransform* worldTransform)
 {
 	object3d_->SetParent(worldTransform);
 	// EventDispatch() の画面座標計算より先にワールド行列を確定する。
-	object3d_->SetTransform(transform_);
-	object3d_->Update();
+	UpdateObjectTransform();
 	ParticleManager::GetInstance()->UpdateParticleParent(
 		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
+}
+
+void Enemy::UpdateObjectTransform()
+{
+	object3d_->SetTransform(transform_);
+	Matrix4x4 railLocalMatrix{};
+	if (BuildRailFollowLocalMatrix(railLocalMatrix))
+	{
+		object3d_->Update(&railLocalMatrix);
+		return;
+	}
+	object3d_->Update();
+}
+
+bool Enemy::BuildRailFollowLocalMatrix(Matrix4x4& localMatrix)
+{
+	const float railBlend = std::clamp(GetRailFollowBlend(), 0.0f, 1.0f);
+	if (railBlend <= 0.0f || !railFollowContext_.path)
+	{
+		return false;
+	}
+
+	// 敵の論理座標はbattleWorldTransform基準なので、カメラ位置を直接Z=0に
+	// すると戦闘空間原点（通常は約22.5m前方）との分だけPlayerとずれる。
+	// 現在の親原点をビュー位置の接線へ射影し、その距離をレールZへ加える。
+	const RailFrame viewerFrame =
+		railFollowContext_.path->GetFrame(railFollowContext_.viewerDistance);
+	const Vector3 viewerCenter =
+		viewerFrame.position + railFollowContext_.pathWorldOffset;
+	float battleOriginDistance = 0.0f;
+	WorldTransform* parent = object3d_->GetWorldTransform()->parent_;
+	if (parent)
+	{
+		const Vector3 parentPosition =
+		{
+			parent->worldMatrix_.m[3][0],
+			parent->worldMatrix_.m[3][1],
+			parent->worldMatrix_.m[3][2]
+		};
+		battleOriginDistance = Dot(
+			parentPosition - viewerCenter, viewerFrame.tangent);
+	}
+
+	railSampleDistance_ = std::max(
+		0.0f,
+		railFollowContext_.viewerDistance + battleOriginDistance +
+		transform_.translate.z);
+	const RailFrame frame = railFollowContext_.path->GetFrame(railSampleDistance_);
+
+	Matrix4x4 railWorldMatrix = MakeIdentity4x4();
+	railWorldMatrix.m[0][0] = frame.normal.x;
+	railWorldMatrix.m[0][1] = frame.normal.y;
+	railWorldMatrix.m[0][2] = frame.normal.z;
+	railWorldMatrix.m[1][0] = frame.binormal.x;
+	railWorldMatrix.m[1][1] = frame.binormal.y;
+	railWorldMatrix.m[1][2] = frame.binormal.z;
+	railWorldMatrix.m[2][0] = frame.tangent.x;
+	railWorldMatrix.m[2][1] = frame.tangent.y;
+	railWorldMatrix.m[2][2] = frame.tangent.z;
+	railWorldMatrix.m[3][0] = frame.position.x + railFollowContext_.pathWorldOffset.x;
+	railWorldMatrix.m[3][1] = frame.position.y + railFollowContext_.pathWorldOffset.y;
+	railWorldMatrix.m[3][2] = frame.position.z + railFollowContext_.pathWorldOffset.z;
+
+	railCenterWorldPosition_ =
+		{ railWorldMatrix.m[3][0], railWorldMatrix.m[3][1], railWorldMatrix.m[3][2] };
+	const Matrix4x4 logicalOffsetMatrix = MakeAffineMatrix(
+		{ 1.0f, 1.0f, 1.0f }, transform_.rotate,
+		{ transform_.translate.x, transform_.translate.y, 0.0f });
+	const Matrix4x4 enemyWorldMatrix = logicalOffsetMatrix * railWorldMatrix;
+	const Matrix4x4 railLocalMatrix =
+		parent ? enemyWorldMatrix * Inverse(parent->worldMatrix_) : enemyWorldMatrix;
+	const Vector3 railLocalPosition =
+	{
+		railLocalMatrix.m[3][0],
+		railLocalMatrix.m[3][1],
+		railLocalMatrix.m[3][2]
+	};
+	const Quaternion railLocalRotation = MakeFromMatrix(railLocalMatrix);
+	const Quaternion battleLocalRotation = MakeFromEuler(transform_.rotate);
+	const Vector3 blendedPosition =
+		Lerp(transform_.translate, railLocalPosition, railBlend);
+	const Quaternion blendedRotation =
+		Slerp(battleLocalRotation, railLocalRotation, railBlend);
+	localMatrix = MakeAffineMatrix(
+		transform_.scale, blendedRotation, blendedPosition);
+	return true;
 }
