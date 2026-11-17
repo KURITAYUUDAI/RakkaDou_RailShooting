@@ -1189,7 +1189,7 @@ void GamePlayScene::Finalize()
 
 void GamePlayScene::Update(const float& deltaTime)
 {
-	if (inputManager_->TriggerKey(DIK_F12))
+	if (inputManager_->TriggerKey(DIK_F11))
 	{
 		// シーン切り替え
 		SceneManager::GetInstance()->SetSceneRequest("TEST");
