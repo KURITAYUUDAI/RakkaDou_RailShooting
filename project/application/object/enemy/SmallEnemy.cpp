@@ -131,11 +131,22 @@ void SmallEnemy::UpdateDebugUI()
 #ifdef _DEBUG
 	ImGui::Text("Role: %s", GetRoleName());
 	ImGui::Text("Behavior: %s", GetBehaviorStateName());
+	ImGui::Text(
+		"Continuous Rail Follow: %s",
+		IsContinuousRailFollowEnabled() ? "ON" : "OFF");
 #endif
 }
 
 float SmallEnemy::GetRailFollowBlend() const
 {
+	// 新しい連続追従モードでは、登場後の戦闘中も論理座標を
+	// レール上の位置と姿勢へ完全に変換する。
+	if (IsContinuousRailFollowEnabled())
+	{
+		return 1.0f;
+	}
+
+	// フラグがOFFの場合は、従来の登場中だけブレンドする振る舞いを保つ。
 	if (state_ == SmallEnemyState::Entering)
 	{
 		const float totalDistance =

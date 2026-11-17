@@ -1,5 +1,6 @@
 {
     "smallEnemyPhaseDistance": 64.6188,
+	"smallEnemyContinuousRailFollowEnabled": true,
     "smallEnemyDefaults": {
         "scale": [1.0, 1.0, 1.0],
         "colliderRadius": 1.25,

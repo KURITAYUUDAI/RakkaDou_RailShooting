@@ -377,13 +377,12 @@ void GamePlayScene::InitializeStageEntry()
 	stageEntryFieldGround_->SetScale(stageEntryFieldGroundScale_);
 	stageEntryFieldGround_->SetTranslate(stageEntryFieldGroundPosition_);
 
-	// Skyboxには距離フォグを適用しないため、洞窟の最深部をフォグ色の面で塞ぐ。
-	// plane.objはXY平面なので、上空から見える水平面になるようX軸に-90度回転する。
+	// Skyboxには距離フォグを適用しないため、視線の先をフォグ色の面で塞ぐ。
+	// 姿勢と大きさは毎フレーム、カメラと視錐台に合わせて更新する。
 	caveFogEndPlane_ = std::make_unique<Object3d>();
 	caveFogEndPlane_->Initialize();
 	caveFogEndPlane_->SetModel("plane.obj");
 	caveFogEndPlane_->SetEnableLighting(false);
-	caveFogEndPlane_->SetRotate({ -pi / 2.0f, 0.0f, 0.0f });
 	caveFogEndPlane_->SetScale(
 		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
 	caveFogEndPlane_->SetColor(DistanceFogManager::GetInstance()->GetColor());
@@ -900,13 +899,25 @@ void GamePlayScene::UpdateCaveFogEndPlane()
 	}
 
 	auto* distanceFog = DistanceFogManager::GetInstance();
-	const Vector3 cameraPosition = cameraManager_->GetCameraWorldPosition();
+	Camera* camera = cameraManager_->GetMainCamera();
+	const Vector3 cameraPosition = camera->GetTranslate();
 	const float fogEndDistance = distanceFog->GetEndDistance();
+	const float planeDistance =
+		std::max(fogEndDistance - caveFogEndPlaneOffset_, 0.001f);
+	constexpr float kCoverageMargin = 1.05f;
+	const float halfHeight =
+		std::tan(camera->GetFovY() * 0.5f) * planeDistance * kCoverageMargin;
+	const float halfWidth = halfHeight * camera->GetAspectRatio();
+	const Quaternion faceCameraRotation = Multiply(
+		camera->GetRotateQuat(),
+		MakeRotateAxisAngleQuaternion({ 0.0f, 1.0f, 0.0f }, pi));
 
 	caveFogEndPlane_->SetScale(
-		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
+		{ std::max(caveFogEndPlaneScale_, halfWidth),
+		  std::max(caveFogEndPlaneScale_, halfHeight), 1.0f });
+	caveFogEndPlane_->GetWorldTransform()->SetRotateQuat(faceCameraRotation);
 	caveFogEndPlane_->SetTranslate(
-		{ 0.0f, cameraPosition.y - fogEndDistance + caveFogEndPlaneOffset_, 0.0f });
+		cameraPosition + camera->GetForward() * planeDistance);
 	caveFogEndPlane_->SetColor(distanceFog->GetColor());
 	caveFogEndPlane_->Update();
 }
@@ -1192,6 +1203,15 @@ void GamePlayScene::Update(const float& deltaTime)
 	if (isTransitionIdle && inputManager_->TriggerKey(DIK_F1))
 	{
 		player_->Damage(player_->GetHitPoint());
+	}
+
+	if (isTransitionIdle && enemyStagePhase_ == EnemyStagePhase::SmallEnemies &&
+		inputManager_->TriggerKey(DIK_F2))
+	{
+		const float bossPhaseDistance =
+			std::max(0.0f, enemyStageSpawnDelay_) +
+			enemyStageConfig_.smallEnemyPhaseDistance;
+		railCameraController_->SetTravelledDistance(bossPhaseDistance);
 	}
 
 	const bool isGameplayActive =
@@ -1839,6 +1859,11 @@ void GamePlayScene::ConfigureEnemy(EnemyID id, bool isBoss)
 	}
 
 	enemy->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
+	if (!isBoss)
+	{
+		enemy->SetContinuousRailFollowEnabled(
+			enemyStageConfig_.smallEnemyContinuousRailFollowEnabled);
+	}
 	enemy->SetParent(railCameraController_->GetBattleWorldTransform());
 	enemy->SetEventBus(eventBus_.get());
 	if (isBoss)

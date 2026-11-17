@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "TitleScene.h"
 #include "SceneManager.h"
 #include "LightManager.h"
@@ -11,6 +12,7 @@
 #include "TextManager.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace
 {
@@ -114,12 +116,12 @@ void TitleScene::Initialize()
 	modelManager_->LoadModel("", "axis.obj");
 	modelManager_->LoadModel("", "sphere.obj");
 
-	// Skyboxをフォグ対象外にしたまま、洞窟中央の最深部だけをフォグ色で塞ぐ。
+	// Skyboxをフォグ対象外にしたまま、視線の先をフォグ色の面で塞ぐ。
+	// 姿勢と大きさは毎フレーム、カメラと視錐台に合わせて更新する。
 	caveFogEndPlane_ = std::make_unique<Object3d>();
 	caveFogEndPlane_->Initialize();
 	caveFogEndPlane_->SetModel("plane.obj");
 	caveFogEndPlane_->SetEnableLighting(false);
-	caveFogEndPlane_->SetRotate({ -pi / 2.0f, 0.0f, 0.0f });
 	caveFogEndPlane_->SetScale(
 		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
 	caveFogEndPlane_->SetColor(distanceFog->GetColor());
@@ -556,13 +558,25 @@ void TitleScene::UpdateCaveFogEndPlane()
 	}
 
 	auto* distanceFog = DistanceFogManager::GetInstance();
-	const Vector3 cameraPosition = cameraManager_->GetCameraWorldPosition();
+	Camera* camera = cameraManager_->GetMainCamera();
+	const Vector3 cameraPosition = camera->GetTranslate();
 	const float fogEndDistance = distanceFog->GetEndDistance();
+	const float planeDistance =
+		std::max(fogEndDistance - caveFogEndPlaneOffset_, 0.001f);
+	constexpr float kCoverageMargin = 1.05f;
+	const float halfHeight =
+		std::tan(camera->GetFovY() * 0.5f) * planeDistance * kCoverageMargin;
+	const float halfWidth = halfHeight * camera->GetAspectRatio();
+	const Quaternion faceCameraRotation = Multiply(
+		camera->GetRotateQuat(),
+		MakeRotateAxisAngleQuaternion({ 0.0f, 1.0f, 0.0f }, pi));
 
 	caveFogEndPlane_->SetScale(
-		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
+		{ std::max(caveFogEndPlaneScale_, halfWidth),
+		  std::max(caveFogEndPlaneScale_, halfHeight), 1.0f });
+	caveFogEndPlane_->GetWorldTransform()->SetRotateQuat(faceCameraRotation);
 	caveFogEndPlane_->SetTranslate(
-		{ 0.0f, cameraPosition.y - fogEndDistance + caveFogEndPlaneOffset_, 0.0f });
+		cameraPosition + camera->GetForward() * planeDistance);
 	caveFogEndPlane_->SetColor(distanceFog->GetColor());
 	caveFogEndPlane_->Update();
 }

@@ -7,7 +7,10 @@
 #include "cave/CaveRailPath.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
+#include <tuple>
 
 namespace
 {
@@ -321,45 +324,176 @@ void Terrain::BuildContinuousCaveModel()
 
 	const MeshGeometry& source = sourceModel->GetMesh(0);
 	const float repeatLength = caveRailPath_->GetRepeatLength();
-	constexpr float kSourceSegmentLength = 10.0f;
 	const size_t segmentCount = std::max<size_t>(
-		1, static_cast<size_t>(std::ceil(repeatLength / kSourceSegmentLength)));
+		1, static_cast<size_t>(std::ceil(repeatLength / 10.0f)));
 	const float segmentSpan = repeatLength / static_cast<float>(segmentCount);
 	const float caveStartDistance = caveRailPath_->GetTotalEntryLength();
 
+	// Field10mには側面に加えてローカルY方向を向く前後の蓋が含まれている。
+	// 元メッシュを区画ごとに丸ごと複製すると、境界で蓋が重なって強い鏡面反射を
+	// 発生させるため、側面だけを抽出して境界リングを共有する連続チューブを作る。
+	struct CaveLane
+	{
+		Vector3 positionSum{};
+		Vector3 normalSum{};
+		Vector4 colorSum{};
+		Vector2 startUvSum{};
+		Vector2 endUvSum{};
+		uint32_t vertexCount = 0;
+		uint32_t startUvCount = 0;
+		uint32_t endUvCount = 0;
+	};
+
+	using CaveLaneKey = std::tuple<int64_t, int64_t, int64_t, int64_t, int64_t>;
+	const auto quantize = [](float value)
+	{
+		return static_cast<int64_t>(std::llround(value * 10000.0f));
+	};
+	const auto makeLaneKey = [&quantize](const VertexData& vertex)
+	{
+		return CaveLaneKey{
+			quantize(vertex.position.x),
+			quantize(vertex.position.z),
+			quantize(vertex.normal.x),
+			quantize(vertex.normal.z),
+			quantize(vertex.texcoord.x),
+		};
+	};
+
+	std::map<CaveLaneKey, uint32_t> laneLookup;
+	std::vector<CaveLane> lanes;
+	std::vector<int32_t> sourceVertexLanes(source.vertices.size(), -1);
+	std::vector<std::array<uint32_t, 3>> sideTriangles;
+	sideTriangles.reserve(source.indices.size() / 3);
+
+	for (size_t indexOffset = 0; indexOffset + 2 < source.indices.size(); indexOffset += 3)
+	{
+		const std::array<uint32_t, 3> triangle =
+		{
+			source.indices[indexOffset],
+			source.indices[indexOffset + 1],
+			source.indices[indexOffset + 2],
+		};
+		const bool isSideTriangle = std::all_of(
+			triangle.begin(), triangle.end(),
+			[&source](uint32_t vertexIndex)
+			{
+				return vertexIndex < source.vertices.size() &&
+					std::abs(source.vertices[vertexIndex].normal.y) < 0.5f;
+			});
+		if (!isSideTriangle)
+		{
+			continue;
+		}
+
+		sideTriangles.push_back(triangle);
+		for (uint32_t sourceVertexIndex : triangle)
+		{
+			if (sourceVertexLanes[sourceVertexIndex] >= 0)
+			{
+				continue;
+			}
+
+			const VertexData& sourceVertex = source.vertices[sourceVertexIndex];
+			const CaveLaneKey key = makeLaneKey(sourceVertex);
+			auto [laneIterator, inserted] = laneLookup.try_emplace(
+				key, static_cast<uint32_t>(lanes.size()));
+			if (inserted)
+			{
+				lanes.emplace_back();
+			}
+
+			const uint32_t laneIndex = laneIterator->second;
+			sourceVertexLanes[sourceVertexIndex] = static_cast<int32_t>(laneIndex);
+			CaveLane& lane = lanes[laneIndex];
+			lane.positionSum += Vector3{
+				sourceVertex.position.x, 0.0f, sourceVertex.position.z };
+			lane.normalSum += sourceVertex.normal;
+			lane.colorSum = lane.colorSum + sourceVertex.color;
+			++lane.vertexCount;
+
+			// ローカル+Yが区画の開始、-Yが区画の終了に対応する。
+			if (sourceVertex.position.y >= 0.0f)
+			{
+				lane.startUvSum += sourceVertex.texcoord;
+				++lane.startUvCount;
+			}
+			else
+			{
+				lane.endUvSum += sourceVertex.texcoord;
+				++lane.endUvCount;
+			}
+		}
+	}
+
+	if (lanes.empty() || sideTriangles.empty())
+	{
+		return;
+	}
+
 	MeshGeometry continuous;
+	// InsertMesh() が生成モデルへ用意するマテリアルは添字0の1件だけ。
+	// OBJ側のmaterialIndex（Field10mでは1）を引き継ぐと描画時に範囲外参照になる。
 	continuous.materialIndex = 0;
-	continuous.vertices.reserve(source.vertices.size() * segmentCount);
-	continuous.indices.reserve(source.indices.size() * segmentCount);
+	continuous.vertices.reserve(lanes.size() * (segmentCount + 1));
+	continuous.indices.reserve(sideTriangles.size() * 3 * segmentCount);
+
+	for (size_t boundaryIndex = 0; boundaryIndex <= segmentCount; ++boundaryIndex)
+	{
+		const float railDistance = caveStartDistance +
+			static_cast<float>(boundaryIndex) * segmentSpan;
+		const RailFrame frame = caveRailPath_->GetFrame(railDistance);
+		for (const CaveLane& lane : lanes)
+		{
+			const float vertexDivisor = static_cast<float>(std::max(lane.vertexCount, 1u));
+			const Vector3 crossSectionPosition = lane.positionSum * (1.0f / vertexDivisor);
+			const Vector3 sourceNormal = Normalize(lane.normalSum * (1.0f / vertexDivisor));
+			const Vector2 startUv = lane.startUvCount > 0 ?
+				lane.startUvSum * (1.0f / static_cast<float>(lane.startUvCount)) :
+				lane.endUvSum * (1.0f / static_cast<float>(std::max(lane.endUvCount, 1u)));
+			const Vector2 endUv = lane.endUvCount > 0 ?
+				lane.endUvSum * (1.0f / static_cast<float>(lane.endUvCount)) : startUv;
+			Vector2 uvStep = endUv - startUv;
+			if (std::abs(uvStep.x) > 0.5f)
+			{
+				uvStep.x = std::copysign(std::round(std::abs(uvStep.x)), uvStep.x);
+			}
+			if (std::abs(uvStep.y) > 0.5f)
+			{
+				uvStep.y = std::copysign(std::round(std::abs(uvStep.y)), uvStep.y);
+			}
+
+			VertexData vertex{};
+			const Vector3 position = frame.position +
+				frame.normal * crossSectionPosition.x +
+				frame.binormal * crossSectionPosition.z;
+			vertex.position = { position.x, position.y, position.z, 1.0f };
+			vertex.normal = Normalize(
+				frame.normal * sourceNormal.x -
+				frame.tangent * sourceNormal.y +
+				frame.binormal * sourceNormal.z);
+			vertex.texcoord = startUv + uvStep * static_cast<float>(boundaryIndex);
+			vertex.color = lane.colorSum * (1.0f / vertexDivisor);
+			continuous.vertices.push_back(vertex);
+		}
+	}
 
 	for (size_t segmentIndex = 0; segmentIndex < segmentCount; ++segmentIndex)
 	{
-		const float centerDistance = caveStartDistance +
-			(static_cast<float>(segmentIndex) + 0.5f) * segmentSpan;
-		const uint32_t vertexOffset = static_cast<uint32_t>(continuous.vertices.size());
-		for (const VertexData& sourceVertex : source.vertices)
+		for (const std::array<uint32_t, 3>& triangle : sideTriangles)
 		{
-			// Field10mのローカル-Yが進行方向。端のY=+/-5を
-			// 隣接区画と同じレール距離へ写し、境界リングを完全一致させる。
-			const float railDistance = centerDistance -
-				sourceVertex.position.y * (segmentSpan / kSourceSegmentLength);
-			const RailFrame frame = caveRailPath_->GetFrame(railDistance);
-
-			VertexData vertex = sourceVertex;
-			const Vector3 position = frame.position +
-				frame.normal * sourceVertex.position.x +
-				frame.binormal * sourceVertex.position.z;
-			vertex.position = { position.x, position.y, position.z, 1.0f };
-			vertex.normal = Normalize(
-				frame.normal * sourceVertex.normal.x -
-				frame.tangent * sourceVertex.normal.y +
-				frame.binormal * sourceVertex.normal.z);
-			continuous.vertices.push_back(vertex);
-		}
-
-		for (uint32_t index : source.indices)
-		{
-			continuous.indices.push_back(vertexOffset + index);
+			for (uint32_t sourceVertexIndex : triangle)
+			{
+				const int32_t laneIndex = sourceVertexLanes[sourceVertexIndex];
+				if (laneIndex < 0)
+				{
+					continue;
+				}
+				const size_t boundaryIndex = source.vertices[sourceVertexIndex].position.y >= 0.0f ?
+					segmentIndex : segmentIndex + 1;
+				continuous.indices.push_back(static_cast<uint32_t>(
+					boundaryIndex * lanes.size() + static_cast<size_t>(laneIndex)));
+			}
 		}
 	}
 

@@ -145,6 +145,10 @@ public:	//外部入出力
 	{
 		railFollowContext_ = context;
 	}
+	void SetContinuousRailFollowEnabled(bool enabled)
+	{
+		continuousRailFollowEnabled_ = enabled;
+	}
 
 	// 描画設定
 	void SetEnvironmentTextureIndex(const uint32_t& srvIndex){ environmentTextureIndex_ = srvIndex; }
@@ -174,6 +178,10 @@ protected:
 	virtual void DrawAdditionalDebug();
 	virtual void OnPlayerCollision();
 	virtual float GetRailFollowBlend() const { return 0.0f; }
+	bool IsContinuousRailFollowEnabled() const
+	{
+		return continuousRailFollowEnabled_;
+	}
 
 	Object3d* GetObject3d() { return object3d_.get(); }
 	WorldTransform* GetParentWorldTransform() const
@@ -259,6 +267,7 @@ private:
 
 	Vector3 playerWorldPosition_{};
 	EnemyRailFollowContext railFollowContext_{};
+	bool continuousRailFollowEnabled_ = false;
 	float railSampleDistance_ = 0.0f;
 	Vector3 railCenterWorldPosition_{};
 

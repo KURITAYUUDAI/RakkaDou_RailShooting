@@ -14,6 +14,7 @@ struct SmallEnemySpawnConfig
 struct EnemyStageConfig
 {
 	float smallEnemyPhaseDistance = 64.6188f;
+	bool smallEnemyContinuousRailFollowEnabled = false;
 	std::vector<SmallEnemySpawnConfig> smallEnemies;
 	EnemyCreateConfig boss;
 

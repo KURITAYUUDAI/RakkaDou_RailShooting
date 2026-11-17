@@ -202,6 +202,7 @@ EnemyStageConfig EnemyStageConfig::CreateDefault()
 {
 	EnemyStageConfig config;
 	config.smallEnemyPhaseDistance = 64.6188f;
+	config.smallEnemyContinuousRailFollowEnabled = false;
 	const SmallEnemyRoleConfigs roles = CreateRoleDefaults();
 
 	const auto add = [&config, &roles](
@@ -255,6 +256,9 @@ bool EnemyStageConfig::Load(const std::string& relativePath)
 		EnemyStageConfig loaded = CreateDefault();
 		loaded.smallEnemyPhaseDistance = std::max(
 			root.value("smallEnemyPhaseDistance", loaded.smallEnemyPhaseDistance), 0.0f);
+		loaded.smallEnemyContinuousRailFollowEnabled = root.value(
+			"smallEnemyContinuousRailFollowEnabled",
+			loaded.smallEnemyContinuousRailFollowEnabled);
 
 		SmallEnemyRoleConfigs roleDefaults = CreateRoleDefaults();
 		if (root.contains("smallEnemyDefaults"))

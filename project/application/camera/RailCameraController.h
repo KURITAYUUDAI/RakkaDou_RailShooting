@@ -36,6 +36,10 @@ public:
 	void SetOffset(const Vector3& offset);
 	const Vector3& GetOffset() const { return offset_; }
 	void ResetTravelledDistance() { travelledDistance_ = 0.0f; }
+	void SetTravelledDistance(float distance)
+	{
+		travelledDistance_ = distance < 0.0f ? 0.0f : distance;
+	}
 	void SetVerticalStartHeight(float height);
 	Mode GetMode() const { return mode_; }
 	void SetCaveRailPath(const CaveRailPath* caveRailPath) { caveRailPath_ = caveRailPath; }
