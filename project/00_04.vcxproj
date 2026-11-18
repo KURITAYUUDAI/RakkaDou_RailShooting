@@ -276,6 +276,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="Dict_Engine\base\MaterialInstance.cpp" />
     <ClCompile Include="Dict_Engine\base\UavManager.cpp" />
     <ClCompile Include="application\scene\TestScene.cpp" />
+    <ClCompile Include="Dict_Engine\3d\Animation\Skeleton.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="resources\shaders\DebugDraw\DebugDraw.GS.hlsl">
@@ -615,6 +616,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\tool\postEffect\Grayscale.h" />
     <ClInclude Include="Dict_Engine\base\UavManager.h" />
     <ClInclude Include="application\scene\TestScene.h" />
+    <ClInclude Include="Dict_Engine\3d\Animation\Skeleton.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="externals\DirectXTex\DirectXTex_Desktop_2022_Win10.vcxproj">

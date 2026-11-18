@@ -21,6 +21,7 @@
 #include <unordered_set>
 
 #include "Animation/AnimationUtility.h"
+#include "Animation/Skeleton.h"
 #include "Animation/AnimationMemo.h"
 
 class Player : public ICollisionObserver
@@ -204,7 +205,8 @@ private:
 
 	Animation animation_;
 	float animationTime = 0.0f;
-	Skeleton skeleton_;
+	SkeletonAsset skeletonAsset_;
+	SkeletonPose skeletonPose_;
 	SkinCluster skinCluster_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
 

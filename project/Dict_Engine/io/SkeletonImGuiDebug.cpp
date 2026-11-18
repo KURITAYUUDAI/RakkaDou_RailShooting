@@ -35,27 +35,27 @@ namespace
 }
 
 void SkeletonImGuiDebug::Draw(
-	const Skeleton& skeleton,
+	const SkeletonPose& skeleton,
 	const Matrix4x4& objectWorldMatrix,
 	const Matrix4x4& viewProjectionMatrix)
 {
 	ImGui::Begin("Skeleton Debug");
-	ImGui::Text("Joint count: %zu", skeleton.joints.size());
+	ImGui::Text("Joint count: %zu", skeleton.GetJoints().size());
 
-	if (skeleton.joints.empty())
+	if (skeleton.GetJoints().empty())
 	{
 		ImGui::End();
 		return;
 	}
 
 	if (!selectedJointIndex_ || *selectedJointIndex_ < 0 ||
-		*selectedJointIndex_ >= static_cast<int32_t>(skeleton.joints.size()))
+		*selectedJointIndex_ >= static_cast<int32_t>(skeleton.GetJoints().size()))
 	{
-		selectedJointIndex_ = skeleton.root;
+		selectedJointIndex_ = skeleton.GetSkeletonAsset()->root;
 	}
 
 	ImGui::BeginChild("Skeleton Tree", ImVec2(420.0f, 0.0f), true);
-	DrawJointTree(skeleton, skeleton.root);
+	DrawJointTree(skeleton, skeleton.GetSkeletonAsset()->root);
 	ImGui::EndChild();
 
 	ImGui::SameLine();
@@ -67,9 +67,9 @@ void SkeletonImGuiDebug::Draw(
 	ImGui::End();
 }
 
-void SkeletonImGuiDebug::DrawJointTree(const Skeleton& skeleton, int32_t jointIndex)
+void SkeletonImGuiDebug::DrawJointTree(const SkeletonPose& skeleton, int32_t jointIndex)
 {
-	const Joint& joint = skeleton.joints[jointIndex];
+	const JointAsset& joint = skeleton.GetSkeletonAsset()->joints[jointIndex];
 	const bool isSelected = selectedJointIndex_ && *selectedJointIndex_ == jointIndex;
 
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
@@ -105,7 +105,7 @@ void SkeletonImGuiDebug::DrawJointTree(const Skeleton& skeleton, int32_t jointIn
 }
 
 void SkeletonImGuiDebug::DrawSelectedJoint(
-	const Skeleton& skeleton,
+	const SkeletonPose& skeleton,
 	const Matrix4x4& objectWorldMatrix,
 	const Matrix4x4& viewProjectionMatrix) const
 {
@@ -114,21 +114,22 @@ void SkeletonImGuiDebug::DrawSelectedJoint(
 		return;
 	}
 
-	const Joint& joint = skeleton.joints[*selectedJointIndex_];
-	const Matrix4x4 jointWorldMatrix = joint.skeletonSpaceMatrix * objectWorldMatrix;
+	const JointAsset& jointAsset = skeleton.GetSkeletonAsset()->joints[*selectedJointIndex_];
+	const JointPose& jointPose = skeleton.GetJoint(*selectedJointIndex_);
+	const Matrix4x4 jointWorldMatrix = jointPose.skeletonSpaceMatrix * objectWorldMatrix;
 	const Vector3 jointWorldPosition = GetWorldPosition(jointWorldMatrix);
 
-	ImGui::Text("Name: %s", joint.name.c_str());
-	ImGui::Text("Index: %d", joint.index);
-	ImGui::Text("Parent: %s", joint.parent ? skeleton.joints[*joint.parent].name.c_str() : "None");
-	ImGui::Text("Children: %zu", joint.children.size());
+	ImGui::Text("Name: %s", jointAsset.name.c_str());
+	ImGui::Text("Index: %d", jointAsset.index);
+	ImGui::Text("Parent: %s", jointAsset.parent ? skeleton.GetSkeletonAsset()->joints[*jointAsset.parent].name.c_str() : "None");
+	ImGui::Text("Children: %zu", jointAsset.children.size());
 	ImGui::Separator();
 
-	TextVector3("Local translate", joint.transform.translate);
+	TextVector3("Local translate", jointPose.transform.translate);
 	ImGui::Text("Local rotate: (%.5f, %.5f, %.5f, %.5f)",
-		joint.transform.rotate.x, joint.transform.rotate.y,
-		joint.transform.rotate.z, joint.transform.rotate.w);
-	TextVector3("Local scale", joint.transform.scale);
+		jointPose.transform.rotate.x, jointPose.transform.rotate.y,
+		jointPose.transform.rotate.z, jointPose.transform.rotate.w);
+	TextVector3("Local scale", jointPose.transform.scale);
 	TextVector3("Joint world", jointWorldPosition);
 
 	const ClipState jointClipState = MakeClipState(jointWorldPosition, viewProjectionMatrix);
@@ -137,7 +138,7 @@ void SkeletonImGuiDebug::DrawSelectedJoint(
 	ImGui::Text("Joint behind camera: %s", jointClipState.isBehindCamera ? "true" : "false");
 	ImGui::Text("Joint outside frustum: %s", jointClipState.isOutsideFrustum ? "true" : "false");
 
-	if (!joint.parent)
+	if (!jointAsset.parent)
 	{
 		return;
 	}
@@ -145,9 +146,10 @@ void SkeletonImGuiDebug::DrawSelectedJoint(
 	ImGui::Separator();
 	ImGui::Text("Parent-child line state");
 
-	const Joint& parent = skeleton.joints[*joint.parent];
+	const JointAsset& parentAsset = skeleton.GetSkeletonAsset()->joints[*jointAsset.parent];
+	const JointPose& parentPose = skeleton.GetJoint(*jointAsset.parent);
 	const Vector3 parentWorldPosition = GetWorldPosition(
-		parent.skeletonSpaceMatrix * objectWorldMatrix);
+		parentPose.skeletonSpaceMatrix * objectWorldMatrix);
 	const ClipState parentClipState = MakeClipState(parentWorldPosition, viewProjectionMatrix);
 
 	TextVector3("Parent world", parentWorldPosition);
@@ -224,7 +226,7 @@ bool SkeletonImGuiDebug::IsLineOutsideFrustum(const ClipState& start, const Clip
 }
 #else
 void SkeletonImGuiDebug::Draw(
-	const Skeleton&,
+	const SkeletonPose&,
 	const Matrix4x4&,
 	const Matrix4x4&)
 {

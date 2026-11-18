@@ -11,113 +11,10 @@
 #include "ImGuiManager.h"
 #include "SrvManager.h"
 
-void UpdateSkeleton(Skeleton& skeleton)
-{
-	// すべてのJointを更新。親が若いので通常ループで処理可能になっている
-	for (Joint& joint : skeleton.joints)
-	{
-		joint.localMatrix =
-			MakeAffineMatrix(joint.transform.scale, joint.transform.rotate, joint.transform.translate);
-		if (joint.parent)	// 親がいれば親の行列を掛ける
-		{
-			joint.skeletonSpaceMatrix = joint.localMatrix * skeleton.joints[*joint.parent].skeletonSpaceMatrix;
-		} else	// 親がいないのでlocalMatrixとSkeletonSpaceMatrixは一致する
-		{
-			joint.skeletonSpaceMatrix = joint.localMatrix;
-		}
-	}
-}
 
 
-Skeleton CreateSkeleton(const Node& rootNode)
-{
-	Skeleton skeleton;
-	skeleton.root = CreateJoint(rootNode, {}, skeleton.joints);
 
-	// 名前とindexのマッピングを行いアクセスしやすくなる
-	for (const Joint& joint : skeleton.joints)
-	{
-		skeleton.jointMap.emplace(joint.name, joint.index);
-	}
-
-	UpdateSkeleton(skeleton);
-
-	return skeleton;
-}
-
-int32_t CreateJoint(const Node& node, const std::optional<int32_t>& parent, std::vector<Joint>& joints)
-{
-	Joint joint;
-	joint.name = node.name;
-	joint.localMatrix = node.localMatrix;
-	joint.skeletonSpaceMatrix = MakeIdentity4x4();
-	joint.transform = node.transform;
-	joint.index = int32_t(joints.size());	// 現在登録されてる数をIndexに
-	joint.parent = parent;
-	joints.push_back(joint);	// SkeletonのJoint列に登録
-	for (const Node& child : node.children)
-	{
-		// 子Jointを作成し、そのIndexを登録
-		int32_t childIndex = CreateJoint(child, joint.index, joints);
-		joints[joint.index].children.push_back(childIndex);
-	}
-
-	// 自身のIndexを返す
-	return joint.index;
-}
-
-void ApplyAnimation(Skeleton& skeleton, const Animation& animation, float animationTime)
-{
-	for (Joint& joint : skeleton.joints)
-	{
-		// 対象のJointのAnimationがあれば、値の適用を行う。下記のif文はC++17から可能になった初期化付きif文
-		if (auto it = animation.nodeAnimations.find(joint.name); it != animation.nodeAnimations.end())
-		{
-			const NodeAnimation& rootNodeAnimation = (*it).second;
-			joint.transform.translate = CalculateValue(rootNodeAnimation.translate, animationTime);
-			joint.transform.rotate = CalculateValue(rootNodeAnimation.rotate, animationTime);
-			joint.transform.scale = CalculateValue(rootNodeAnimation.scale, animationTime);
-		}
-	}
-}
-
-void DrawDebug(Skeleton& skeleton, const Matrix4x4& worldMatrix)
-{
-	DebugDrawManager* debugDrawManager = DebugDrawManager::GetInstance();
-
-	// すべてのJointを描画。
-	for (Joint& joint : skeleton.joints)
-	{
-		Vector3 worldTranslate;
-		worldTranslate = GetWorldPosition(joint.skeletonSpaceMatrix * worldMatrix);
-
-		debugDrawManager->AddSphere(worldTranslate, 0.01f, { 1.0f, 1.0f, 1.0f, 1.0f }, 5, 5);
-
-		if (joint.parent)
-		{
-			Vector3 parentWorldTranslate;
-			parentWorldTranslate = GetWorldPosition(
-				skeleton.joints[*joint.parent].skeletonSpaceMatrix * worldMatrix);
-
-			debugDrawManager->AddLine(worldTranslate, parentWorldTranslate, { 1.0f, 1.0f, 1.0f, 1.0f });
-		} else
-		{
-			Vector3 skeletonWorldTranslate = GetWorldPosition(worldMatrix);
-			debugDrawManager->AddLine(worldTranslate, skeletonWorldTranslate, { 1.0f, 1.0f, 1.0f, 1.0f });
-		}
-	}
-}
-
-void ImGuiDebug(Skeleton& skeleton)
-{
-	// すべてのJointを描画。
-	for (Joint& joint : skeleton.joints)
-	{
-
-	}
-}
-
-SkinCluster CreateSkinCluster(const Skeleton& skeleton,
+SkinCluster CreateSkinCluster(const SkeletonAsset& skeletonAsset,
 	const MeshGeometry& mesh, const Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>& descriptorHeap)
 {
 	SkinCluster skinCluster;
@@ -125,10 +22,10 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 
 	// palette用のResourceを確保
 	skinCluster.paletteResource = DirectXBase::GetInstance()->CreateConstantBufferResource(
-		sizeof(WellForGPU) * skeleton.joints.size());
+		sizeof(WellForGPU) * skeletonAsset.joints.size());
 	WellForGPU* mappedPalette = nullptr;
 	skinCluster.paletteResource->Map(0, nullptr, reinterpret_cast<void**>(&mappedPalette));
-	skinCluster.mappedPalette = { mappedPalette, skeleton.joints.size() };
+	skinCluster.mappedPalette = { mappedPalette, skeletonAsset.joints.size() };
 	uint32_t paletteSrvIndex = SrvManager::GetInstance()->AllocateIndex();
 	skinCluster.paletteSrvHandle.first = SrvManager::GetInstance()->GetCPUDescriptorHandle(paletteSrvIndex);
 	skinCluster.paletteSrvHandle.second = SrvManager::GetInstance()->GetGPUDescriptorHandle(paletteSrvIndex);
@@ -140,7 +37,7 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 	paletteSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	paletteSrvDesc.Buffer.FirstElement = 0;
 	paletteSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-	paletteSrvDesc.Buffer.NumElements = UINT(skeleton.joints.size());
+	paletteSrvDesc.Buffer.NumElements = UINT(skeletonAsset.joints.size());
 	paletteSrvDesc.Buffer.StructureByteStride = sizeof(WellForGPU);
 	DirectXBase::GetInstance()->GetDevice()->CreateShaderResourceView(skinCluster.paletteResource.Get(),
 		&paletteSrvDesc, skinCluster.paletteSrvHandle.first);
@@ -159,16 +56,16 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 	skinCluster.influenceBufferView.StrideInBytes = sizeof(VertexInfluence);
 
 	// InverseBindPoseMatrixを格納する場所を作成して、単位行列で埋める
-	skinCluster.inverseBindPoseMatrices.resize(skeleton.joints.size());
+	skinCluster.inverseBindPoseMatrices.resize(skeletonAsset.joints.size());
 	std::generate(skinCluster.inverseBindPoseMatrices.begin(), skinCluster.inverseBindPoseMatrices.end(),
 		MakeIdentity4x4);
 
 	for (const auto& jointWeight : mesh.skinClusterData) // meshのSkinClusterの情報を解析
 	{
-		auto it = skeleton.jointMap.find(jointWeight.first);
-		// jointWeight.firstはjoint名なので、skeletonに対象となるjointが含まれているか判断
+		auto it = skeletonAsset.jointMap.find(jointWeight.first);
+		// jointWeight.firstはjoint名なので、skeletonAssetに対象となるjointが含まれているか判断
 		{
-			if (it == skeleton.jointMap.end())
+			if (it == skeletonAsset.jointMap.end())
 			{
 				continue;
 			}
@@ -193,13 +90,13 @@ SkinCluster CreateSkinCluster(const Skeleton& skeleton,
 	return skinCluster;
 }
 
-void UpdateSkinCluster(SkinCluster& skinCluster, const Skeleton& skeleton)
+void UpdateSkinCluster(SkinCluster& skinCluster, const SkeletonPose& skeletonPose)
 {
-	for (size_t jointIndex = 0; jointIndex < skeleton.joints.size(); ++jointIndex)
+	for (uint32_t jointIndex = 0; jointIndex < skeletonPose.GetJoints().size(); ++jointIndex)
 	{
 		assert(jointIndex < skinCluster.inverseBindPoseMatrices.size());
 		skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix =
-			skinCluster.inverseBindPoseMatrices[jointIndex] * skeleton.joints[jointIndex].skeletonSpaceMatrix;
+			skinCluster.inverseBindPoseMatrices[jointIndex] * skeletonPose.GetJoint(jointIndex).skeletonSpaceMatrix;
 		skinCluster.mappedPalette[jointIndex].skeletonSpaceInverseTransposeMatrix =
 			Transpose(Inverse(skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix));
 	}

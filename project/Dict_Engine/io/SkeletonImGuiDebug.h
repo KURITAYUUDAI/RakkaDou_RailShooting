@@ -1,6 +1,7 @@
 #pragma once
 #include "Animation/AnimationUtility.h"
 #include "Animation/AnimationMemo.h"
+#include "Animation/Skeleton.h"
 
 #include <optional>
 
@@ -9,7 +10,7 @@ class SkeletonImGuiDebug
 {
 public:
 	void Draw(
-		const Skeleton& skeleton,
+		const SkeletonPose& skeleton,
 		const Matrix4x4& objectWorldMatrix,
 		const Matrix4x4& viewProjectionMatrix);
 
@@ -22,9 +23,9 @@ private:
 		bool isOutsideFrustum = false;
 	};
 
-	void DrawJointTree(const Skeleton& skeleton, int32_t jointIndex);
+	void DrawJointTree(const SkeletonPose& skeleton, int32_t jointIndex);
 	void DrawSelectedJoint(
-		const Skeleton& skeleton,
+		const SkeletonPose& skeleton,
 		const Matrix4x4& objectWorldMatrix,
 		const Matrix4x4& viewProjectionMatrix) const;
 

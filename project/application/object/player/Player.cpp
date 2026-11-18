@@ -309,9 +309,9 @@ void Player::Update(const float& deltaTime)
 	animationTime += deltaTime;
 	animationTime = std::fmod(animationTime, animation_.duration);
 
-	ApplyAnimation(skeleton_, animation_, animationTime);
-	UpdateSkeleton(skeleton_);
-	UpdateSkinCluster(skinCluster_, skeleton_);
+	skeletonPose_.ApplyAnimation(animation_, animationTime);
+	skeletonPose_.Update();
+	UpdateSkinCluster(skinCluster_, skeletonPose_);
 
 	EulerTransform renderTransform = transform_;
 	renderTransform.rotate.x += CalculateDamageRecoilAngle();

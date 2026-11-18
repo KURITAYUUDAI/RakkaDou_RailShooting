@@ -20,8 +20,9 @@ void AnimationTest::Initialize()
 	animationSet_ = LoadAnimationSet("Animation/Sample", "WireShotSample.gltf");
 	animationPlayer_.Play(animationSet_.GetAnimation(0), true);
 
-	skeleton_ = CreateSkeleton(object3d_->GetModel()->GetRootNode(0));
-	skinCluster_ = CreateSkinCluster(skeleton_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
+	skeletonAsset_ = CreateSkeletonAsset(object3d_->GetModel()->GetRootNode(0));
+	skeletonPose_.Initialize(&skeletonAsset_);
+	skinCluster_ = CreateSkinCluster(skeletonAsset_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
 	CreateInputVerticesSRV();
 	CreateInfluenceSRV();
 	CreateOutputVertexBuffer();
@@ -69,15 +70,17 @@ void AnimationTest::Update(float deltaTime)
 
 	animationPlayer_.Update(deltaTime);
 
+	skeletonPose_.ResetToBindPose();
+
 	const Animation* animation = animationPlayer_.GetCurrentAnimation();
 
 	if (animation != nullptr)
 	{
-		ApplyAnimation(skeleton_, *animation, animationPlayer_.GetCurrentTime());
+		skeletonPose_.ApplyAnimation(*animation, animationPlayer_.GetCurrentTime());
 	}
 
-	UpdateSkeleton(skeleton_);
-	UpdateSkinCluster(skinCluster_, skeleton_);
+	skeletonPose_.Update();
+	UpdateSkinCluster(skinCluster_, skeletonPose_);
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);

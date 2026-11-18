@@ -10,6 +10,7 @@
 #include "Animation/AnimationUtility.h"
 #include "Animation/AnimationPlayer.h"
 #include "Animation/AnimationMemo.h"
+#include "Animation/Skeleton.h"
 
 class AnimationTest
 {
@@ -80,7 +81,9 @@ private:
 	AnimationSet animationSet_;
 	AnimationPlayer animationPlayer_;
 
-	Skeleton skeleton_;
+	SkeletonAsset skeletonAsset_;
+	SkeletonPose skeletonPose_;
+
 	SkinCluster skinCluster_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
 	uint32_t inputVerticesSrvIndex_ = 0;
