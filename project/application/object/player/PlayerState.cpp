@@ -308,10 +308,11 @@ void PlayerMeleeAttackState::UpdateAttackDirection(Player* player)
 		? Normalize(currentForward)
 		: Vector3{ 0.0f, 0.0f, 1.0f };
 
-	if (player->HasNearestEnemy())
+	EnemyTargetInfo nearestEnemy{};
+	if (player->TryGetNearestEnemyTarget(nearestEnemy))
 	{
 		const Vector3 toEnemy =
-			player->GetNearestEnemyPosition() - player->GetWorldPosition();
+			nearestEnemy.worldPosition - player->GetWorldPosition();
 		const float distanceToEnemy = Length(toEnemy);
 		if (distanceToEnemy > 0.0001f)
 		{
@@ -494,7 +495,12 @@ void PlayerCounterMeleeState::Finalize(Player* player)
 
 Vector3 PlayerCounterMeleeState::GetTargetLocalPosition(Player* player) const
 {
-	Vector3 targetPosition = player->GetNearestEnemyPosition();
+	Vector3 targetPosition = player->GetWorldPosition();
+	EnemyTargetInfo nearestEnemy{};
+	if (player->TryGetNearestEnemyTarget(nearestEnemy))
+	{
+		targetPosition = nearestEnemy.worldPosition;
+	}
 	if (const WorldTransform* parent = player->GetParentWorldTransform())
 	{
 		targetPosition = TransformPosition(

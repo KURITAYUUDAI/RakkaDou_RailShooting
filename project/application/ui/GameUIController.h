@@ -1,32 +1,18 @@
 #pragma once
 #include "UIControllerBase.h"
-#include <vector>
-#include "EventBus.h"
-#include "UIUtility.h"
 #include "GamePlayUIUtility.h"
-#include "player/PlayerEvent.h"
-#include "enemy/EnemyEvent.h"
 
 class GameUIController : public UIControllerBase
 {
 public:
    
     void Update(float deltaTime) override;
+    void SyncSnapshot(const GameUIFrameSnapshot& snapshot);
 
     const GameUIViewModel& GetViewModel() const { return viewModel_; }
 
 private:
-    void RegisterEvents() override;
-   
-    void OnPlayerHPChanged(const PlayerHPChangeEvent& event);
-    void OnEnemyAppier(const EnemyAppierEvent& event);
-    void OnEnemyScreenPosition(const EnemyScreenPositionEvent& event);
-    void OnEnemyHPChanged(const EnemyHPChangeEvent& event);
-
-    void OnNearestEnemyInfo(const NearestEnemyInfoEvent& event);
-    void OnPlayerLockOn(const PlayerLockOnEvent& event);
-
-private:
 
     GameUIViewModel viewModel_;
+    bool hasSnapshot_ = false;
 };

@@ -58,6 +58,16 @@ private:
 		Complete,
 	};
 
+	enum class StageClearState
+	{
+		Inactive,
+		RepositioningPlayer,
+		DisplayingText,
+		Diving,
+		WaitingForTransition,
+		Transitioning,
+	};
+
 	void InitializeStageEntry();
 	void UpdateStageEntry(const float& deltaTime);
 	void BeginStageEntrySkydiving();
@@ -71,21 +81,29 @@ private:
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
 	void DrawGameOverText();
+	void StartStageClearSequence();
+	void UpdateStageClearSequence(float deltaTime);
+	void DrawStageClearText();
 	void CompleteStageEntry();
 	void UpdateStageEntryObjects();
 	void DrawStageEntryDarkSpace();
 	void DrawStageEntryField();
 	void StartStageEntryBlur();
-	void UpdateStageEntryBlur(float progress);
+	void UpdateStageEntryBlur(float progress, float maxWidth = 0.02f);
 	void StopStageEntryBlur();
 	bool IsStageEntryComplete() const
 	{
 		return stageEntryState_ == StageEntryState::Complete;
 	}
+	bool IsStageClearSequenceActive() const
+	{
+		return stageClearState_ != StageClearState::Inactive;
+	}
 
 	void InitializeEnemyStage();
 	void UpdateGameplayDebugUI();
 	void UpdateGameplaySystems(const float& deltaTime);
+	GameUIFrameSnapshot BuildGameUIFrameSnapshot() const;
 	void StartGameOverSequence();
 	void UpdateGameOverSequence(float deltaTime);
 	void UpdateEnemyStage(const float& deltaTime);
@@ -178,6 +196,7 @@ private:
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
+	std::unique_ptr<Text> stageClearText_ = nullptr;
 	std::unique_ptr<Text> gameOverText_ = nullptr;
 	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
@@ -255,13 +274,25 @@ private:
 	std::unique_ptr<ParticleEmitter> ringEmitter_ = nullptr;
 
 	std::unique_ptr<ParticleEmitter> cylinderEmitter_ = nullptr;
+	std::unique_ptr<ParticleEmitter> stageClearShockwaveEmitter_ = nullptr;
 
 	std::unique_ptr<EventBus> eventBus_;
+	EventSubscriber eventSubscriber_;
 
 	std::unique_ptr<GamePlaySceneUI> sceneUI_;
 
 	std::unique_ptr<PauseMenu> pauseMenu_;
 	bool isPaused_ = false;
+	StageClearState stageClearState_ = StageClearState::Inactive;
+	float stageClearTimer_ = 0.0f;
+	Vector3 stageClearPlayerStartPosition_{};
+	Vector3 stageClearDiveStartPosition_{};
+	static constexpr float kStageClearRepositionDuration_ = 1.0f;
+	static constexpr float kStageClearTextDuration_ = 2.0f;
+	static constexpr float kStageClearDiveDuration_ = 1.0f;
+	static constexpr float kStageClearDiveDistance_ = 500.0f;
+	static constexpr float kStageClearTransitionDelay_ = 0.5f;
+	static constexpr float kStageClearBlurMaxWidth_ = 0.015f;
 	bool isGameOverSequenceActive_ = false;
 	bool isGameOverFalling_ = false;
 	bool isGameOverCameraReleased_ = false;

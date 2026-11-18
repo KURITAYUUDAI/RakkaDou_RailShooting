@@ -78,7 +78,7 @@
     "boss": {
         "position": [0.0, 0.0, 7.5],
         "scale": [2.0, 2.0, 2.0],
-        "hitPoint": 500,
+        "hitPoint": 10,
         "colliderRadius": 2.0,
         "color": [1.0, 1.0, 1.0, 1.0]
     }

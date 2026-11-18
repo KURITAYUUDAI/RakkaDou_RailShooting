@@ -11,10 +11,11 @@
 class GamePlaySceneUI : public SceneUIBase
 {
 public:
-    void Initialize(EventBus* eventBus) override;
+    void Initialize() override;
     void Finalize() override;
     void Update(float deltaTime) override;
     void DrawLayer(const UILayer& layer) override;
+    void SyncSnapshot(const GameUIFrameSnapshot& snapshot);
 
     void SetIsVisible(bool visible) override
     {
@@ -26,6 +27,7 @@ private:
     void SyncScreenBossHPGage();
     void SyncOverHeadEnemyHPGages();
     void SyncLockOnUI();
+    Vector2 ProjectWorldToScreen(const Vector3& worldPosition) const;
 
     const EnemyHPViewModel* FindScreenBossTarget() const;
 

@@ -80,7 +80,7 @@ void Bullet::Update(const float& deltaTime)
 
 	if (--deathTimer_ <= 0)
 	{
-		isDead_ = true;
+		isRemove_ = true;
 	}
 }
 
@@ -149,7 +149,7 @@ void Bullet::OnCollision(
 
 	if (GetIsHit() && other->GetOwner()->GetIsHit())
 	{
-		isDead_ = true;
+		isRemove_ = true;
 		return;
 	}
 
@@ -157,7 +157,7 @@ void Bullet::OnCollision(
 	//	&& other->GetAttribute() == static_cast<uint32_t>(CollisionAttribute::Enemy))
 	//{
 	//	// 弾を消す
-	//	isDead_ = true;
+	//	isRemove_ = true;
 	//	return;
 	//}
 	//
@@ -165,7 +165,7 @@ void Bullet::OnCollision(
 	//	&& other->GetAttribute() == static_cast<uint32_t>(CollisionAttribute::Player))
 	//{
 	//	// 弾を消す
-	//	isDead_ = true;
+	//	isRemove_ = true;
 	//	return;
 	//}
 

@@ -34,17 +34,32 @@ public:
 	void Shot();
 	void FireProjectile();
 	void Attack();
+	void Damage(int damage, const Vector3& hitPosition) override;
 
 protected:
 	void InitializeSpecific(const EnemyCreateConfig& config) override;
 	void UpdateBehavior(const float& deltaTime) override;
 	void UpdateAfterTransform() override;
+	void StartDefeatedSequence() override;
+	void UpdateDefeatedSequence(float deltaTime) override;
 	void UpdateDebugUI() override;
 	void DrawAdditional() override;
 	void DrawAdditionalDebug() override;
 	void OnPlayerCollision() override;
+	float GetRailFollowBlend() const override;
+	Vector3 GetVisualRotationOffset() const override;
 
 private:
+	enum class DefeatedPhase
+	{
+		Recoil,
+		Spinning,
+	};
+
+	void StartDamageReaction();
+	void UpdateDamageReaction(float deltaTime);
+	float CalculateDamageRecoilAngle() const;
+
 	AIHandler handler_;
 	std::unique_ptr<IEnemyState> state_;
 
@@ -58,4 +73,28 @@ private:
 	std::unique_ptr<Collider> colliderAttack_;
 	bool isAttackColliderActive_ = false;
 	EnemyBattlePhase battlePhase_ = EnemyBattlePhase::Ranged;
+
+	bool isDamageReactionActive_ = false;
+	float damageReactionTimer_ = 0.0f;
+	static constexpr float kDamageReactionAngle_ = -pi / 6.0f;
+	static constexpr float kDamageReactionImpactDuration_ = 0.12f;
+	static constexpr float kDamageReactionDuration_ = 1.0f;
+
+	DefeatedPhase defeatedPhase_ = DefeatedPhase::Recoil;
+	float defeatedPhaseTimer_ = 0.0f;
+	Vector3 defeatedVisualRotation_{};
+	float defeatedAngularSpeed_ = 0.0f;
+	float defeatedRailAdvanceSpeed_ = 0.0f;
+	float defeatedFogEndDistance_ = 0.0f;
+	float defeatedRailStartZ_ = 0.0f;
+	float defeatedRailTargetTravelDistance_ = 0.0f;
+	float defeatedRailTravelDistance_ = 0.0f;
+	static constexpr float kDefeatedRecoilImpactDuration_ = 0.12f;
+	static constexpr float kDefeatedRecoilDuration_ = 0.5f;
+	static constexpr float kDefeatedSequenceDuration_ = 2.5f;
+	static constexpr float kDefeatedMaxAngularSpeed_ = pi / 1.0f;
+	static constexpr float kDefeatedSpinAccelerationDuration_ = 1.0f;
+	static constexpr float kDefeatedFogMargin_ = 5.0f;
+	static constexpr float kDefeatedRailSearchStep_ = 1.0f;
+	static constexpr float kDefeatedRailSearchLimit_ = 10000.0f;
 };

@@ -16,6 +16,7 @@
 
 #include "Dict_Engine/tool/effect/DissolveUtility.h"
 #include "EnemyUtility.h"
+#include "EnemyUpdateContext.h"
 
 class CaveRailPath;
 
@@ -69,7 +70,7 @@ public:
 
 	void Initialize(const EnemyCreateConfig& config = {});
 	void EventDispatch();
-	void Update(const float& deltaTime);
+	void Update(const float& deltaTime, const EnemyUpdateContext& context);
 
 
 	void Draw();
@@ -77,7 +78,7 @@ public:
 
 	void OnCollision(
 		Collider* self, Collider* other, const CollisionContact& contact) override;
-	void Damage(int damage, const Vector3& hitPosition);
+	virtual void Damage(int damage, const Vector3& hitPosition);
 
 public: // Command対応
 
@@ -99,7 +100,6 @@ public:	//外部入出力
 	const Vector3& GetWorldVelocity() const { return worldVelocity_; }
 
 	const Vector3 GetWorldPosition() const;
-	const Vector2 GetScreenPosition() const;
 	const Vector3 GetWorldRotate() const;
 
 	// Collider設定
@@ -119,7 +119,8 @@ public:	//外部入出力
 	const Vector3& GetSpawnPosition() const { return basePosition_; }
 	// デスフラグ
 	bool GetIsDead() const { return isDead_; }
-	bool IsReadyForRemoval() const { return isReadyForRemoval_; }
+	// システム的な削除許可フラグ
+	bool GetIsRemove() const { return isRemove_; }
 
 	// HPゲージUI設定
 	EnemyID GetEnemyID() const { return enemyID_; }
@@ -173,11 +174,14 @@ protected:
 	virtual void InitializeSpecific(const EnemyCreateConfig& config);
 	virtual void UpdateBehavior(const float& deltaTime);
 	virtual void UpdateAfterTransform();
+	virtual void StartDefeatedSequence();
+	virtual void UpdateDefeatedSequence(float deltaTime);
 	virtual void UpdateDebugUI();
 	virtual void DrawAdditional();
 	virtual void DrawAdditionalDebug();
 	virtual void OnPlayerCollision();
 	virtual float GetRailFollowBlend() const { return 0.0f; }
+	virtual Vector3 GetVisualRotationOffset() const { return {}; }
 	bool IsContinuousRailFollowEnabled() const
 	{
 		return continuousRailFollowEnabled_;
@@ -190,12 +194,23 @@ protected:
 	}
 	void UpdateCameraFade();
 	void ApplyVisualColor(float alphaScale = 1.0f);
+	bool TryGetRailWorldPositionAtLogicalZ(
+		float logicalZ, Vector3& worldPosition) const;
+	template<class EventType>
+	void PublishEvent(const EventType& event)
+	{
+		if (eventBus_)
+		{
+			eventBus_->Publish(event);
+		}
+	}
 	bool IsDeathEffectActive() const { return isDeathEffectActive_; }
 	float GetDeathEffectProgress() const;
+	void FinishDefeatedSequenceAndRemove();
 	void MarkForRemoval()
 	{
 		isDead_ = true;
-		isReadyForRemoval_ = true;
+		isRemove_ = true;
 	}
 	void SetBodyCollisionDamage(int damage) { collider_->SetDamage(damage); }
 
@@ -204,7 +219,6 @@ private:
 	bool BuildRailFollowLocalMatrix(Matrix4x4& localMatrix);
 	void SpawnHitCircle(const Vector3& localHitPosition);
 	void BeginDeathEffect();
-	void UpdateDeathEffect(float deltaTime);
 
 	EnemyID enemyID_ = 0;
 
@@ -215,8 +229,6 @@ private:
 
 	// イベント
 	EventBus* eventBus_ = nullptr;
-	EventSubscriber eventSubscriber_;
-	std::vector<EventBus::SubscriptionID> subscriptionIDs_;
 
 	float deltaTime_ = 0.0f;
 
@@ -256,7 +268,8 @@ private:
 	// デスフラグ
 	bool isDead_ = false;
 	bool isDeathEffectActive_ = false;
-	bool isReadyForRemoval_ = false;
+	// システム的な削除許可フラグ
+	bool isRemove_ = false;
 	float deathEffectElapsedTime_ = 0.0f;
 	static constexpr float kDeathEffectDuration_ = 0.8f;
 

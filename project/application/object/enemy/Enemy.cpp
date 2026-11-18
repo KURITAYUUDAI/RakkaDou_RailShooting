@@ -6,7 +6,6 @@
 #include "CameraManager.h"
 #include "DebugDrawManager.h"
 #include "EnemyEvent.h"
-#include "PlayerEvent.h"
 #include "Player.h"
 #include "PrimitiveManager.h"
 #include "ParticleManager.h"
@@ -54,6 +53,10 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 
 	maxHitPoint_ = std::max(config.hitPoint, 1);
 	hitPoint_ = maxHitPoint_;
+	isDead_ = false;
+	isDeathEffectActive_ = false;
+	isRemove_ = false;
+	deathEffectElapsedTime_ = 0.0f;
 
 	slashEmitter_ = std::make_unique<ParticleEmitter>();
 	slashEmitter_->Initialize("slash",
@@ -94,45 +97,28 @@ void Enemy::Initialize(const EnemyCreateConfig& config)
 
 void Enemy::EventDispatch()
 {
-	eventSubscriber_.Initialize(eventBus_);
-
-	eventSubscriber_.Subscribe<PlayerWorldPositionEvent>(
-		[this](const PlayerWorldPositionEvent& event)
+	eventBus_->Publish(EnemyAppearedEvent
 		{
-			playerWorldPosition_ = event.worldPosition;
-		}
-	);
-
-	eventBus_->Publish(EnemyAppierEvent
-		{
-			 .enemyID = enemyID_,
-
-			.currentHitPoint = hitPoint_,
-			.previousHitPoint = hitPoint_,
-			.maxHitPoint = maxHitPoint_,
-
-			.screenPosition = GetScreenPosition(),
-
-			.isVisible = !isDead_,
-
-			.displayType = hpGageDisplayType_,
-			.screenBossPriority = screenBossPriority_
+			.enemyID = enemyID_,
+			.enemyType = enemyType_,
+			.worldPosition = GetWorldPosition(),
 		}
 	);
 
 	eventBus_->Dispatch();
 }
 
-void Enemy::Update(const float& deltaTime)
+void Enemy::Update(const float& deltaTime, const EnemyUpdateContext& context)
 {
 	deltaTime_ = deltaTime;
+	playerWorldPosition_ = context.playerWorldPosition;
 	const Vector3 previousWorldPosition = GetWorldPosition();
 
 	if (isDeathEffectActive_)
 	{
-		UpdateDeathEffect(deltaTime);
+		UpdateDefeatedSequence(deltaTime);
 	}
-	else
+	else if (!isDead_)
 	{
 		UpdateBehavior(deltaTime);
 	}
@@ -146,8 +132,6 @@ void Enemy::Update(const float& deltaTime)
 	}
 
 	ImGui::InputInt("HitPoint", &hitPoint_);
-	Vector2 screenPos = GetScreenPosition();
-	ImGui::InputFloat2("ScreenPos", &screenPos.x);
 	ImGui::InputFloat3("PlayerPos", &playerWorldPosition_.x);
 
 	float dissolveThreshold = dissolveParams_.threshold;
@@ -217,21 +201,6 @@ void Enemy::Update(const float& deltaTime)
 
 	collider_->SetWorldPosition(GetWorldPosition());
 
-	eventBus_->Publish(EnemyScreenPositionEvent
-		{
-			.enemyID = enemyID_,
-			.screenPosition = GetScreenPosition(),
-			.isVisible = !isDead_
-		}
-	);
-
-	eventBus_->Publish(EnemyBattlePhaseEvent
-		{
-			.enemyID = enemyID_,
-			.phase = GetBattlePhase(),
-			.canReceiveMeleeApproach = CanReceiveMeleeApproach(),
-		}
-	);
 }
 
 void Enemy::Draw()
@@ -284,7 +253,6 @@ void Enemy::Finalize()
 			particleParentHandle_);
 		particleParentHandle_ = {};
 	}
-	eventSubscriber_.Finalize();
 }
 
 void Enemy::OnCollision(
@@ -375,6 +343,23 @@ void Enemy::UpdateAfterTransform()
 {
 }
 
+void Enemy::StartDefeatedSequence()
+{
+	dissolveParams_.threshold = 0.0f;
+	dissolveParams_.edgeColor = { 2.0f, 0.0f, 2.0f, 1.0f };
+}
+
+void Enemy::UpdateDefeatedSequence(float deltaTime)
+{
+	deathEffectElapsedTime_ += deltaTime;
+	dissolveParams_.threshold = GetDeathEffectProgress();
+	ApplyVisualColor();
+	if (deathEffectElapsedTime_ >= kDeathEffectDuration_)
+	{
+		FinishDefeatedSequenceAndRemove();
+	}
+}
+
 void Enemy::UpdateDebugUI()
 {
 }
@@ -433,7 +418,7 @@ void Enemy::SpawnHitCircle(const Vector3& localHitPosition)
 
 void Enemy::BeginDeathEffect()
 {
-	if (isDeathEffectActive_ || isReadyForRemoval_)
+	if (isDead_ || isDeathEffectActive_ || isRemove_)
 	{
 		return;
 	}
@@ -441,21 +426,14 @@ void Enemy::BeginDeathEffect()
 	isDead_ = true;
 	isDeathEffectActive_ = true;
 	deathEffectElapsedTime_ = 0.0f;
-	dissolveParams_.threshold = 0.0f;
-	dissolveParams_.edgeColor = { 2.0f, 0.0f, 2.0f, 1.0f };
 	collider_->SetDamage(0);
+	StartDefeatedSequence();
 }
 
-void Enemy::UpdateDeathEffect(float deltaTime)
+void Enemy::FinishDefeatedSequenceAndRemove()
 {
-	deathEffectElapsedTime_ += deltaTime;
-	dissolveParams_.threshold = GetDeathEffectProgress();
-	ApplyVisualColor();
-	if (deathEffectElapsedTime_ >= kDeathEffectDuration_)
-	{
-		isDeathEffectActive_ = false;
-		isReadyForRemoval_ = true;
-	}
+	isDeathEffectActive_ = false;
+	isRemove_ = true;
 }
 
 float Enemy::GetDeathEffectProgress() const
@@ -501,35 +479,6 @@ Vector3 Enemy::GetPlayerLocalPosition() const
 	return TransformPosition(playerWorldPosition_, Inverse(parent->worldMatrix_));
 }
 
-const Vector2 Enemy::GetScreenPosition() const
-{
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
-	worldMatrix.m[3][1] += 1.0f;
-	worldMatrix.m[3][0] += 1.0f;
-	Vector3 worldPos = { worldMatrix.m[3][0], worldMatrix.m[3][1], worldMatrix.m[3][2] };
-
-	Matrix4x4 vpMatrix = CameraManager::GetInstance()->GetMainCamera()->GetViewProjectionMatrix();
-	Matrix4x4 viewport = DirectXBase::GetInstance()->GetViewportMatrix();
-	Matrix4x4 screenMatrix = vpMatrix * viewport;
-
-	// カメラ平面上では透視除算の w が0になる。UI座標のためにゲームを
-	// 停止させず、画面外として扱う。
-	const float screenX = worldPos.x * screenMatrix.m[0][0] +
-		worldPos.y * screenMatrix.m[1][0] +
-		worldPos.z * screenMatrix.m[2][0] + screenMatrix.m[3][0];
-	const float screenY = worldPos.x * screenMatrix.m[0][1] +
-		worldPos.y * screenMatrix.m[1][1] +
-		worldPos.z * screenMatrix.m[2][1] + screenMatrix.m[3][1];
-	const float w = worldPos.x * screenMatrix.m[0][3] +
-		worldPos.y * screenMatrix.m[1][3] +
-		worldPos.z * screenMatrix.m[2][3] + screenMatrix.m[3][3];
-	if (w <= 0.000001f)
-	{
-		return { -10000.0f, -10000.0f };
-	}
-	return { screenX / w, screenY / w };
-}
-
 const Vector3 Enemy::GetWorldRotate() const
 {
 	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
@@ -552,7 +501,6 @@ const Vector3 Enemy::GetWorldRotate() const
 void Enemy::SetParent(WorldTransform* worldTransform)
 {
 	object3d_->SetParent(worldTransform);
-	// EventDispatch() の画面座標計算より先にワールド行列を確定する。
 	UpdateObjectTransform();
 	ParticleManager::GetInstance()->UpdateParticleParent(
 		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
@@ -560,7 +508,9 @@ void Enemy::SetParent(WorldTransform* worldTransform)
 
 void Enemy::UpdateObjectTransform()
 {
-	object3d_->SetTransform(transform_);
+	EulerTransform renderTransform = transform_;
+	renderTransform.rotate += GetVisualRotationOffset();
+	object3d_->SetTransform(renderTransform);
 	Matrix4x4 railLocalMatrix{};
 	if (BuildRailFollowLocalMatrix(railLocalMatrix))
 	{
@@ -621,8 +571,10 @@ bool Enemy::BuildRailFollowLocalMatrix(Matrix4x4& localMatrix)
 
 	railCenterWorldPosition_ =
 		{ railWorldMatrix.m[3][0], railWorldMatrix.m[3][1], railWorldMatrix.m[3][2] };
+	const Vector3 renderRotation =
+		transform_.rotate + GetVisualRotationOffset();
 	const Matrix4x4 logicalOffsetMatrix = MakeAffineMatrix(
-		{ 1.0f, 1.0f, 1.0f }, transform_.rotate,
+		{ 1.0f, 1.0f, 1.0f }, renderRotation,
 		{ transform_.translate.x, transform_.translate.y, 0.0f });
 	const Matrix4x4 enemyWorldMatrix = logicalOffsetMatrix * railWorldMatrix;
 	const Matrix4x4 railLocalMatrix =
@@ -634,12 +586,49 @@ bool Enemy::BuildRailFollowLocalMatrix(Matrix4x4& localMatrix)
 		railLocalMatrix.m[3][2]
 	};
 	const Quaternion railLocalRotation = MakeFromMatrix(railLocalMatrix);
-	const Quaternion battleLocalRotation = MakeFromEuler(transform_.rotate);
+	const Quaternion battleLocalRotation = MakeFromEuler(renderRotation);
 	const Vector3 blendedPosition =
 		Lerp(transform_.translate, railLocalPosition, railBlend);
 	const Quaternion blendedRotation =
 		Slerp(battleLocalRotation, railLocalRotation, railBlend);
 	localMatrix = MakeAffineMatrix(
 		transform_.scale, blendedRotation, blendedPosition);
+	return true;
+}
+
+bool Enemy::TryGetRailWorldPositionAtLogicalZ(
+	float logicalZ, Vector3& worldPosition) const
+{
+	if (!railFollowContext_.path)
+	{
+		return false;
+	}
+
+	const RailFrame viewerFrame =
+		railFollowContext_.path->GetFrame(railFollowContext_.viewerDistance);
+	const Vector3 viewerCenter =
+		viewerFrame.position + railFollowContext_.pathWorldOffset;
+	float battleOriginDistance = 0.0f;
+	WorldTransform* parent = object3d_->GetWorldTransform()->parent_;
+	if (parent)
+	{
+		const Vector3 parentPosition =
+		{
+			parent->worldMatrix_.m[3][0],
+			parent->worldMatrix_.m[3][1],
+			parent->worldMatrix_.m[3][2]
+		};
+		battleOriginDistance = Dot(
+			parentPosition - viewerCenter, viewerFrame.tangent);
+	}
+
+	const float sampleDistance = std::max(
+		0.0f,
+		railFollowContext_.viewerDistance + battleOriginDistance + logicalZ);
+	const RailFrame frame = railFollowContext_.path->GetFrame(sampleDistance);
+	worldPosition =
+		frame.position + railFollowContext_.pathWorldOffset +
+		frame.normal * transform_.translate.x +
+		frame.binormal * transform_.translate.y;
 	return true;
 }

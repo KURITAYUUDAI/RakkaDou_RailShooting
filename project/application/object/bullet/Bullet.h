@@ -50,7 +50,7 @@ public: // 外部入出力
 	const Vector3& GetTranslation() { return transform_.translate; }
 	const Vector3& GetVelocity() { return velocity_; }
 	const int32_t& GetDeathTimer(){ return deathTimer_; }
-	const bool GetIsDead() { return isDead_; }
+	bool GetIsRemove() const { return isRemove_; }
 	const ID& GetID() { return id_; }
 
 	// ワールドポジション
@@ -91,8 +91,8 @@ private:
 
 	// デスタイマー
 	int32_t deathTimer_ = kLifeTime;
-	// デスフラグ
-	bool isDead_ = false;
+	// システム的な削除許可フラグ
+	bool isRemove_ = false;
 
 	bool isJustAvoid_ = false;
 };

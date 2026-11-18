@@ -5,18 +5,9 @@
 #include <memory>
 #include "Enemy.h"
 #include "EnemyUtility.h"
-#include "EventBus.h"
+#include "IEnemyQueryProvider.h"
 
-struct EnemyConfig
-{
-	uint32_t environmentTextureIndex;
-	WorldTransform* parent;
-	EventBus* eventBus;
-	EnemyHPGageDisplayType hpGageDisplayType;
-	int BossPriority;
-};
-
-class EnemyManager
+class EnemyManager : public IEnemyQueryProvider
 {
 public:
 	using PoolHandle = uint32_t;
@@ -50,10 +41,10 @@ private: 	// シングルトンインスタンス
 
 public:
 	// 初期化
-	void Initialize(EventBus* eventBus);
+	void Initialize();
 
 	// 更新
-	void Update(const float& deltaTime);
+	void Update(const float& deltaTime, const EnemyUpdateContext& context);
 
 	// 描画
 	void Draw();
@@ -74,9 +65,12 @@ public:  // 外部入出力
 	bool GetEnemyPosition(EnemyID id, Vector3& outPosition) const;
 	bool GetIsDead(EnemyID id) const;
 	EnemyID FindNearestEnemyID(const Vector3& position) const;
+	bool TryGetEnemyTarget(
+		EnemyID id, EnemyTargetInfo& outTarget) const override;
+	bool TryGetNearestEnemyTarget(
+		const Vector3& origin, EnemyTargetInfo& outTarget) const override;
 	bool GetIsEmpty() const { return enemies_.empty(); }
 
-	void SetEventBus(EventBus* eventBus);
 	void SetRailFollowContext(
 		const CaveRailPath* path, float viewerDistance,
 		const Vector3& pathWorldOffset);
@@ -109,9 +103,6 @@ private:
 	PSOManager::BlendMode blendMode_ = PSOManager::BlendMode::Normal;
 	PSOManager::FillMode fillMode_ = PSOManager::FillMode::kSolid;
 
-	EventSubscriber eventSubscriber_;
-
-	Vector3 lastPlayerPosition_{};
 	EnemyRailFollowContext railFollowContext_{};
 
 private:

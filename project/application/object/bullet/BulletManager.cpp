@@ -184,7 +184,7 @@ void BulletManager::Update(const float& deltaTime)
 	}
 
 	bullets_.remove_if([](const std::unique_ptr<Bullet>& bullet){
-		return bullet->GetIsDead();
+		return bullet->GetIsRemove();
 	});
 }
 

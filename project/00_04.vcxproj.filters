@@ -647,6 +647,12 @@
     <ClInclude Include="application\object\enemy\Enemy.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="application\object\enemy\EnemyUpdateContext.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\object\enemy\IEnemyQueryProvider.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="application\object\enemy\BossEnemy.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>

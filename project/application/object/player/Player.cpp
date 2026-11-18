@@ -8,9 +8,7 @@
 #include "CameraManager.h"
 #include "DebugDrawManager.h"
 #include "PlayerEvent.h"
-#include "enemy/EnemyEvent.h"
 #include "enemy/Enemy.h"
-#include "enemy/EnemyManager.h"
 
 #include <cmath>
 #include <limits>
@@ -192,29 +190,6 @@ void Player::Initialize(Mode mode)
 
 void Player::EventDispatch()
 {
-	eventSubscriber_.Initialize(eventBus_);
-
-	eventSubscriber_.Subscribe<NearestEnemyInfoEvent>(
-		[this](const NearestEnemyInfoEvent& event){
-			hasNearestEnemy_ = event.isValid;
-			cachedNearestEnemyID_ = event.enemyID;
-			cachedNearestEnemyPosition_ = event.worldPosition;
-		}
-	);
-	eventSubscriber_.Subscribe<EnemyBattlePhaseEvent>(
-		[this](const EnemyBattlePhaseEvent& event)
-		{
-			meleeApproachAvailability_[event.enemyID] =
-				event.canReceiveMeleeApproach;
-		}
-	);
-
-	eventBus_->Publish(PlayerWorldPositionEvent
-		{
-			.worldPosition = GetWorldPosition(),
-		}
-	);
-
 	eventBus_->Publish(PlayerHPChangeEvent
 		{
 			.currentHitPoint = hitPoint_,
@@ -230,7 +205,8 @@ void Player::Update(const float& deltaTime)
 {
 	UpdateParentWorldVelocity(deltaTime);
 
-	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry)
+	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry ||
+		mode_ == Mode::StageClear)
 	{
 		UpdateTitleFalling();
 		return;
@@ -350,12 +326,6 @@ void Player::Update(const float& deltaTime)
 			GetWorldPosition());
 	objectChargeRing_->Update(&chargeRingBillboard, nullptr, false);
 
-	eventBus_->Publish(PlayerWorldPositionEvent
-		{
-			.worldPosition = GetWorldPosition(),
-		}
-	);
-
 	if (damageTimer_ > 0.0f)
 	{
 		damageTimer_ -= deltaTime_;
@@ -404,7 +374,7 @@ void Player::StartGameOverSequence()
 	}
 
 	isGameOverSequenceActive_ = true;
-	isGameOverSequenceFinished_ = false;
+	isRemove_ = false;
 	isGameOverFalling_ = false;
 	gameOverSequenceTimer_ = 0.0f;
 	gameOverRecoilPhase_ = GameOverRecoilPhase::Impact;
@@ -422,7 +392,7 @@ void Player::StartGameOverSequence()
 
 void Player::UpdateGameOverSequence(float deltaTime)
 {
-	if (!isGameOverSequenceActive_ || isGameOverSequenceFinished_)
+	if (!isGameOverSequenceActive_ || isRemove_)
 	{
 		return;
 	}
@@ -497,7 +467,7 @@ void Player::UpdateGameOverSequence(float deltaTime)
 		gameOverSequenceTimer_ >= kGameOverFallDuration_)
 	{
 		isDraw_ = false;
-		isGameOverSequenceFinished_ = true;
+		isRemove_ = true;
 	}
 }
 
@@ -572,27 +542,20 @@ void Player::FinishStageEntry()
 	ChangeState(std::make_unique<PlayerIdleState>());
 }
 
-void Player::PublishLockOnState()
+void Player::StartStageClearSequence()
 {
-	Vector3 lockOnTargetPosition{};
-	bool isLockOnActive = false;
-	if (lockOnEnemyID_ != 0)
+	if (mode_ == Mode::StageClear)
 	{
-		Enemy* lockOnTarget = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
-		if (lockOnTarget && !lockOnTarget->GetIsDead())
-		{
-			lockOnTargetPosition = lockOnTarget->GetWorldPosition();
-			isLockOnActive = true;
-		}
+		return;
 	}
 
-	eventBus_->Publish(PlayerLockOnEvent
-		{
-			.isLockOn = isLockOnActive,
-			.targetEnemyID = isLockOnActive ? lockOnEnemyID_ : 0,
-			.targetWorldPosition = lockOnTargetPosition,
-		}
-	);
+	mode_ = Mode::StageClear;
+	velocity_ = {};
+	ClearLockOn();
+	StopChargeEffect();
+	SetAttackColliderActive(false);
+	SetMeleeHandVisible(false);
+	ChangeState(std::make_unique<PlayerIdleState>());
 }
 
 void Player::Draw()
@@ -682,7 +645,7 @@ void Player::Finalize()
 			particleParentHandle_);
 		particleParentHandle_ = {};
 	}
-	eventSubscriber_.Finalize();
+	enemyQueryProvider_ = nullptr;
 }
 
 void Player::ChangeState(std::unique_ptr<IPlayerState> newState)
@@ -800,8 +763,8 @@ void Player::UpdateLockOn()
 		return;
 	}
 
-	Enemy* target = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
-	if (!target || target->GetIsDead())
+	EnemyTargetInfo target{};
+	if (!TryGetEnemyTarget(lockOnEnemyID_, target))
 	{
 		// ボタンが押されたままなら対象を失うだけにする。
 		// 別の敵の選択は、ボタンを離して再度押したときに行う。
@@ -828,12 +791,13 @@ void Player::Decelerate()
 
 void Player::LockOn()
 {
-	if (!hasNearestEnemy_)
+	EnemyTargetInfo target{};
+	if (!TryGetNearestEnemyTarget(target))
 	{
 		lockOnEnemyID_ = 0;
 		return;
 	}
-	lockOnEnemyID_ = cachedNearestEnemyID_;
+	lockOnEnemyID_ = target.id;
 }
 
 void Player::Shot()
@@ -937,15 +901,15 @@ Vector3 Player::CalculateShotDirection()
 		return forward;
 	}
 
-	Enemy* target = EnemyManager::GetInstance()->FindEnemy(lockOnEnemyID_);
-	if (!target || target->GetIsDead())
+	EnemyTargetInfo target{};
+	if (!TryGetEnemyTarget(lockOnEnemyID_, target))
 	{
 		ClearLockOn();
 		return forward;
 	}
 
 	const Vector3 shooterPosition = GetWorldPosition();
-	const Vector3 targetPosition = target->GetWorldPosition();
+	const Vector3 targetPosition = target.worldPosition;
 	const Vector3 targetOffset = targetPosition - shooterPosition;
 	if (Length(targetOffset) <= 0.0001f)
 	{
@@ -955,7 +919,7 @@ Vector3 Player::CalculateShotDirection()
 	// Player・Enemyに共通する戦闘空間の移動を除き、相対運動だけで偏差を求める。
 	// 発射時には同じ速度を弾のワールド初速へ一度だけ加える。
 	const Vector3 targetVelocity =
-		target->GetWorldVelocity() - parentWorldVelocity_;
+		target.worldVelocity - parentWorldVelocity_;
 	const float speedSquared = bulletSpeed_ * bulletSpeed_;
 	const float a = Dot(targetVelocity, targetVelocity) - speedSquared;
 	const float b = 2.0f * Dot(targetOffset, targetVelocity);
@@ -1037,13 +1001,24 @@ void Player::CounterMeleeAttack()
 
 bool Player::CanApproachNearestEnemy() const
 {
-	if (!hasNearestEnemy_)
-	{
-		return false;
-	}
-	const auto availability =
-		meleeApproachAvailability_.find(cachedNearestEnemyID_);
-	return availability != meleeApproachAvailability_.end() && availability->second;
+	EnemyTargetInfo target{};
+	return TryGetNearestEnemyTarget(target) && target.canReceiveMeleeApproach;
+}
+
+bool Player::TryGetNearestEnemyTarget(EnemyTargetInfo& outTarget) const
+{
+	outTarget = {};
+	return enemyQueryProvider_ &&
+		enemyQueryProvider_->TryGetNearestEnemyTarget(
+			GetWorldPosition(), outTarget);
+}
+
+bool Player::TryGetEnemyTarget(
+	EnemyID id, EnemyTargetInfo& outTarget) const
+{
+	outTarget = {};
+	return enemyQueryProvider_ &&
+		enemyQueryProvider_->TryGetEnemyTarget(id, outTarget);
 }
 
 void Player::SetAttackColliderActive(bool active)

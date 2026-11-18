@@ -1,8 +1,6 @@
 #include "EnemyManager.h"
 #include "BossEnemy.h"
 #include "SmallEnemy.h"
-#include "PlayerEvent.h"
-#include "EnemyEvent.h"
 #include "time/DeltaTimeManager.h"
 
 std::unique_ptr<EnemyManager> EnemyManager::instance_ = nullptr;
@@ -18,69 +16,32 @@ EnemyManager* EnemyManager::GetInstance()
 
 void EnemyManager::Finalize()
 {
-	eventSubscriber_.Finalize();
 	enemies_.clear();
 	pooledEnemies_.clear();
 	instance_.reset();
 }
 
-void EnemyManager::Initialize(EventBus* eventBus)
+void EnemyManager::Initialize()
 {
 	RegisterPSO();
-
-	eventSubscriber_.Initialize(eventBus);
-
-	eventSubscriber_.Subscribe<PlayerWorldPositionEvent>(
-		[this](const PlayerWorldPositionEvent& event)
-		{
-			lastPlayerPosition_ = event.worldPosition;
-		}
-	);
-
-	/*eventSubscriber_.GetEventBus()->Publish(NearestEnemyWorldPositionEvent
-		{
-			.worldPosition = GetWorldPosition(),
-		}
-	);*/
 }
 
-void EnemyManager::Update(const float& deltaTime)
+void EnemyManager::Update(
+	const float& deltaTime, const EnemyUpdateContext& context)
 {
+	(void)deltaTime;
 	deltaTime_ = DeltaTimeManager::GetInstance()->GetDeltaTime(DeltaTimeGroup::Enemy);
 
 	for (auto& enemy : enemies_)
 	{
 		enemy->SetRailFollowContext(railFollowContext_);
-		enemy->Update(deltaTime_);
+		enemy->Update(deltaTime_, context);
 	}
 
 	enemies_.remove_if([](const std::unique_ptr<Enemy>& enemy){
-		return enemy->IsReadyForRemoval();
+		return enemy->GetIsRemove();
 	});
 
-	const EnemyID nearestID = FindNearestEnemyID(lastPlayerPosition_);
-	if (nearestID != 0)
-	{
-		Vector3 nearestPos{};
-		GetEnemyPosition(nearestID, nearestPos);
-
-		eventSubscriber_.GetEventBus()->Publish(NearestEnemyInfoEvent
-			{
-				.enemyID = nearestID,
-				.worldPosition = nearestPos,
-				.isValid = true
-			}
-		);
-	} else
-	{
-		eventSubscriber_.GetEventBus()->Publish(NearestEnemyInfoEvent
-			{
-				.enemyID = 0,
-				.worldPosition = {},
-				.isValid = false
-			}
-		);
-	}
 }
 
 void EnemyManager::Draw()
@@ -271,10 +232,27 @@ EnemyID EnemyManager::FindNearestEnemyID(const Vector3& position) const
 	return nearestEnemy ? nearestEnemy->GetEnemyID() : 0;
 }
 
-void EnemyManager::SetEventBus(EventBus* eventBus)
+bool EnemyManager::TryGetEnemyTarget(
+	EnemyID id, EnemyTargetInfo& outTarget) const
 {
-	for (auto& enemy : enemies_)
+	outTarget = {};
+	const Enemy* enemy = FindEnemy(id);
+	if (!enemy || enemy->GetIsDead())
 	{
-		enemy->SetEventBus(eventBus);
+		return false;
 	}
+
+	outTarget.id = enemy->GetEnemyID();
+	outTarget.worldPosition = enemy->GetWorldPosition();
+	outTarget.worldVelocity = enemy->GetWorldVelocity();
+	outTarget.canReceiveMeleeApproach = enemy->CanReceiveMeleeApproach();
+	return true;
 }
+
+bool EnemyManager::TryGetNearestEnemyTarget(
+	const Vector3& origin, EnemyTargetInfo& outTarget) const
+{
+	const EnemyID nearestID = FindNearestEnemyID(origin);
+	return TryGetEnemyTarget(nearestID, outTarget);
+}
+

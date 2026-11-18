@@ -11,13 +11,13 @@
 #include "collision/Collider.h"
 
 #include "enemy/EnemyUtility.h"
+#include "enemy/IEnemyQueryProvider.h"
 #include "EventBus.h"
 
 #include "Dict_Engine/tool/effect/DissolveUtility.h"
 
 #include "ParticleEmitter.h"
 #include "JustAvoidDarken.h"
-#include <unordered_map>
 #include <unordered_set>
 
 #include "Animation/AnimationUtility.h"
@@ -31,6 +31,7 @@ public:
 		Gameplay,
 		TitleFalling,
 		StageEntry,
+		StageClear,
 	};
 
 	static constexpr Vector3 GetGameplayInitialPosition()
@@ -41,7 +42,6 @@ public:
 	void Initialize(Mode mode = Mode::Gameplay);
 	void EventDispatch();
 	void Update(const float& deltaTime);
-	void PublishLockOnState();
 	void StartGameOverSequence();
 	void UpdateGameOverSequence(float deltaTime);
 
@@ -101,8 +101,7 @@ public:	//外部入出力
 	Collider* GetCollider() { return collider_.get(); }
 	Collider* GetAttackCollider() { return colliderAttack_.get(); }
 	bool GetIsAttackColliderActive() const { return isAttackColliderActive_; }
-	bool HasNearestEnemy() const { return hasNearestEnemy_; }
-	const Vector3& GetNearestEnemyPosition() const { return cachedNearestEnemyPosition_; }
+	bool TryGetNearestEnemyTarget(EnemyTargetInfo& outTarget) const;
 	bool CanApproachNearestEnemy() const;
 	WorldTransform* GetParentWorldTransform() const { return parentTransform_; }
 
@@ -112,7 +111,8 @@ public:	//外部入出力
 	// デスフラグ
 	bool GetIsDead() const { return isDead_; }
 	bool IsGameOverSequenceActive() const { return isGameOverSequenceActive_; }
-	bool IsGameOverSequenceFinished() const { return isGameOverSequenceFinished_; }
+	// システム的な削除許可フラグ
+	bool GetIsRemove() const { return isRemove_; }
 	bool IsGameOverFalling() const { return isGameOverFalling_; }
 	float GetGameOverRecoilAngle() const { return gameOverRecoilAngle_; }
 	float GetGameOverImpactAngle() const { return kGameOverImpactAngle_; }
@@ -134,6 +134,10 @@ public:	//外部入出力
 
 	void SetEnvironmentTextureIndex(const uint32_t& srvIndex){ environmentTextureIndex_ = srvIndex; }
 	void SetEventBus(EventBus* eventBus) { eventBus_ = eventBus; }
+	void SetEnemyQueryProvider(const IEnemyQueryProvider* provider)
+	{
+		enemyQueryProvider_ = provider;
+	}
 
 	void SetParent(WorldTransform* worldTransform);
 
@@ -153,6 +157,7 @@ public:	//外部入出力
 	void SetMeleeHandTranslate(const Vector3& translate) { meleeHandTransform_.translate = translate; }
 	void SetTitleOpacity(float opacity);
 	void FinishStageEntry();
+	void StartStageClearSequence();
 
 private:
 	Vector3 CalculateShotDirection();
@@ -161,6 +166,7 @@ private:
 	void UpdateTitleFalling();
 	void SyncParticleParent();
 	float CalculateDamageRecoilAngle() const;
+	bool TryGetEnemyTarget(EnemyID id, EnemyTargetInfo& outTarget) const;
 
 	// 入力ハンドル
 	PlayerInputAdapter inputAdapter_;
@@ -170,7 +176,7 @@ private:
 
 	// イベント
 	EventBus* eventBus_ = nullptr;
-	EventSubscriber eventSubscriber_;
+	const IEnemyQueryProvider* enemyQueryProvider_ = nullptr;
 
 	
 	float deltaTime_ = 0.0f;
@@ -237,7 +243,8 @@ private:
 	// デスフラグ
 	bool isDead_ = false;
 	bool isGameOverSequenceActive_ = false;
-	bool isGameOverSequenceFinished_ = false;
+	// システム的な削除許可フラグ
+	bool isRemove_ = false;
 	bool isGameOverFalling_ = false;
 	float gameOverSequenceTimer_ = 0.0f;
 	enum class GameOverRecoilPhase
@@ -261,11 +268,6 @@ private:
 	
 
 	bool isHPChanged_ = false;
-
-	EnemyID cachedNearestEnemyID_ = 0;
-	Vector3 cachedNearestEnemyPosition_{};
-	bool hasNearestEnemy_ = false;
-	std::unordered_map<EnemyID, bool> meleeApproachAvailability_;
 
 	bool isLockOnHeld_ = false;
 	EnemyID lockOnEnemyID_ = 0;

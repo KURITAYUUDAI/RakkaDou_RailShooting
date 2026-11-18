@@ -5,13 +5,13 @@
 #include "CameraManager.h"
 #include "time/DeltaTimeManager.h"
 
-void GamePlaySceneUI::Initialize(EventBus* eventBus)
+void GamePlaySceneUI::Initialize()
 {
     uiManager_ = std::make_unique<UIManager<GameUIViewModel>>();
     uiManager_->Initialize();
 
     gameUIController_ = std::make_unique<GameUIController>();
-    gameUIController_->Initialize(eventBus);
+    gameUIController_->Initialize();
 
 	keyboardControlText_ = std::make_unique<Text>();
 	const auto keyboardLabel = [this](InputAction action)
@@ -99,6 +99,11 @@ void GamePlaySceneUI::Initialize(EventBus* eventBus)
     uiManager_->AddUI(std::move(enemyHPGage));*/
 }
 
+void GamePlaySceneUI::SyncSnapshot(const GameUIFrameSnapshot& snapshot)
+{
+	gameUIController_->SyncSnapshot(snapshot);
+}
+
 void GamePlaySceneUI::Finalize()
 {
 	if (keyboardControlText_)
@@ -135,6 +140,30 @@ void GamePlaySceneUI::Update(float deltaTime)
     uiManager_->Update(gameUIController_->GetViewModel(), deltaTime_);
 	keyboardControlText_->Update();
 	controllerControlText_->Update();
+}
+
+Vector2 GamePlaySceneUI::ProjectWorldToScreen(
+	const Vector3& worldPosition) const
+{
+	const Matrix4x4 vpMatrix =
+		CameraManager::GetInstance()->GetMainCamera()->GetViewProjectionMatrix();
+	const Matrix4x4 viewport = DirectXBase::GetInstance()->GetViewportMatrix();
+	const Matrix4x4 screenMatrix = vpMatrix * viewport;
+
+	const float screenX = worldPosition.x * screenMatrix.m[0][0] +
+		worldPosition.y * screenMatrix.m[1][0] +
+		worldPosition.z * screenMatrix.m[2][0] + screenMatrix.m[3][0];
+	const float screenY = worldPosition.x * screenMatrix.m[0][1] +
+		worldPosition.y * screenMatrix.m[1][1] +
+		worldPosition.z * screenMatrix.m[2][1] + screenMatrix.m[3][1];
+	const float w = worldPosition.x * screenMatrix.m[0][3] +
+		worldPosition.y * screenMatrix.m[1][3] +
+		worldPosition.z * screenMatrix.m[2][3] + screenMatrix.m[3][3];
+	if (w <= 0.000001f)
+	{
+		return { -10000.0f, -10000.0f };
+	}
+	return { screenX / w, screenY / w };
 }
 
 void GamePlaySceneUI::DrawLayer(const UILayer& layer)
@@ -252,8 +281,10 @@ void GamePlaySceneUI::SyncOverHeadEnemyHPGages()
         auto hpGage = std::make_unique<HPGageUI>();
 
         HPGageUIConfig config{};
-        config.backPos = enemyHP.screenPosition;
-        config.fillPos = enemyHP.screenPosition;
+        const Vector2 screenPosition =
+			ProjectWorldToScreen(enemyHP.worldPosition + Vector3{ 1.0f, 1.0f, 0.0f });
+        config.backPos = screenPosition;
+        config.fillPos = screenPosition;
         config.backSize = { 100.0f, 8.0f };
         config.fillSize = { 100.0f, 8.0f };
         config.backColor = { 0.2f, 0.2f, 0.2f, 1.0f };
@@ -279,12 +310,13 @@ void GamePlaySceneUI::SyncOverHeadEnemyHPGages()
         );
 
         hpGage->SetPositionGetter(
-            [enemyID](const GameUIViewModel& viewModel) -> Vector2{
+            [this, enemyID](const GameUIViewModel& viewModel) -> Vector2{
                 for (const auto& enemyHP : viewModel.enemyHitPoints)
                 {
                     if (enemyHP.enemyID == enemyID)
                     {
-                        return enemyHP.screenPosition;
+                        return ProjectWorldToScreen(
+							enemyHP.worldPosition + Vector3{ 1.0f, 1.0f, 0.0f });
                     }
                 }
 
@@ -362,27 +394,9 @@ void GamePlaySceneUI::SyncLockOnUI()
 
     // 座標取得用ラムダの登録
     lockOnUI->SetPositionGetter(
-        [](const GameUIViewModel& viewModel) -> Vector2
+        [this](const GameUIViewModel& viewModel) -> Vector2
         {
-            Matrix4x4 vpMatrix = CameraManager::GetInstance()->GetMainCamera()->GetViewProjectionMatrix();
-            Matrix4x4 viewport = DirectXBase::GetInstance()->GetViewportMatrix();
-            Matrix4x4 screenMatrix = vpMatrix * viewport;
-
-			const Vector3& worldPosition = viewModel.targetEnemyWorldPosition;
-			const float screenX = worldPosition.x * screenMatrix.m[0][0] +
-				worldPosition.y * screenMatrix.m[1][0] +
-				worldPosition.z * screenMatrix.m[2][0] + screenMatrix.m[3][0];
-			const float screenY = worldPosition.x * screenMatrix.m[0][1] +
-				worldPosition.y * screenMatrix.m[1][1] +
-				worldPosition.z * screenMatrix.m[2][1] + screenMatrix.m[3][1];
-			const float w = worldPosition.x * screenMatrix.m[0][3] +
-				worldPosition.y * screenMatrix.m[1][3] +
-				worldPosition.z * screenMatrix.m[2][3] + screenMatrix.m[3][3];
-			if (w <= 0.000001f)
-			{
-				return { -10000.0f, -10000.0f };
-			}
-			return { screenX / w, screenY / w };
+			return ProjectWorldToScreen(viewModel.targetEnemyWorldPosition);
         }
     );
 

@@ -1,10 +1,28 @@
+#define NOMINMAX
 #include "BossEnemy.h"
 
 #include "BulletManager.h"
+#include "CameraManager.h"
 #include "DebugDrawManager.h"
+#include "DistanceFogManager.h"
+#include "EnemyEvent.h"
+
+#include <algorithm>
 
 void BossEnemy::InitializeSpecific(const EnemyCreateConfig& config)
 {
+	isDamageReactionActive_ = false;
+	damageReactionTimer_ = 0.0f;
+	defeatedPhase_ = DefeatedPhase::Recoil;
+	defeatedPhaseTimer_ = 0.0f;
+	defeatedVisualRotation_ = {};
+	defeatedAngularSpeed_ = 0.0f;
+	defeatedRailAdvanceSpeed_ = 0.0f;
+	defeatedFogEndDistance_ = 0.0f;
+	defeatedRailStartZ_ = 0.0f;
+	defeatedRailTargetTravelDistance_ = 0.0f;
+	defeatedRailTravelDistance_ = 0.0f;
+
 	ModelManager::GetInstance()->LoadModel("enemy", "BossEnemy.obj");
 	ModelManager::GetInstance()->LoadModel("RightHand", "RightHand.obj");
 	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
@@ -44,8 +62,73 @@ void BossEnemy::InitializeSpecific(const EnemyCreateConfig& config)
 
 void BossEnemy::UpdateBehavior(const float& deltaTime)
 {
+	UpdateDamageReaction(deltaTime);
+	if (GetIsDead())
+	{
+		return;
+	}
+
 	state_->Update(this, deltaTime);
 	SetTranslate(GetTranslate() + velocity_ * deltaTime);
+}
+
+void BossEnemy::Damage(int damage, const Vector3& hitPosition)
+{
+	const int previousHitPoint = GetHitPoint();
+	Enemy::Damage(damage, hitPosition);
+	if (GetHitPoint() == previousHitPoint)
+	{
+		return;
+	}
+
+	if (GetIsDead())
+	{
+		CameraManager::GetInstance()->StartShake(0.45f, 0.8f);
+		return;
+	}
+
+	StartDamageReaction();
+	CameraManager::GetInstance()->StartShake(0.25f, 0.35f);
+}
+
+void BossEnemy::StartDamageReaction()
+{
+	damageReactionTimer_ = 0.0f;
+	isDamageReactionActive_ = true;
+}
+
+void BossEnemy::UpdateDamageReaction(float deltaTime)
+{
+	if (!isDamageReactionActive_)
+	{
+		return;
+	}
+
+	damageReactionTimer_ += deltaTime;
+	if (damageReactionTimer_ >= kDamageReactionDuration_)
+	{
+		damageReactionTimer_ = 0.0f;
+		isDamageReactionActive_ = false;
+	}
+}
+
+float BossEnemy::CalculateDamageRecoilAngle() const
+{
+	if (damageReactionTimer_ < kDamageReactionImpactDuration_)
+	{
+		const float progress = std::clamp(
+			damageReactionTimer_ / kDamageReactionImpactDuration_, 0.0f, 1.0f);
+		const float inverse = 1.0f - progress;
+		return kDamageReactionAngle_ * (1.0f - inverse * inverse);
+	}
+
+	const float returnDuration = std::max(
+		kDamageReactionDuration_ - kDamageReactionImpactDuration_, 0.001f);
+	const float progress = std::clamp(
+		(damageReactionTimer_ - kDamageReactionImpactDuration_) / returnDuration,
+		0.0f, 1.0f);
+	const float smoothProgress = progress * progress * (3.0f - 2.0f * progress);
+	return kDamageReactionAngle_ * (1.0f - smoothProgress);
 }
 
 void BossEnemy::UpdateAfterTransform()
@@ -66,6 +149,123 @@ void BossEnemy::UpdateAfterTransform()
 	objectRightHand_->SetTransform(rightHandTransform_);
 	objectRightHand_->Update();
 	colliderAttack_->UpdateWorldPosition();
+}
+
+void BossEnemy::StartDefeatedSequence()
+{
+	PublishEvent(BossDefeatedSequenceStartedEvent
+		{
+			.enemyID = GetEnemyID(),
+		});
+
+	velocity_ = {};
+	isDamageReactionActive_ = false;
+	damageReactionTimer_ = 0.0f;
+	isAttackColliderActive_ = false;
+	colliderAttack_->SetDamage(0);
+	SetAttackChargeProgress(0.0f);
+	SetThreshold(0.0f);
+
+	defeatedPhase_ = DefeatedPhase::Recoil;
+	defeatedPhaseTimer_ = 0.0f;
+	defeatedVisualRotation_ = {};
+	defeatedAngularSpeed_ = 0.0f;
+
+	const Vector3 cameraPosition =
+		CameraManager::GetInstance()->GetCameraWorldPosition();
+	defeatedFogEndDistance_ =
+		DistanceFogManager::GetInstance()->GetEndDistance() + kDefeatedFogMargin_;
+	defeatedRailStartZ_ = GetTranslate().z;
+	defeatedRailTravelDistance_ = 0.0f;
+	defeatedRailTargetTravelDistance_ = 0.0f;
+
+	Vector3 sampledWorldPosition{};
+	for (float travelDistance = 0.0f;
+		travelDistance <= kDefeatedRailSearchLimit_;
+		travelDistance += kDefeatedRailSearchStep_)
+	{
+		if (!TryGetRailWorldPositionAtLogicalZ(
+			defeatedRailStartZ_ + travelDistance, sampledWorldPosition))
+		{
+			break;
+		}
+		if (Length(sampledWorldPosition - cameraPosition) >= defeatedFogEndDistance_)
+		{
+			defeatedRailTargetTravelDistance_ = travelDistance;
+			break;
+		}
+	}
+
+	if (defeatedRailTargetTravelDistance_ <= 0.0f)
+	{
+		const float currentCameraDistance =
+			Length(GetWorldPosition() - cameraPosition);
+		defeatedRailTargetTravelDistance_ =
+			defeatedFogEndDistance_ + currentCameraDistance;
+	}
+	defeatedRailAdvanceSpeed_ =
+		defeatedRailTargetTravelDistance_ / kDefeatedSequenceDuration_;
+}
+
+void BossEnemy::UpdateDefeatedSequence(float deltaTime)
+{
+	defeatedPhaseTimer_ += deltaTime;
+	if (defeatedPhase_ == DefeatedPhase::Recoil)
+	{
+		const float progress = std::clamp(
+			defeatedPhaseTimer_ / kDefeatedRecoilImpactDuration_, 0.0f, 1.0f);
+		const float inverse = 1.0f - progress;
+		const float eased = 1.0f - inverse * inverse * inverse;
+		defeatedVisualRotation_.x = kDamageReactionAngle_ * eased;
+		if (defeatedPhaseTimer_ >= kDefeatedRecoilDuration_)
+		{
+			defeatedPhase_ = DefeatedPhase::Spinning;
+			defeatedPhaseTimer_ = 0.0f;
+		}
+		return;
+	}
+
+	defeatedRailTravelDistance_ = std::min(
+		defeatedRailTravelDistance_ + defeatedRailAdvanceSpeed_ * deltaTime,
+		defeatedRailTargetTravelDistance_);
+	Vector3 position = GetTranslate();
+	position.z = defeatedRailStartZ_ + defeatedRailTravelDistance_;
+	SetTranslate(position);
+	const float accelerationProgress = std::clamp(
+		defeatedPhaseTimer_ / kDefeatedSpinAccelerationDuration_, 0.0f, 1.0f);
+	const float spinDirection = kDamageReactionAngle_ >= 0.0f ? 1.0f : -1.0f;
+	defeatedAngularSpeed_ = spinDirection *
+		kDefeatedMaxAngularSpeed_ * accelerationProgress;
+	defeatedVisualRotation_.x += defeatedAngularSpeed_ * deltaTime;
+
+	if (defeatedRailTravelDistance_ >= defeatedRailTargetTravelDistance_)
+	{
+		PublishEvent(BossDefeatedSequenceFinishedEvent
+			{
+				.enemyID = GetEnemyID(),
+			});
+		MarkForRemoval();
+	}
+}
+
+float BossEnemy::GetRailFollowBlend() const
+{
+	// のけぞりと回転で座標基準を切り替えない。
+	// レール方向への移動自体はSpinningフェーズから開始する。
+	return IsDeathEffectActive() ? 1.0f : 0.0f;
+}
+
+Vector3 BossEnemy::GetVisualRotationOffset() const
+{
+	if (IsDeathEffectActive())
+	{
+		return defeatedVisualRotation_;
+	}
+	if (isDamageReactionActive_)
+	{
+		return { CalculateDamageRecoilAngle(), 0.0f, 0.0f };
+	}
+	return {};
 }
 
 void BossEnemy::UpdateDebugUI()

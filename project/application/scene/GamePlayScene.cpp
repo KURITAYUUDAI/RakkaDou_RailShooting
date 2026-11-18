@@ -16,10 +16,12 @@
 #include "HPGageUI.h"
 #include "Vignette.h"
 #include "HSVAdjust.h"
+#include "Darken.h"
 #include "DistanceFogManager.h"
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
 #include "TextManager.h"
+#include "Enemy/EnemyEvent.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -28,6 +30,12 @@
 namespace
 {
 	constexpr float kGameplayBattleSpaceCenterZ = 22.5f;
+	constexpr float kBossDefeatedFlashIntensity = 0.7f;
+	constexpr float kBossDefeatedFlashHoldDuration = 0.1f;
+	constexpr float kBossDefeatedFlashFadeDuration = 0.4f;
+	constexpr float kBossDefeatedFlashDuration =
+		kBossDefeatedFlashHoldDuration + kBossDefeatedFlashFadeDuration;
+	constexpr int32_t kBossDefeatedFlashPriority = 1000;
 
 	Vector3 CalculateGameplayCameraForwardOffset(const Vector3& playerLocalPosition)
 	{
@@ -201,6 +209,31 @@ void GamePlayScene::Initialize()
 	particleManager_->SetIsMoveAccelerationField("ring", false);
 	particleManager_->SetIsBillboard("ring", false);
 
+	PrimitiveManager::RingConfig stageClearShockwaveConfig;
+	stageClearShockwaveConfig.segments = 48;
+	stageClearShockwaveConfig.doubleSided = true;
+	stageClearShockwaveConfig.innerRadius = 1.5f;
+	stageClearShockwaveConfig.outerRadius = 2.0f;
+	stageClearShockwaveConfig.innerColor = { 0.0f, 0.4f, 2.0f, 0.8f };
+	stageClearShockwaveConfig.outerColor = { 0.0f, 2.0f, 5.0f, 1.0f };
+	stageClearShockwaveConfig.uvScaleU = 2.0f;
+	stageClearShockwaveConfig.uvScaleV = 0.1f;
+	stageClearShockwaveConfig.startAngle = 0.0f;
+	stageClearShockwaveConfig.endAngle = 2.0f * pi;
+	PrimitiveManager::GetInstance()->CreateRing(
+		"stage_clear_shockwave", stageClearShockwaveConfig);
+	particleManager_->CreateParticleGroup(
+		"stage_clear_shockwave", "gradationLine.png");
+	particleManager_->SetModel(
+		"stage_clear_shockwave", "stage_clear_shockwave");
+	particleManager_->SetIsMoveAccelerationField(
+		"stage_clear_shockwave", false);
+	particleManager_->SetIsBillboard("stage_clear_shockwave", true);
+	particleManager_->SetScaleOverLife(
+		"stage_clear_shockwave",
+		{ 0.75f, 0.75f, 0.75f }, { 8.0f, 8.0f, 8.0f });
+	particleManager_->SetParticleLifeTime("stage_clear_shockwave", 0.5f);
+
 	PrimitiveManager::CylinderConfig cylinderConfig;
 	cylinderConfig.segments = 32;
 	cylinderConfig.stacks = 32;
@@ -279,6 +312,12 @@ void GamePlayScene::Initialize()
 	cylinderEmitter_->Initialize("cylinder",
 		{ {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.2f);
 
+	stageClearShockwaveEmitter_ = std::make_unique<ParticleEmitter>();
+	stageClearShockwaveEmitter_->Initialize(
+		"stage_clear_shockwave",
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} },
+		1, 0.2f);
+
 	//PostEffectManager::GetInstance()->Add("Outline");
 	//PostEffectManager::GetInstance()->Add("GaussianBlur");
 	//PostEffectManager::GetInstance()->Add("RadialBlur");
@@ -300,13 +339,66 @@ void GamePlayScene::Initialize()
 	TextManager::GetInstance()->Initialize();
 
 	eventBus_ = std::make_unique<EventBus>();
+	eventSubscriber_.Initialize(eventBus_.get());
+	eventSubscriber_.Subscribe<BossDefeatedSequenceStartedEvent>(
+		[this](const BossDefeatedSequenceStartedEvent& event)
+		{
+			if (enemyStagePhase_ != EnemyStagePhase::Boss ||
+				event.enemyID != bossEnemyID_)
+			{
+				return;
+			}
+
+			auto* controller =
+				SceneManager::GetInstance()->GetPostEffectController();
+			const PostEffectHandle handle = controller->Emit<Darken>(
+				BuiltinCanvas::Final,
+				"Darken",
+				kBossDefeatedFlashDuration,
+				[](Darken& flash, float, float elapsedTime)
+				{
+					float intensity = kBossDefeatedFlashIntensity;
+					if (elapsedTime > kBossDefeatedFlashHoldDuration)
+					{
+						const float fadeProgress = std::clamp(
+							(elapsedTime - kBossDefeatedFlashHoldDuration) /
+							kBossDefeatedFlashFadeDuration,
+							0.0f, 1.0f);
+						intensity *= 1.0f - fadeProgress;
+					}
+					flash.SetDarkColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+					flash.SetIntensity(intensity);
+				},
+				kBossDefeatedFlashPriority);
+
+			// EventBusのDispatchはPostEffectController::Updateより後なので、
+			// 発行された最初の描画フレームから白0.7を適用する。
+			controller->Edit<Darken>(
+				handle,
+				[](Darken& flash)
+				{
+					flash.SetDarkColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+					flash.SetIntensity(kBossDefeatedFlashIntensity);
+				});
+		});
+	eventSubscriber_.Subscribe<BossDefeatedSequenceFinishedEvent>(
+		[this](const BossDefeatedSequenceFinishedEvent& event)
+		{
+			if (enemyStagePhase_ != EnemyStagePhase::Boss ||
+				event.enemyID != bossEnemyID_)
+			{
+				return;
+			}
+			StartStageClearSequence();
+		});
 	sceneUI_ = std::make_unique<GamePlaySceneUI>();
-	sceneUI_->Initialize(eventBus_.get());
+	sceneUI_->Initialize();
 
 	player_->SetEventBus(eventBus_.get());
 	player_->EventDispatch();
 
-	enemyManager_->Initialize(eventBus_.get());
+	enemyManager_->Initialize();
+	player_->SetEnemyQueryProvider(enemyManager_);
 	enemyManager_->SetRailFollowContext(
 		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
 		railCameraController_->GetPathWorldOffset());
@@ -401,6 +493,14 @@ void GamePlayScene::InitializeStageEntry()
 	stageTitleText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 	stageTitleText_->Update();
 
+	stageClearText_ = std::make_unique<Text>();
+	stageClearText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"STAGE CLEAR");
+	stageClearText_->SetAnchorPoint({ 0.5f, 0.5f });
+	stageClearText_->SetPosition({ 640.0f, 240.0f });
+	stageClearText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	stageClearText_->Update();
+
 	gameOverText_ = std::make_unique<Text>();
 	gameOverText_->Initialize(
 		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"GAME OVER");
@@ -422,6 +522,8 @@ void GamePlayScene::InitializeStageEntry()
 	isEnemyStageInitialized_ = false;
 	stageTitleTimer_ = 0.0f;
 	isStageTitleTimerActive_ = false;
+	stageClearState_ = StageClearState::Inactive;
+	stageClearTimer_ = 0.0f;
 	stageEntryState_ = SceneManager::GetInstance()->GetSceneTransition().IsRunning()
 		? StageEntryState::WaitingForFadeIn
 		: StageEntryState::BlackHold;
@@ -958,6 +1060,110 @@ void GamePlayScene::DrawGameOverText()
 	gameOverText_->Draw();
 }
 
+void GamePlayScene::StartStageClearSequence()
+{
+	if (IsStageClearSequenceActive() || player_->GetIsDead())
+	{
+		return;
+	}
+
+	isPaused_ = false;
+	pauseMenu_->SetVisible(false);
+	inputMapping_->SetContext(InputContext::Gameplay);
+	player_->StartStageClearSequence();
+	collisionManager_->Clear();
+	BulletManager::GetInstance()->GetBullets().clear();
+
+	stageClearPlayerStartPosition_ = player_->GetTranslate();
+	stageClearTimer_ = 0.0f;
+	stageClearState_ = StageClearState::RepositioningPlayer;
+}
+
+void GamePlayScene::UpdateStageClearSequence(float deltaTime)
+{
+	switch (stageClearState_)
+	{
+	case StageClearState::Inactive:
+		return;
+
+	case StageClearState::RepositioningPlayer:
+	{
+		stageClearTimer_ += deltaTime;
+		const float duration = std::max(kStageClearRepositionDuration_, 0.001f);
+		const float progress = std::clamp(stageClearTimer_ / duration, 0.0f, 1.0f);
+		player_->SetTranslate(LerpVector3(
+			stageClearPlayerStartPosition_, stageEntryPlayerRailPosition_,
+			SmoothStep01(progress)));
+		if (progress >= 1.0f)
+		{
+			player_->SetTranslate(stageEntryPlayerRailPosition_);
+			stageClearTimer_ = 0.0f;
+			stageClearState_ = StageClearState::DisplayingText;
+		}
+		break;
+	}
+
+	case StageClearState::DisplayingText:
+		stageClearTimer_ += deltaTime;
+		stageClearText_->Update();
+		if (stageClearTimer_ >= kStageClearTextDuration_)
+		{
+			stageClearDiveStartPosition_ = player_->GetTranslate();
+			stageClearShockwaveEmitter_->SetTranslate(player_->GetWorldPosition());
+			stageClearShockwaveEmitter_->Emit();
+			StartStageEntryBlur();
+			stageClearTimer_ = 0.0f;
+			stageClearState_ = StageClearState::Diving;
+		}
+		break;
+
+	case StageClearState::Diving:
+	{
+		stageClearTimer_ += deltaTime;
+		stageClearText_->Update();
+		const float duration = std::max(kStageClearDiveDuration_, 0.001f);
+		const float progress = std::clamp(stageClearTimer_ / duration, 0.0f, 1.0f);
+		const float easedProgress = progress * progress;
+		Vector3 playerPosition = stageClearDiveStartPosition_;
+		playerPosition.z += kStageClearDiveDistance_ * easedProgress;
+		player_->SetTranslate(playerPosition);
+		UpdateStageEntryBlur(easedProgress, kStageClearBlurMaxWidth_);
+		if (progress >= 1.0f)
+		{
+			stageClearTimer_ = 0.0f;
+			stageClearState_ = StageClearState::WaitingForTransition;
+		}
+		break;
+	}
+
+	case StageClearState::WaitingForTransition:
+		stageClearTimer_ += deltaTime;
+		if (stageClearTimer_ >= kStageClearTransitionDelay_ &&
+			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+		{
+			SceneManager::GetInstance()->SetSceneRequest("TITLE");
+			stageClearState_ = StageClearState::Transitioning;
+		}
+		break;
+
+	case StageClearState::Transitioning:
+		break;
+	}
+}
+
+void GamePlayScene::DrawStageClearText()
+{
+	const bool isTextVisible =
+		stageClearState_ == StageClearState::DisplayingText ||
+		stageClearState_ == StageClearState::Diving;
+	if (!isTextVisible || !stageClearText_)
+	{
+		return;
+	}
+
+	stageClearText_->Draw();
+}
+
 void GamePlayScene::CompleteStageEntry()
 {
 	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
@@ -1049,7 +1255,7 @@ void GamePlayScene::StartStageEntryBlur()
 		});
 }
 
-void GamePlayScene::UpdateStageEntryBlur(float progress)
+void GamePlayScene::UpdateStageEntryBlur(float progress, float maxWidth)
 {
 	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
 	if (!controller->IsActive(stageEntryBlurHandle_))
@@ -1057,7 +1263,8 @@ void GamePlayScene::UpdateStageEntryBlur(float progress)
 		return;
 	}
 
-	const float blurWidth = 0.02f * std::clamp(progress, 0.0f, 1.0f);
+	const float blurWidth =
+		std::max(0.0f, maxWidth) * std::clamp(progress, 0.0f, 1.0f);
 	controller->Edit<RadialBlur>(
 		stageEntryBlurHandle_,
 		[blurWidth](RadialBlur& blur)
@@ -1079,6 +1286,8 @@ void GamePlayScene::StopStageEntryBlur()
 
 void GamePlayScene::Finalize()
 {
+	eventSubscriber_.Finalize();
+
 	if (isGameOverSequenceActive_)
 	{
 		railCameraController_->SetOffset(gameOverCameraBaseOffset_);
@@ -1114,6 +1323,11 @@ void GamePlayScene::Finalize()
 		stageTitleText_->Finalize();
 		stageTitleText_.reset();
 	}
+	if (stageClearText_)
+	{
+		stageClearText_->Finalize();
+		stageClearText_.reset();
+	}
 	if (gameOverText_)
 	{
 		gameOverText_->Finalize();
@@ -1123,6 +1337,7 @@ void GamePlayScene::Finalize()
 	TextManager::GetInstance()->Finalize();
 	FreeTypeManager::GetInstance()->Finalize();
 
+	player_->SetEnemyQueryProvider(nullptr);
 	enemyManager_->Finalize();
 	player_->Finalize();
 	
@@ -1211,12 +1426,13 @@ void GamePlayScene::Update(const float& deltaTime)
 		const float bossPhaseDistance =
 			std::max(0.0f, enemyStageSpawnDelay_) +
 			enemyStageConfig_.smallEnemyPhaseDistance;
+
 		railCameraController_->SetTravelledDistance(bossPhaseDistance);
 	}
 
 	const bool isGameplayActive =
 		IsStageEntryComplete() || isStageEntryPlayerControlEnabled_;
-	if (isGameplayActive && isTransitionIdle &&
+	if (isGameplayActive && !IsStageClearSequenceActive() && isTransitionIdle &&
 		inputMapping_->IsTriggered(InputAction::Pause))
 	{
 		isPaused_ = !isPaused_;
@@ -1243,7 +1459,7 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	// PlayerがGameplayになった後は、StageEntryの早期returnより前に
 	// ゲームオーバーシーケンスを開始する。
-	if (isGameplayActive && player_->GetIsDead() &&
+	if (isGameplayActive && !IsStageClearSequenceActive() && player_->GetIsDead() &&
 		!isGameOverSequenceActive_)
 	{
 		StartGameOverSequence();
@@ -1452,29 +1668,36 @@ void GamePlayScene::Update(const float& deltaTime)
 		railCameraController_->GetRailFrameWorldMatrix());
 	UpdateCaveFogEndPlane();
 
+	if (IsStageClearSequenceActive())
+	{
+		UpdateStageClearSequence(deltaTime);
+	}
 	player_->Update(deltaTime);
 	UpdateStageEntryWindLines(deltaTime);
 	UpdateStageTitle(deltaTime);
 
-	if (inputManager_->TriggerKey(DIK_0))
+	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_0))
 	{
 		slashEmitter_->EmitSlash();
 	}
 
-	if (inputManager_->TriggerKey(DIK_1))
+	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_1))
 	{
 		ringEmitter_->Emit();
 	}
 
-	if (inputManager_->TriggerKey(DIK_2))
+	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_2))
 	{
 		cylinderEmitter_->Emit();
 	}
 
-	UpdateGameplaySystems(deltaTime);
+	if (!IsStageClearSequenceActive())
+	{
+		UpdateGameplaySystems(deltaTime);
+	}
 	// 敵の移動と衝突によるエフェクト生成後に、最新の親行列で更新する。
 	particleManager_->Update(deltaTime);
-	if (isGameOverSequenceActive_)
+	if (!IsStageClearSequenceActive() && isGameOverSequenceActive_)
 	{
 		UpdateGameOverSequence(deltaTime);
 	}
@@ -1483,14 +1706,15 @@ void GamePlayScene::Update(const float& deltaTime)
 
 void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 {
-	// 敵の接近先計算で、同じフレームのPlayer位置を使えるよう先に配信する。
-	eventBus_->Dispatch();
-
 	enemyManager_->SetRailFollowContext(
 		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
 		railCameraController_->GetPathWorldOffset());
 	UpdateEnemyStage(deltaTime);
-	enemyManager_->Update(deltaTime);
+	const EnemyUpdateContext enemyUpdateContext
+	{
+		.playerWorldPosition = player_->GetWorldPosition(),
+	};
+	enemyManager_->Update(deltaTime, enemyUpdateContext);
 	BulletManager::GetInstance()->Update(deltaTime);
 
 	collisionManager_->Clear();
@@ -1524,9 +1748,8 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	}
 	collisionManager_->CheckAllCollisions();
 
-	// 敵の移動と衝突処理が終わった同じフレームの座標をUIへ通知する。
-	player_->PublishLockOnState();
 	eventBus_->Dispatch();
+	sceneUI_->SyncSnapshot(BuildGameUIFrameSnapshot());
 	sceneUI_->Update(deltaTime);
 
 	if (SceneManager::GetInstance()->GetSceneTransition().GetState() !=
@@ -1535,16 +1758,50 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 		return;
 	}
 
-	if (enemyStagePhase_ == EnemyStagePhase::Boss && bossEnemyID_ != 0 &&
-		enemyManager_->GetIsDead(bossEnemyID_))
-	{
-		SceneManager::GetInstance()->SetSceneRequest("TITLE");
-	}
-
 	if (player_->GetIsDead())
 	{
 		StartGameOverSequence();
 	}
+}
+
+GameUIFrameSnapshot GamePlayScene::BuildGameUIFrameSnapshot() const
+{
+	GameUIFrameSnapshot snapshot{};
+	snapshot.playerHitPoint.currentHitPoint = player_->GetHitPoint();
+	snapshot.playerHitPoint.maxHitPoint = player_->GetMaxHitPoint();
+
+	const std::vector<EnemyID> enemyIDs = enemyManager_->GetEnemyIDs();
+	snapshot.enemies.reserve(enemyIDs.size());
+	for (const EnemyID id : enemyIDs)
+	{
+		const Enemy* enemy = enemyManager_->FindEnemy(id);
+		if (!enemy)
+		{
+			continue;
+		}
+
+		EnemyUIFrameSnapshot enemySnapshot{};
+		enemySnapshot.enemyID = id;
+		enemySnapshot.hitPoint.currentHitPoint = enemy->GetHitPoint();
+		enemySnapshot.hitPoint.maxHitPoint = enemy->GetMaxHitPoint();
+		enemySnapshot.worldPosition = enemy->GetWorldPosition();
+		enemySnapshot.isVisible = !enemy->GetIsDead();
+		enemySnapshot.displayType = enemy->GetHPGageDisplayType();
+		enemySnapshot.screenBossPriority = enemy->GetScreenBossPriority();
+		snapshot.enemies.push_back(enemySnapshot);
+	}
+
+	const EnemyID lockOnID = player_->GetLockOnEnemyID();
+	EnemyTargetInfo lockOnTarget{};
+	if (lockOnID != 0 &&
+		enemyManager_->TryGetEnemyTarget(lockOnID, lockOnTarget))
+	{
+		snapshot.isLockOn = true;
+		snapshot.targetEnemyID = lockOnID;
+		snapshot.targetEnemyWorldPosition = lockOnTarget.worldPosition;
+	}
+
+	return snapshot;
 }
 
 void GamePlayScene::StartGameOverSequence()
@@ -1671,7 +1928,7 @@ void GamePlayScene::UpdateGameOverSequence(float deltaTime)
 		isGameOverFalling_ = true;
 	}
 
-	if (!player_->IsGameOverSequenceFinished())
+	if (!player_->GetIsRemove())
 	{
 		return;
 	}
@@ -1960,6 +2217,14 @@ void GamePlayScene::Draw(CanvasId canvasId)
 {
 	if (canvasId == BuiltinCanvas::UI)
 	{
+		// 画面固定UIはポストエフェクト適用後に合成する。
+		// HPゲージと操作説明をWorld Canvasへ描くと、ステージクリア時の
+		// ラジアルブラーに巻き込まれるため、UI Canvasへ分離する。
+		if (IsStageEntryComplete() || isStageEntryPlayerControlEnabled_)
+		{
+			sceneUI_->DrawLayer(UILayer::Screen);
+		}
+		DrawStageClearText();
 		DrawGameOverText();
 		return;
 	}
@@ -1983,7 +2248,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 				cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
 #endif
 			sceneUI_->DrawLayer(UILayer::World);
-			sceneUI_->DrawLayer(UILayer::Screen);
 			sceneUI_->DrawLayer(UILayer::Overlay);
 			DrawStageTitle();
 		}
@@ -2071,7 +2335,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 	}
 
 	sceneUI_->DrawLayer(UILayer::World);
-	sceneUI_->DrawLayer(UILayer::Screen);
 	sceneUI_->DrawLayer(UILayer::Overlay);
 	DrawStageTitle();
 

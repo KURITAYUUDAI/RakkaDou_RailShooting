@@ -11,6 +11,12 @@ struct HPViewModel
     int maxHitPoint = 1;
 };
 
+struct HPFrameSnapshot
+{
+    int currentHitPoint = 0;
+    int maxHitPoint = 1;
+};
+
 enum class EnemyHPGageDisplayType : uint32_t
 {
     None = 0,
@@ -41,7 +47,6 @@ struct EnemyHPViewModel
 
     HPViewModel hitPoint;
 
-    Vector2 screenPosition{};
     Vector3 worldPosition{};
     bool isVisible = true;
 
@@ -50,11 +55,28 @@ struct EnemyHPViewModel
     int screenBossPriority = 0;
 };
 
+struct EnemyUIFrameSnapshot
+{
+    EnemyID enemyID = 0;
+    HPFrameSnapshot hitPoint;
+    Vector3 worldPosition{};
+    bool isVisible = false;
+    EnemyHPGageDisplayType displayType = EnemyHPGageDisplayType::None;
+    int screenBossPriority = 0;
+};
+
+struct GameUIFrameSnapshot
+{
+    HPFrameSnapshot playerHitPoint;
+    std::vector<EnemyUIFrameSnapshot> enemies;
+    bool isLockOn = false;
+    EnemyID targetEnemyID = 0;
+    Vector3 targetEnemyWorldPosition{};
+};
+
 struct GameUIViewModel
 {
     HPViewModel playerHitPoint;
-
-    Vector3 playerWorldPosition;
 
     std::vector<EnemyHPViewModel> enemyHitPoints;
 
