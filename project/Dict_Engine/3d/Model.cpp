@@ -96,9 +96,9 @@ void Model::DrawMeshWithOverrideVertexBuffer(const uint32_t meshIndex, UINT inst
 
 	const auto& mesh = modelData_.meshes[meshIndex];
 
-	const D3D12_VERTEX_BUFFER_VIEW* vertexBufferView = &overrideVertexBufferView ? &overrideVertexBufferView : &mesh.vertexBufferView;
+	//const D3D12_VERTEX_BUFFER_VIEW* vertexBufferView = &overrideVertexBufferView ? &overrideVertexBufferView : &mesh.vertexBufferView;
 
-	commandList->IASetVertexBuffers(0, 1, vertexBufferView);
+	commandList->IASetVertexBuffers(0, 1, &overrideVertexBufferView);
 
 	commandList->IASetIndexBuffer(&mesh.indexBufferView);	// IBVを設定
 

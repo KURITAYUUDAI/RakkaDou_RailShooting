@@ -23,14 +23,26 @@ void AnimationTest::Initialize()
 	skeletonAsset_ = CreateSkeletonAsset(object3d_->GetModel()->GetRootNode(0));
 	skeletonPose_.Initialize(&skeletonAsset_);
 	
-	skinBinding_ = CreateMeshSkinBinding(skeletonAsset_, object3d_->GetModel()->GetMesh(0));
-	meshSkin_.Initialize(skeletonAsset_, object3d_->GetModel()->GetMesh(0));
+	Model* model = object3d_->GetModel();
+	const uint32_t meshCount = static_cast<uint32_t>(model->GetMeshCount());
 
-	/*skinCluster_ = CreateSkinCluster(skeletonAsset_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
-	CreateInputVerticesSRV();
-	CreateInfluenceSRV();
-	CreateOutputVertexBuffer();
-	CreateSkinningInfoResource();*/
+	skinBindings_.resize(meshCount);
+	meshSkins_.resize(meshCount);
+
+	for (uint32_t meshIndex = 0; meshIndex < meshCount; ++meshIndex)
+	{
+		MeshGeometry& mesh = model->GetMesh(meshIndex);
+
+		// このメッシュはスキニングしない
+		if (mesh.skinClusterData.empty())
+		{
+			continue;
+		}
+
+		skinBindings_[meshIndex] = CreateMeshSkinBinding(skeletonAsset_, mesh);
+		meshSkins_[meshIndex] = std::make_unique<MeshSkin>();
+		meshSkins_[meshIndex]->Initialize(skeletonAsset_, mesh);
+	}
 
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
@@ -84,7 +96,16 @@ void AnimationTest::Update(float deltaTime)
 	}
 
 	skeletonPose_.Update();
-	meshSkin_.UpdatePalette(skinBinding_, skeletonPose_);
+
+	for (uint32_t meshIndex = 0; meshIndex < meshSkins_.size(); ++meshIndex)
+	{
+		if (!meshSkins_[meshIndex] || !skinBindings_[meshIndex])
+		{
+			continue;
+		}
+
+		meshSkins_[meshIndex]->UpdatePalette(*skinBindings_[meshIndex], skeletonPose_);		
+	}
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
@@ -92,7 +113,15 @@ void AnimationTest::Update(float deltaTime)
 
 void AnimationTest::Draw()
 {
-	meshSkin_.Dispatch(skinBinding_, computePsoName_);
+	for (uint32_t meshIndex = 0; meshIndex < meshSkins_.size(); ++meshIndex)
+	{
+		if (!meshSkins_[meshIndex] || !skinBindings_[meshIndex])
+		{
+			continue;
+		}
+
+		meshSkins_[meshIndex]->Dispatch(*skinBindings_[meshIndex], computePsoName_);
+	}
 
 	object3d_->SetPsoName(psoName_);
 	object3d_->SetBlendMode(blendMode_);
@@ -106,6 +135,8 @@ void AnimationTest::Draw()
 	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
 	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	object3d_->PreDraw();
+
 	SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
 
 	DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
@@ -113,8 +144,21 @@ void AnimationTest::Draw()
 
 	//object3d_->Draw(&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second);
 
-	object3d_->DrawWithOverrideVertexBuffer(meshSkin_.GetOutputVertexBufferView());
-}
+	Model* model = object3d_->GetModel();
+	for (uint32_t meshIndex = 0; meshIndex < model->GetMeshCount(); ++meshIndex)
+	{
+		if (meshSkins_[meshIndex])
+		{
+			const D3D12_VERTEX_BUFFER_VIEW& vbv = meshSkins_[meshIndex]->GetOutputVertexBufferView();
+			object3d_->DrawMesh(meshIndex, &vbv);
+		} 
+		else
+		{
+			// スキニングしないメッシュ
+			object3d_->DrawMesh(meshIndex, nullptr);
+		}
+	}
+} 
 
 void AnimationTest::Finalize()
 {}

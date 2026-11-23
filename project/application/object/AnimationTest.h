@@ -27,14 +27,6 @@ public:
 	void Draw();
 	void Finalize();
 
-	void CreateInputVerticesSRV();
-	void CreateInfluenceSRV();
-	void CreateOutputVertexBuffer();
-	void CreateSkinningInfoResource();
-	void DispatchSkinning();
-
-	void TransitionOutputVertex(D3D12_RESOURCE_STATES nextState);
-
 public: // 外部入出力
 
 	// セッター
@@ -84,8 +76,8 @@ private:
 	SkeletonAsset skeletonAsset_;
 	SkeletonPose skeletonPose_;
 
-	MeshSkinBinding skinBinding_;
-	MeshSkin meshSkin_;
+	std::vector<std::optional<MeshSkinBinding>> skinBindings_;
+	std::vector<std::unique_ptr<MeshSkin>> meshSkins_;
 
 	EulerTransform transform_;
 };

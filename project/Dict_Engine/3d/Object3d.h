@@ -30,8 +30,11 @@ public:	// メンバ関数
 
 	void DrawingCommon();
 
+	void PreDraw();
+
 	void Draw(const D3D12_VERTEX_BUFFER_VIEW* additionalVBV = nullptr, 
 		const D3D12_GPU_DESCRIPTOR_HANDLE* additionalGPUHandle = nullptr);
+	void DrawMesh(uint32_t meshIndex, const D3D12_VERTEX_BUFFER_VIEW* overrideVertexBufferView);
 
 	void DrawWithOverrideVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW& vertexBufferView);
 

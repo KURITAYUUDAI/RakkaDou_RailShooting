@@ -84,16 +84,10 @@ void MeshSkin::UpdatePalette(const MeshSkinBinding & binding, const SkeletonPose
 
     for (uint32_t jointIndex = 0; jointIndex < skeletonPose.GetJoints().size(); ++jointIndex)
     {
-        mappedPalette_[jointIndex].skeletonSpaceMatrix =
-            binding.inverseBindPoseMatrices[jointIndex] * skeletonPose.GetJoint(jointIndex).skeletonSpaceMatrix;
-        mappedPalette_[jointIndex].skeletonSpaceInverseTransposeMatrix =
-            Transpose(Inverse(mappedPalette_[jointIndex].skeletonSpaceMatrix));
-
         const Matrix4x4 skinningMatrix = binding.inverseBindPoseMatrices[jointIndex] 
             * skeletonPose.GetJoint(jointIndex).skeletonSpaceMatrix;
 
         mappedPalette_[jointIndex].skeletonSpaceMatrix = skinningMatrix;
-
         mappedPalette_[jointIndex].skeletonSpaceInverseTransposeMatrix = Transpose(Inverse(skinningMatrix));
     }
 }
@@ -172,7 +166,8 @@ void MeshSkin::CreateSkinningInfoResource()
 {
     skinningInfoResource_ = DirectXBase::GetInstance()->CreateConstantBufferResource(sizeof(SkinningInformation));
 
-    skinningInfoResource_->Map(0, nullptr, reinterpret_cast<void**>(&skinningInfoData_));
+    D3D12_RANGE readRange{ 0, 0 };
+    skinningInfoResource_->Map(0, &readRange, reinterpret_cast<void**>(&skinningInfoData_));
 
     skinningInfoData_->numVertices = static_cast<uint32_t>(vertexSize_);
 }
