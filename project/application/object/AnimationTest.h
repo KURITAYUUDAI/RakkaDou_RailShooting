@@ -9,8 +9,8 @@
 
 #include "Animation/AnimationUtility.h"
 #include "Animation/AnimationPlayer.h"
-#include "Animation/AnimationMemo.h"
 #include "Animation/Skeleton.h"
+#include "Animation/MeshSkin.h"
 
 class AnimationTest
 {
@@ -84,18 +84,8 @@ private:
 	SkeletonAsset skeletonAsset_;
 	SkeletonPose skeletonPose_;
 
-	SkinCluster skinCluster_;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
-	uint32_t inputVerticesSrvIndex_ = 0;
-	uint32_t influenceSrvIndex_ = 0;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> outputVertexResource_;
-	D3D12_VERTEX_BUFFER_VIEW outputVertexBufferView;
-	uint32_t outputUavIndex_ = 0;
-	D3D12_RESOURCE_STATES outputVertexState_ = D3D12_RESOURCE_STATE_COMMON;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> skinningInfoResource_;
-	SkinningInformation* skinningInfoData_ = nullptr;
+	MeshSkinBinding skinBinding_;
+	MeshSkin meshSkin_;
 
 	EulerTransform transform_;
 };

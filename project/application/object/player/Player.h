@@ -22,7 +22,7 @@
 
 #include "Animation/AnimationUtility.h"
 #include "Animation/Skeleton.h"
-#include "Animation/AnimationMemo.h"
+#include "Animation/MeshSkin.h"
 
 class Player : public ICollisionObserver
 {
@@ -207,7 +207,8 @@ private:
 	float animationTime = 0.0f;
 	SkeletonAsset skeletonAsset_;
 	SkeletonPose skeletonPose_;
-	SkinCluster skinCluster_;
+	MeshSkinBinding skinBinding_;
+	MeshSkin meshSkin_;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
 
 	std::unique_ptr<Collider> collider_;

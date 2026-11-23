@@ -22,11 +22,15 @@ void AnimationTest::Initialize()
 
 	skeletonAsset_ = CreateSkeletonAsset(object3d_->GetModel()->GetRootNode(0));
 	skeletonPose_.Initialize(&skeletonAsset_);
-	skinCluster_ = CreateSkinCluster(skeletonAsset_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
+	
+	skinBinding_ = CreateMeshSkinBinding(skeletonAsset_, object3d_->GetModel()->GetMesh(0));
+	meshSkin_.Initialize(skeletonAsset_, object3d_->GetModel()->GetMesh(0));
+
+	/*skinCluster_ = CreateSkinCluster(skeletonAsset_, object3d_->GetModel()->GetMesh(0), skinClusterHeap_);
 	CreateInputVerticesSRV();
 	CreateInfluenceSRV();
 	CreateOutputVertexBuffer();
-	CreateSkinningInfoResource();
+	CreateSkinningInfoResource();*/
 
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
@@ -80,7 +84,7 @@ void AnimationTest::Update(float deltaTime)
 	}
 
 	skeletonPose_.Update();
-	UpdateSkinCluster(skinCluster_, skeletonPose_);
+	meshSkin_.UpdatePalette(skinBinding_, skeletonPose_);
 
 	object3d_->SetTransform(transform_);
 	object3d_->Update(nullptr, nullptr, false);
@@ -88,7 +92,7 @@ void AnimationTest::Update(float deltaTime)
 
 void AnimationTest::Draw()
 {
-	DispatchSkinning();
+	meshSkin_.Dispatch(skinBinding_, computePsoName_);
 
 	object3d_->SetPsoName(psoName_);
 	object3d_->SetBlendMode(blendMode_);
@@ -109,113 +113,8 @@ void AnimationTest::Draw()
 
 	//object3d_->Draw(&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second);
 
-	object3d_->DrawWithOverrideVertexBuffer(outputVertexBufferView);
+	object3d_->DrawWithOverrideVertexBuffer(meshSkin_.GetOutputVertexBufferView());
 }
 
 void AnimationTest::Finalize()
 {}
-
-void AnimationTest::CreateInputVerticesSRV()
-{
-	inputVerticesSrvIndex_ = SrvManager::GetInstance()->AllocateIndex();
-
-	MeshGeometry& mesh = object3d_->GetModel()->GetMesh(0);
-
-	SrvManager::GetInstance()->CreateSRVforStructuredBuffer(
-		inputVerticesSrvIndex_,
-		mesh.vertexResource.Get(),
-		static_cast<UINT>(mesh.vertices.size()),
-		sizeof(VertexData));
-}
-
-void AnimationTest::CreateInfluenceSRV()
-{
-	influenceSrvIndex_ = SrvManager::GetInstance()->AllocateIndex();
-
-	MeshGeometry& mesh = object3d_->GetModel()->GetMesh(0);
-
-	SrvManager::GetInstance()->CreateSRVforStructuredBuffer(
-		influenceSrvIndex_,
-		skinCluster_.influenceResource.Get(),
-		static_cast<UINT>(mesh.vertices.size()),
-		sizeof(VertexInfluence)
-	);
-}
-
-void AnimationTest::CreateOutputVertexBuffer()
-{
-	MeshGeometry& mesh = object3d_->GetModel()->GetMesh(0);
-	UINT sizeInBytes = static_cast<UINT>(sizeof(VertexData) * mesh.vertices.size());
-
-	outputVertexResource_ = DirectXBase::GetInstance()->
-		CreateUnorderedResource(sizeInBytes);
-	
-	outputVertexBufferView.BufferLocation = outputVertexResource_->GetGPUVirtualAddress();
-	outputVertexBufferView.SizeInBytes = sizeInBytes;
-	outputVertexBufferView.StrideInBytes = sizeof(VertexData);
-	
-	outputUavIndex_ = SrvManager::GetInstance()->AllocateIndex();
-
-	SrvManager::GetInstance()->CreateUAVforStructuredBuffer(
-		outputUavIndex_, 
-		outputVertexResource_.Get(), 
-		static_cast<UINT>(mesh.vertices.size()),
-		sizeof(VertexData)
-	);
-	
-}
-
-void AnimationTest::CreateSkinningInfoResource()
-{
-	skinningInfoResource_ = DirectXBase::GetInstance()->CreateConstantBufferResource(sizeof(SkinningInformation));
-
-	skinningInfoResource_->Map(0, nullptr, reinterpret_cast<void**>(&skinningInfoData_));
-
-	skinningInfoData_->numVertices = static_cast<uint32_t>(object3d_->GetModel()->GetMesh(0).vertices.size());
-	
-}
-
-void AnimationTest::DispatchSkinning()
-{
-	auto psoSet = PSOManager::GetInstance()->GetComputePSOData(computePsoName_);
-	auto commandList = DirectXBase::GetInstance()->GetCommandList();
-	
-	SrvManager::GetInstance()->PreDraw();
-
-	// COMMONまたは前フレームのVBV状態からUAVへ
-	TransitionOutputVertex(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-	commandList->SetComputeRootSignature(psoSet.rootSignature.Get());
-	commandList->SetPipelineState(psoSet.pipelineState.Get());
-	commandList->SetComputeRootDescriptorTable(0, skinCluster_.paletteSrvHandle.second);
-	commandList->SetComputeRootDescriptorTable(1, SrvManager::GetInstance()->GetGPUDescriptorHandle(inputVerticesSrvIndex_));
-	commandList->SetComputeRootDescriptorTable(2, SrvManager::GetInstance()->GetGPUDescriptorHandle(influenceSrvIndex_));
-	commandList->SetComputeRootDescriptorTable(3, SrvManager::GetInstance()->GetGPUDescriptorHandle(outputUavIndex_));
-	commandList->SetComputeRootConstantBufferView(4, skinningInfoResource_->GetGPUVirtualAddress());
-
-	commandList->Dispatch(UINT(object3d_->GetModel()->GetMesh(0).vertices.size() + 1023) / 1024, 1, 1);
-
-	// Compute書き込み後、頂点バッファとして読める状態へ
-	TransitionOutputVertex(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-}
-
-void AnimationTest::TransitionOutputVertex(D3D12_RESOURCE_STATES nextState)
-{
-	if (outputVertexState_ == nextState)
-	{
-		return;
-	}
-
-	D3D12_RESOURCE_BARRIER barrier{};
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-	barrier.Transition.pResource = outputVertexResource_.Get();
-	barrier.Transition.StateBefore = outputVertexState_;
-	barrier.Transition.StateAfter = nextState;
-	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
-	DirectXBase::GetInstance()->GetCommandList()->ResourceBarrier(1, &barrier); 
-
-	outputVertexState_ = nextState;
-}

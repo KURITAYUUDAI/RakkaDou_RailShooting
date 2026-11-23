@@ -306,12 +306,12 @@ void Player::Update(const float& deltaTime)
 	CameraManager::GetInstance()->LimitPlayerInFrustum(
 		transform_.translate, playerParent ? &playerParent->worldMatrix_ : nullptr);
 
-	animationTime += deltaTime;
-	animationTime = std::fmod(animationTime, animation_.duration);
+	/*animationTime += deltaTime;
+	animationTime = std::fmod(animationTime, animation_.duration);*/
 
-	skeletonPose_.ApplyAnimation(animation_, animationTime);
+	/*skeletonPose_.ApplyAnimation(animation_, animationTime);
 	skeletonPose_.Update();
-	UpdateSkinCluster(skinCluster_, skeletonPose_);
+	UpdateSkinCluster(skinCluster_, skeletonPose_);*/
 
 	EulerTransform renderTransform = transform_;
 	renderTransform.rotate.x += CalculateDamageRecoilAngle();
