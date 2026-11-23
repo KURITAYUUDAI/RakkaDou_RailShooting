@@ -7,10 +7,8 @@
 #include <vector>
 #include "../tool/effect/DissolveManager.h"
 
-#include "Animation/AnimationUtility.h"
-#include "Animation/AnimationPlayer.h"
-#include "Animation/Skeleton.h"
-#include "Animation/MeshSkin.h"
+#include "Animation/AnimatedObject3d.h"
+
 
 class AnimationTest
 {
@@ -64,20 +62,21 @@ private:
 
 	std::string computePsoName_ = "Skinning";
 
-	std::unique_ptr<Object3d> object3d_;
+	std::shared_ptr<const AnimatedModelAsset> animatedModelAsset_;
+	std::unique_ptr<AnimatedObject3d> animatedObject3d_;
 
 	uint32_t environmentTextureIndex_ = 0;
 
 	DissolveParams dissolveParams_;
 
-	AnimationSet animationSet_;
-	AnimationPlayer animationPlayer_;
+	//AnimationSet animationSet_;
+	//AnimationPlayer animationPlayer_;
 
-	SkeletonAsset skeletonAsset_;
-	SkeletonPose skeletonPose_;
+	//SkeletonAsset skeletonAsset_;
+	//SkeletonPose skeletonPose_;
 
-	std::vector<std::optional<MeshSkinBinding>> skinBindings_;
-	std::vector<std::unique_ptr<MeshSkin>> meshSkins_;
+	//std::vector<std::optional<MeshSkinBinding>> skinBindings_;
+	//std::vector<std::unique_ptr<MeshSkin>> meshSkins_;
 
 	EulerTransform transform_;
 };

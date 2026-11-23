@@ -448,6 +448,7 @@ void PlayerMeleeAttackState::Finalize(Player* player)
 	player->SetAttackColliderActive(false);
 	player->SetMeleeHandVisible(false);
 	player->SetVelocity({ 0.0f, 0.0f, 0.0f });
+	player->EndMeleeAttack();
 }
 
 void PlayerCounterMeleeState::Initialize(Player* player)

@@ -20,9 +20,7 @@
 #include "JustAvoidDarken.h"
 #include <unordered_set>
 
-#include "Animation/AnimationUtility.h"
-#include "Animation/Skeleton.h"
-#include "Animation/MeshSkin.h"
+#include "Animation/AnimatedObject3d.h"
 
 class Player : public ICollisionObserver
 {
@@ -74,6 +72,7 @@ public:	// Command
 	void StopChargeEffect();
 	void MeleeAttack();
 	void CounterMeleeAttack();
+	void EndMeleeAttack();
 	void Avoid(const Vector2& direction);
 	void JustAvoid(const Vector3& avoidDirection);
 	void StopJustAvoid(const float& returnRate);
@@ -186,11 +185,13 @@ private:
 	PSOManager::BlendMode blendMode_ = PSOManager::BlendMode::Normal;
 	PSOManager::FillMode fillMode_ = PSOManager::FillMode::kSolid;
 
-	std::unique_ptr<Object3d> object3d_;
+	std::shared_ptr<const AnimatedModelAsset> animatedModelAsset_;
+	std::unique_ptr<AnimatedObject3d> object3d_;
 	std::unique_ptr<Object3d> objectMeleeHand_;
 	std::unique_ptr<Object3d> objectLeftHand_;
 	std::unique_ptr<Object3d> objectChargeRing_;
 	std::unique_ptr<Object3d> objectMeleeFollowUpEffect_;
+
 	EulerTransform meleeHandTransform_{};
 	EulerTransform leftHandTransform_{};
 	EulerTransform chargeRingTransform_{};
@@ -203,13 +204,7 @@ private:
 	static constexpr Vector3 kMeleeFollowUpEffectLocalPosition_ =
 		{ -1.0f, 0.2f, 1.5f };
 
-	Animation animation_;
-	float animationTime = 0.0f;
-	SkeletonAsset skeletonAsset_;
-	SkeletonPose skeletonPose_;
-	MeshSkinBinding skinBinding_;
-	MeshSkin meshSkin_;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> skinClusterHeap_;
+	
 
 	std::unique_ptr<Collider> collider_;
 	std::unique_ptr<Collider> colliderAttack_;

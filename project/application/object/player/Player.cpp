@@ -26,6 +26,9 @@ void Player::Initialize(Mode mode)
 	mode_ = mode;
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
 
+	PSOManager::GetInstance()->RegisterSkinningPSO();
+	PSOManager::GetInstance()->RegisterSkinningComputePSO();
+
 	ModelManager::GetInstance()->LoadModel("", "sphere.obj");
 	ModelManager::GetInstance()->LoadModel("player", "player.obj");
 	ModelManager::GetInstance()->LoadModel("Animation", "walk.gltf");
@@ -33,9 +36,14 @@ void Player::Initialize(Mode mode)
 	ModelManager::GetInstance()->LoadModel("LeftHand", "LeftHand.obj");
 	ModelManager::GetInstance()->LoadModel("playerBullet", "playerBullet.obj");
 
-	object3d_ = std::make_unique<Object3d>();
-	object3d_->Initialize();
-	object3d_->SetModel("player.obj");
+	ModelManager::GetInstance()->LoadModel("Player", "Player.gltf");
+
+	animatedModelAsset_ = CreateAnimatedModelAsset("Player", "Player.gltf");
+
+	object3d_ = std::make_unique<AnimatedObject3d>();
+	object3d_->Initialize(animatedModelAsset_);
+	object3d_->SetModel("Player.gltf");
+	object3d_->PlayAnimation(0, true);
 	object3d_->SetEnvironmentCoefficient(0.2f);
 	particleParentHandle_ =
 		ParticleManager::GetInstance()->RegisterParticleParent();
@@ -316,7 +324,7 @@ void Player::Update(const float& deltaTime)
 	EulerTransform renderTransform = transform_;
 	renderTransform.rotate.x += CalculateDamageRecoilAngle();
 	object3d_->SetTransform(renderTransform);
-	object3d_->Update(nullptr, nullptr, false);
+	object3d_->Update(deltaTime);
 	SyncParticleParent();
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
@@ -460,7 +468,7 @@ void Player::UpdateGameOverSequence(float deltaTime)
 	}
 
 	object3d_->SetTransform(transform_);
-	object3d_->Update(nullptr, nullptr, false);
+	object3d_->Update(deltaTime);
 	SyncParticleParent();
 
 	if (isGameOverFalling_ &&
@@ -490,7 +498,7 @@ void Player::UpdateTitleFalling()
 #endif
 
 	object3d_->SetTransform(transform_);
-	object3d_->Update(nullptr, nullptr, false);
+	object3d_->Update(deltaTime_);
 	SyncParticleParent();
 	objectMeleeHand_->SetTransform(meleeHandTransform_);
 	objectMeleeHand_->Update();
@@ -513,7 +521,7 @@ void Player::SetTitleOpacity(float opacity)
 		object->SetColor(color);
 	};
 
-	setOpacity(object3d_.get());
+	setOpacity(object3d_.get()->GetObject3d());
 	setOpacity(objectMeleeHand_.get());
 	setOpacity(objectLeftHand_.get());
 }
@@ -563,25 +571,21 @@ void Player::Draw()
 	object3d_->SetPsoName(psoName_);
 	object3d_->SetBlendMode(blendMode_);
 	object3d_->SetFillMode(fillMode_);
-	auto psoSet = PSOManager::GetInstance()->GetPSOData(psoName_, blendMode_, fillMode_);
-
-	// パイプラインステートとルートシグネチャをセット
-	DirectXBase::GetInstance()->GetCommandList()->SetPipelineState(psoSet.pipelineState.Get());
-	DirectXBase::GetInstance()->GetCommandList()->SetGraphicsRootSignature(psoSet.rootSignature.Get());
-
-	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
-	DirectXBase::GetInstance()->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
-
-	DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
-	DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+	
+	
 
 	if (isDraw_)
 	{
+		object3d_->PreDraw();
+
+		SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
+
+		DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
+		DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
+
 		object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 	}
-	if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
+	/*if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
 	{
 		auto environmentPso = PSOManager::GetInstance()->GetPSOData(
 			"Environment", blendMode_, fillMode_);
@@ -597,7 +601,7 @@ void Player::Draw()
 	if (isDraw_ && mode_ == Mode::TitleFalling)
 	{
 		objectLeftHand_->Draw();
-	}
+	}*/
 	if (isDraw_ && isChargeEffectActive_)
 	{
 		objectChargeRing_->Draw();
@@ -986,6 +990,9 @@ void Player::StopChargeEffect()
 void Player::MeleeAttack()
 {
 	ChangeState(std::make_unique<PlayerMeleeAttackState>());
+
+	object3d_->StopAnimation();
+	object3d_->PlayAnimation(1, true);
 }
 
 void Player::CounterMeleeAttack()
@@ -997,6 +1004,12 @@ void Player::CounterMeleeAttack()
 		return;
 	}
 	ChangeState(std::make_unique<PlayerCounterMeleeState>());
+}
+
+void Player::EndMeleeAttack()
+{
+	object3d_->StopAnimation();
+	object3d_->PlayAnimation(0, true);
 }
 
 bool Player::CanApproachNearestEnemy() const
@@ -1112,7 +1125,7 @@ void Player::SetParent(WorldTransform* worldTransform)
 	object3d_->SetParent(worldTransform);
 	// EventDispatch() は最初の Update() より前にワールド座標を配信する。
 	object3d_->SetTransform(transform_);
-	object3d_->Update(nullptr, nullptr, false);
+	object3d_->Update(deltaTime_);
 	SyncParticleParent();
 }
 
