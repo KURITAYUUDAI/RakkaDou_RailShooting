@@ -7,17 +7,17 @@
 
 void AnimationTest::Initialize()
 {
-	ModelManager::GetInstance()->LoadModel("Animation/Sample", "WireShotSample.gltf");
+	ModelManager::GetInstance()->LoadModel("Animation/Sample", "BrainStem.gltf");
 
 	PSOManager::GetInstance()->RegisterSkinningPSO();
 
 	PSOManager::GetInstance()->RegisterSkinningComputePSO();
 
-	animatedModelAsset_ = CreateAnimatedModelAsset("Animation/Sample", "WireShotSample.gltf");
+	animatedModelAsset_ = CreateAnimatedModelAsset("Animation/Sample", "BrainStem.gltf");
 
 	animatedObject3d_ = std::make_unique<AnimatedObject3d>();
 	animatedObject3d_->Initialize(animatedModelAsset_);
-	animatedObject3d_->SetModel("WireShotSample.gltf");
+	animatedObject3d_->SetModel("BrainStem.gltf");
 
 	animatedObject3d_->PlayAnimation(0, true);
 

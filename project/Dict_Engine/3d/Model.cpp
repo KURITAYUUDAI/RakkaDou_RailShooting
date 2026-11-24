@@ -256,20 +256,38 @@ void Model::LoadModelFile(const std::string& directoryPath, const std::string& f
 	{
 		aiMesh* mesh = scene->mMeshes[meshIndex]; 
 		assert(mesh->HasNormals()); // 法線がないMeshは今回は非対応
-		assert(mesh->HasTextureCoords(0)); // TexcoordがないMeshは今回は非対応
+		//assert(mesh->HasTextureCoords(0)); // TexcoordがないMeshは今回は非対応
+		const bool hasTexcoord = mesh->HasTextureCoords(0);
+		
 		MeshGeometry newMesh;
-
 		newMesh.vertices.resize(mesh->mNumVertices);	// 最初に頂点数分のメモリを確保しておく
+
 		for (uint32_t vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
 		{
 			aiVector3D& position = mesh->mVertices[vertexIndex];
 			aiVector3D& normal = mesh->mNormals[vertexIndex];
+
+			VertexData& vertex = newMesh.vertices[vertexIndex];
+
 			aiVector3D& texcoord = mesh->mTextureCoords[0][vertexIndex];
-			
-			newMesh.vertices[vertexIndex].position = { -position.x, position.y, position.z, 1.0f };
-			newMesh.vertices[vertexIndex].normal = { -normal.x, normal.y, normal.z };
-			newMesh.vertices[vertexIndex].texcoord = { texcoord.x, texcoord.y };
-			newMesh.vertices[vertexIndex].color = {1.0f, 1.0f, 1.0f, 1.0f};
+			vertex.position = { -position.x, position.y, position.z, 1.0f };
+			vertex.normal = { -normal.x, normal.y, normal.z };
+
+			if (hasTexcoord)
+			{
+				const aiVector3D& texcoord = mesh->mTextureCoords[0][vertexIndex];
+
+				vertex.texcoord = { texcoord.x, texcoord.y };
+			} 
+			else
+			{
+				// UVを持たないMesh
+				vertex.texcoord = { 0.0f, 0.0f };
+			}
+
+			vertex.color = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+			newMesh.vertices[vertexIndex] = vertex;
 		}
 
 		// Indexの解析
