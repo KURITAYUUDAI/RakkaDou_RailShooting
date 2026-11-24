@@ -12,6 +12,8 @@
 
 #include <limits>
 
+#include "Particle/ComputeParticle.h"
+
 class Model;
 class Camera;
 
@@ -105,6 +107,8 @@ public:
 		ParticleParentHandle parentHandle;
 	};
 
+	
+
 	struct Emitter
 	{
 		EulerTransform transform;
@@ -147,7 +151,7 @@ public:
 		PSOManager::FillMode fillMode_;								// フィルモード
 	};
 
-
+	
 
 public:
 
@@ -157,6 +161,9 @@ public:
 	void Update(const float& deltaTime);
 
 	void Draw();
+
+	void DrawCPU();
+	void DrawGPU();
 
 	// PSO等を残したままParticleやAccelerationFieldをリセットする
 	void Reset();
@@ -220,11 +227,15 @@ private:
 		bool active = false;
 	};
 
+	void RegisterParticlePSO();
+	void RegisterGPUParticlePSO();
+
+	void CreatePerViewResource();
+
 	/*void CreateRootSignature(ID3DBlob* signatureBlob);
 
 	void CreateGraphicsPipelineState();*/
 
-	
 
 private:
 
@@ -257,5 +268,11 @@ private:
 	// カメラのビュープロジェクション
 	Matrix4x4 viewProjectionMatrix_;
 
+	std::string gpuPsoName_ = "GPUParticleDefault";
+	std::unique_ptr<ComputeParticle> computeParticle_;
+	Model* gpuParticleModel_ = nullptr;
+	std::unique_ptr<MaterialInstance> gpuParticleMaterial_;
+	Microsoft::WRL::ComPtr<ID3D12Resource> perViewResource_;
+	PerView* perViewData_ = nullptr;
 };
 

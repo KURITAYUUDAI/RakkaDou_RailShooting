@@ -14,6 +14,8 @@ namespace
 
 void TestScene::Initialize()
 {
+	PSOManager::GetInstance()->RegisterEnvironmentPSO();
+
 	// Textureを読んで転送する
 	textureManager_->LoadTexture("uvChecker.png");
 	textureManager_->LoadTexture("monsterBall.png");

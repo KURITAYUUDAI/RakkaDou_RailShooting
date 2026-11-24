@@ -41,7 +41,7 @@ void Game::Initialize()
 		[]{ return std::make_unique<HSVAdjust>(); });
 
 	// シーンマネージャーに最初のシーンをセット
-	sceneManager_->Initialize("TITLE");
+	sceneManager_->Initialize("TEST");
 
 	
 

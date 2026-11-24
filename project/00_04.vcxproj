@@ -157,6 +157,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Dict_Engine\3d\Particle\ComputeParticle.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimationPlayer.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp" />
     <ClCompile Include="application\object\AnimationTest.cpp" />
@@ -332,6 +333,25 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="resources\shaders\Particle\GPUParticle.VS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Development|x64'">Vertex</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="resources\shaders\Particle\InitializeParticle.CS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Development|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Development|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="resources\shaders\PostEffect\Darken.PS.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Development|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -492,6 +512,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application\command\InputCommand.h" />
+    <ClInclude Include="Dict_Engine\3d\Particle\ComputeParticle.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />
     <ClInclude Include="application\object\AnimationTest.h" />
@@ -629,6 +650,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <None Include="resources\shaders\DebugDraw\DebugDraw.hlsli" />
     <None Include="resources\shaders\Environment\Environment.hlsli" />
     <None Include="resources\shaders\Font\FreetypeFont.hlsli" />
+    <None Include="resources\shaders\Particle\GPUParticle.hlsli" />
     <None Include="resources\shaders\SkyBox\SkyBox.hlsli" />
     <None Include="resources\shaders\Object3d\Object3d.hlsli" />
     <None Include="resources\shaders\Particle\Particle.hlsli" />

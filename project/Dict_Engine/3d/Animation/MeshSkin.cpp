@@ -145,8 +145,7 @@ void MeshSkin::CreateOutputVertexBuffer(const MeshGeometry & mesh)
 {
     UINT sizeInBytes = static_cast<UINT>(sizeof(VertexData) * mesh.vertices.size());
 
-    outputVertexResource_ = DirectXBase::GetInstance()->
-        CreateUnorderedResource(sizeInBytes);
+    outputVertexResource_ = DirectXBase::GetInstance()->CreateUnorderedResource(sizeInBytes);
 
     outputVertexBufferView_.BufferLocation = outputVertexResource_->GetGPUVirtualAddress();
     outputVertexBufferView_.SizeInBytes = sizeInBytes;

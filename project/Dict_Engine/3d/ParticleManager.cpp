@@ -10,6 +10,7 @@
 #include "Camera.h"
 #include "ResourcePath.h"
 #include "time/DeltaTimeManager.h"
+#include "ModelManager.h"
 
 std::unique_ptr<ParticleManager> ParticleManager::instance_ = nullptr;
 
@@ -19,100 +20,21 @@ void ParticleManager::Initialize(DirectXBase* dxBase)
 
 	srvManager_ = SrvManager::GetInstance();
 
-	// PSOの設定
-	PSOManager::PSOConfig config{};
-	config.vertexShaderPath = L"Resources/Shaders/Particle/Particle.VS.hlsl";
-	config.pixelShaderPath = L"Resources/Shaders/Particle/Particle.PS.hlsl";
+	RegisterParticlePSO();
+	RegisterGPUParticlePSO();
 
-	// RootSignatureの設定
-	config.rootSignatureGenerator = []
-		{
-		std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-		std::vector<D3D12_STATIC_SAMPLER_DESC> staticSamplerDescs;
-		D3D12_STATIC_SAMPLER_DESC sampler{};
-		sampler = PSOManager::GetInstance()->GetDefaultStaticSamplerDesc();
-		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	
-		staticSamplerDescs.push_back(sampler);
-		D3D12_DESCRIPTOR_RANGE descriptorRange[1]{};
-		descriptorRange[0].BaseShaderRegister = 0; // t0
-		descriptorRange[0].NumDescriptors = 1;
-		descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	CreatePerViewResource();
 
-		rootParameters.resize(4);
+	computeParticle_ = std::make_unique<ComputeParticle>();
+	computeParticle_->Initialize(1024);
 
-		// Enum定義 (可読性のため)
-		enum {
-			kMaterial, kTransform, kTexture, kCamera,
-		};
+	ModelManager::GetInstance()->LoadModel("", "plane.obj");
+	gpuParticleModel_ = ModelManager::GetInstance()->FindModel("plane.obj");
 
-		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
-		rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
-		rootParameters[0].Descriptor.ShaderRegister = 0;	// レジスタ番号0とバインド
-
-		rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
-		rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;	// VertexShaderで使う
-		rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
-		rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
-
-		rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
-		rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
-		rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
-		rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
-
-		rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
-		rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
-		rootParameters[3].Descriptor.ShaderRegister = 1;	// レジスタ番号1を使う
-
-
-
-		// シリアライズ
-		static D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
-		descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		descriptionRootSignature.pParameters = rootParameters.data();
-		descriptionRootSignature.NumParameters = (UINT)rootParameters.size();
-		descriptionRootSignature.pStaticSamplers = staticSamplerDescs.data();
-		descriptionRootSignature.NumStaticSamplers = (UINT)staticSamplerDescs.size();
-
-
-		Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
-		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
-
-		HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
-		if (FAILED(hr)) {
-			Logger::Log(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
-			assert(false);
-		}
-
-		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
-		hr = DirectXBase::GetInstance()->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
-		assert(SUCCEEDED(hr));
-
-
-
-		return rootSignature;
-		};
-
-	config.inputLayoutGenerator = [](){
-		return std::vector<D3D12_INPUT_ELEMENT_DESC>
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		};
-		};
-
-	// ラスタライザ設定
-	config.rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-
-	// 深度設定
-	config.depthEnable = true;
-	config.depthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	config.depthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-
-	PSOManager::GetInstance()->RegisterPSOConfig(psoName_, config);
+	TextureManager::GetInstance()->LoadTexture("circle.png");
+	gpuParticleMaterial_ = std::make_unique<MaterialInstance>();
+	gpuParticleMaterial_->Initialize();
+	gpuParticleMaterial_->SetTexture("circle.png");
 
 	//CreateGraphicsPipelineState();
 }
@@ -350,6 +272,13 @@ void ParticleManager::Update(const float& deltaTime)
 
 void ParticleManager::Draw()
 {
+	DrawCPU();
+	DrawGPU();
+
+}
+
+void ParticleManager::DrawCPU()
+{
 	// 形状を設定。PS0に設定しているものとはまた別。同じものを設定すると考えておけば良い
 	dxBase_->GetCommandList()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -362,10 +291,10 @@ void ParticleManager::Draw()
 		dxBase_->GetCommandList()->SetGraphicsRootSignature(psoSet.rootSignature.Get());
 		dxBase_->GetCommandList()->SetPipelineState(psoSet.pipelineState.Get());	// PS0を設定
 
-		dxBase_->GetCommandList()->SetGraphicsRootDescriptorTable(1, 
+		dxBase_->GetCommandList()->SetGraphicsRootDescriptorTable(1,
 			srvManager_->GetGPUDescriptorHandle(particleGroup.second.instancingSrvIndex));
 
-	
+
 		// 3Dモデルが割り当てられていれば描画する
 		if (particleGroup.second.model && particleGroup.second.material)
 		{
@@ -373,8 +302,36 @@ void ParticleManager::Draw()
 			particleGroup.second.model->Draw(particleGroup.second.instanceNum);
 		}
 	}
-
 }
+
+void ParticleManager::DrawGPU()
+{
+	Camera* camera = CameraManager::GetInstance()->GetMainCamera();
+
+	perViewData_->viewProjection = camera->GetViewProjectionMatrix();
+	perViewData_->billboardMatrix = camera->GetBillboardMatrix();
+
+	auto psoSet = PSOManager::GetInstance()->GetPSOData("GPUParticleDefault", PSOManager::BlendMode::Add, PSOManager::FillMode::kSolid);
+
+	ID3D12GraphicsCommandList* commandList = dxBase_->GetCommandList();
+
+	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	commandList->SetGraphicsRootSignature(psoSet.rootSignature.Get());
+
+	commandList->SetPipelineState(psoSet.pipelineState.Get());
+
+	// GPUParticle[]をVSのt0へ設定
+	commandList->SetGraphicsRootDescriptorTable(1, srvManager_->GetGPUDescriptorHandle(
+		computeParticle_->GetParticleCSSrvIndex()));
+
+	// PerViewをVSのb0へ設定
+	commandList->SetGraphicsRootConstantBufferView(3, perViewResource_->GetGPUVirtualAddress());
+
+	// Material b0、Texture t0
+	gpuParticleMaterial_->Draw(0, 2);
+	gpuParticleModel_->Draw(computeParticle_->GetMaxParticleCount());
+};
 
 void ParticleManager::Reset()
 {
@@ -693,6 +650,214 @@ const std::list<std::string> ParticleManager::GetParticleGroupName()
 	}
 
 	return particleGroupName;
+}
+
+void ParticleManager::RegisterParticlePSO()
+{
+	// PSOの設定
+	PSOManager::PSOConfig config{};
+	config.vertexShaderPath = L"Resources/Shaders/Particle/Particle.VS.hlsl";
+	config.pixelShaderPath = L"Resources/Shaders/Particle/Particle.PS.hlsl";
+
+	// RootSignatureの設定
+	config.rootSignatureGenerator = []{
+		std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+		std::vector<D3D12_STATIC_SAMPLER_DESC> staticSamplerDescs;
+		D3D12_STATIC_SAMPLER_DESC sampler{};
+		sampler = PSOManager::GetInstance()->GetDefaultStaticSamplerDesc();
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+
+		staticSamplerDescs.push_back(sampler);
+		D3D12_DESCRIPTOR_RANGE descriptorRange[1]{};
+		descriptorRange[0].BaseShaderRegister = 0; // t0
+		descriptorRange[0].NumDescriptors = 1;
+		descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		rootParameters.resize(4);
+
+		// Enum定義 (可読性のため)
+		enum {
+			kMaterial, kTransform, kTexture, kCamera,
+		};
+
+		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
+		rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
+		rootParameters[0].Descriptor.ShaderRegister = 0;	// レジスタ番号0とバインド
+
+		rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+		rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;	// VertexShaderで使う
+		rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
+		rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
+
+		rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+		rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
+		rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
+		rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
+
+		rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
+		rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
+		rootParameters[3].Descriptor.ShaderRegister = 1;	// レジスタ番号1を使う
+
+
+
+		// シリアライズ
+		static D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
+		descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		descriptionRootSignature.pParameters = rootParameters.data();
+		descriptionRootSignature.NumParameters = (UINT)rootParameters.size();
+		descriptionRootSignature.pStaticSamplers = staticSamplerDescs.data();
+		descriptionRootSignature.NumStaticSamplers = (UINT)staticSamplerDescs.size();
+
+
+		Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+
+		HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+		if (FAILED(hr)) {
+			Logger::Log(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+			assert(false);
+		}
+
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+		hr = DirectXBase::GetInstance()->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+		assert(SUCCEEDED(hr));
+
+
+
+		return rootSignature;
+		};
+
+	config.inputLayoutGenerator = [](){
+		return std::vector<D3D12_INPUT_ELEMENT_DESC>
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		};
+		};
+
+	// ラスタライザ設定
+	config.rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+
+	// 深度設定
+	config.depthEnable = true;
+	config.depthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	config.depthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+	PSOManager::GetInstance()->RegisterPSOConfig(psoName_, config);
+}
+
+void ParticleManager::RegisterGPUParticlePSO()
+{
+	// PSOの設定
+	PSOManager::PSOConfig config{};
+	config.vertexShaderPath = L"Resources/Shaders/Particle/GPUParticle.VS.hlsl";
+	config.pixelShaderPath = L"Resources/Shaders/Particle/Particle.PS.hlsl";
+
+	// RootSignatureの設定
+	config.rootSignatureGenerator = []{
+		std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+		std::vector<D3D12_STATIC_SAMPLER_DESC> staticSamplerDescs;
+		D3D12_STATIC_SAMPLER_DESC sampler{};
+		sampler = PSOManager::GetInstance()->GetDefaultStaticSamplerDesc();
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+
+		staticSamplerDescs.push_back(sampler);
+		D3D12_DESCRIPTOR_RANGE descriptorRange[1]{};
+		descriptorRange[0].BaseShaderRegister = 0; // t0
+		descriptorRange[0].NumDescriptors = 1;
+		descriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_DESCRIPTOR_RANGE GPUParticleRange{};
+		GPUParticleRange.BaseShaderRegister = 0; // t0
+		GPUParticleRange.NumDescriptors = 1;
+		GPUParticleRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		GPUParticleRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		rootParameters.resize(4);
+
+		// Enum定義 (可読性のため)
+		enum {
+			kMaterial, kGPUParticle, kTexture, kPerView
+		};
+
+		rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
+		rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
+		rootParameters[0].Descriptor.ShaderRegister = 0;	// レジスタ番号0とバインド
+
+		rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+		rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // VertexShaderで使う
+		rootParameters[1].DescriptorTable.pDescriptorRanges = &GPUParticleRange;	// Tableの中身の配列を指定
+		rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;	// Tableで利用する数
+
+		rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; // DescriptorTableを使う
+		rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	// PixelShaderで使う
+		rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange;	// Tableの中身の配列を指定
+		rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange);	// Tableで利用する数
+
+		rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	// CBVを使う
+		rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;	// VertexShaderで使う
+		rootParameters[3].Descriptor.ShaderRegister = 0;	// レジスタ番号2を使う
+
+
+		// シリアライズ
+		static D3D12_ROOT_SIGNATURE_DESC descriptionRootSignature{};
+		descriptionRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		descriptionRootSignature.pParameters = rootParameters.data();
+		descriptionRootSignature.NumParameters = (UINT)rootParameters.size();
+		descriptionRootSignature.pStaticSamplers = staticSamplerDescs.data();
+		descriptionRootSignature.NumStaticSamplers = (UINT)staticSamplerDescs.size();
+
+
+		Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
+		Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
+
+		HRESULT hr = D3D12SerializeRootSignature(&descriptionRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+		if (FAILED(hr)) {
+			Logger::Log(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
+			assert(false);
+		}
+
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+		hr = DirectXBase::GetInstance()->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+		assert(SUCCEEDED(hr));
+
+
+
+		return rootSignature;
+		};
+
+	config.inputLayoutGenerator = [](){
+		return std::vector<D3D12_INPUT_ELEMENT_DESC>
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		};
+		};
+
+	// ラスタライザ設定
+	config.rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+
+	// 深度設定
+	config.depthEnable = true;
+	config.depthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	config.depthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+	PSOManager::GetInstance()->RegisterPSOConfig(gpuPsoName_, config);
+}
+
+void ParticleManager::CreatePerViewResource()
+{
+	perViewResource_ = dxBase_->CreateBufferResource(sizeof(PerView));
+	perViewResource_->Map(0, nullptr, reinterpret_cast<void**>(&perViewData_));
+
+	perViewData_->viewProjection = MakeIdentity4x4();
+	perViewData_->billboardMatrix = MakeIdentity4x4();
 }
 
 //void ParticleManager::CreateRootSignature(ID3DBlob* signatureBlob)
