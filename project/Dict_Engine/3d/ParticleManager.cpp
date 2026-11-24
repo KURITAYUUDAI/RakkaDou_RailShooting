@@ -28,6 +28,9 @@ void ParticleManager::Initialize(DirectXBase* dxBase)
 	computeParticle_ = std::make_unique<ComputeParticle>();
 	computeParticle_->Initialize(1024);
 
+	computeEmitter_ = std::make_unique<ComputeEmitter>();
+	computeEmitter_->Initialize("Emitter", { 0.0f, 0.0f, 0.0f }, 10, 1.0f);
+
 	ModelManager::GetInstance()->LoadModel("", "plane.obj");
 	gpuParticleModel_ = ModelManager::GetInstance()->FindModel("plane.obj");
 
@@ -268,6 +271,11 @@ void ParticleManager::Update(const float& deltaTime)
 			++it;
 		}
 	}
+
+	computeEmitter_->Update(deltaTime_);
+	computeParticle_->BeginUAVWrite();
+	computeEmitter_->Dispatch(computeParticle_.get()->GetParticleCSUavIndex());
+	computeParticle_->EndUAVWrite();
 }
 
 void ParticleManager::Draw()

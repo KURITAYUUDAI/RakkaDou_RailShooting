@@ -274,5 +274,7 @@ private:
 	std::unique_ptr<MaterialInstance> gpuParticleMaterial_;
 	Microsoft::WRL::ComPtr<ID3D12Resource> perViewResource_;
 	PerView* perViewData_ = nullptr;
+
+	std::unique_ptr<ComputeEmitter> computeEmitter_;
 };
 

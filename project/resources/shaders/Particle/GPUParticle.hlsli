@@ -20,7 +20,6 @@ struct GPUParticle
 	//float initialAlpha = 1.0f; // 寿命フェード前の不透明度
 	float lifeTime; // 生存時間
 	float currentTime; // 経過時間
-	uint32_t isAlive; // 生存フラグ
 	
 	//ParticleParentHandle parentHandle;
 };
