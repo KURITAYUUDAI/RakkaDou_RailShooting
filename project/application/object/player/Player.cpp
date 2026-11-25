@@ -47,6 +47,8 @@ void Player::Initialize(Mode mode)
 	object3d_->SetEnvironmentCoefficient(0.2f);
 	particleParentHandle_ =
 		ParticleManager::GetInstance()->RegisterParticleParent();
+	effectSpaceParticleParentHandle_ =
+		ParticleManager::GetInstance()->RegisterParticleParent();
 
 	objectMeleeHand_ = std::make_unique<Object3d>();
 	objectMeleeHand_->Initialize();
@@ -182,6 +184,7 @@ void Player::Initialize(Mode mode)
 	justAvoidEmitter_ = std::make_unique<ParticleEmitter>();
 	justAvoidEmitter_->Initialize("ring_avoid",
 		{ {1.0f, 2.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.1f);
+	justAvoidEmitter_->SetParentHandle(effectSpaceParticleParentHandle_);
 
 	objectChargeRing_ = std::make_unique<Object3d>();
 	objectChargeRing_->Initialize();
@@ -249,7 +252,8 @@ void Player::Update(const float& deltaTime)
 	transform_.translate += velocity_ * deltaTime_;
 	/*transform_.rotate += (targetRoll_ - transform_.rotate) * 0.1f;*/
 
-	justAvoidEmitter_->SetTranslate(GetWorldPosition());
+	justAvoidEmitter_->SetTranslate(
+		parentTransform_ ? transform_.translate : GetWorldPosition());
 
 #ifdef _DEBUG
 	ImGui::Begin("PlayerSetting");
@@ -649,6 +653,12 @@ void Player::Finalize()
 			particleParentHandle_);
 		particleParentHandle_ = {};
 	}
+	if (effectSpaceParticleParentHandle_.IsValid())
+	{
+		ParticleManager::GetInstance()->UnregisterParticleParent(
+			effectSpaceParticleParentHandle_);
+		effectSpaceParticleParentHandle_ = {};
+	}
 	enemyQueryProvider_ = nullptr;
 }
 
@@ -1045,7 +1055,8 @@ void Player::SetAttackColliderActive(bool active)
 
 void Player::Avoid(const Vector2& direction)
 {
-	justAvoidEmitter_->SetTranslate(GetWorldPosition());
+	justAvoidEmitter_->SetTranslate(
+		parentTransform_ ? transform_.translate : GetWorldPosition());
 	justAvoidEmitter_->Emit();
 	ChangeState(std::make_unique<PlayerAvoidState>(direction));
 }
@@ -1131,13 +1142,19 @@ void Player::SetParent(WorldTransform* worldTransform)
 
 void Player::SyncParticleParent()
 {
-	if (!particleParentHandle_.IsValid())
+	ParticleManager* particleManager = ParticleManager::GetInstance();
+	if (particleParentHandle_.IsValid())
 	{
-		return;
+		particleManager->UpdateParticleParent(
+			particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
 	}
 
-	ParticleManager::GetInstance()->UpdateParticleParent(
-		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
+	if (effectSpaceParticleParentHandle_.IsValid())
+	{
+		particleManager->UpdateParticleParent(
+			effectSpaceParticleParentHandle_,
+			parentTransform_ ? parentTransform_->worldMatrix_ : MakeIdentity4x4());
+	}
 }
 
 void Player::UpdateParentWorldVelocity(float deltaTime)

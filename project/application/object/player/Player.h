@@ -277,6 +277,7 @@ private:
 
 	std::unique_ptr<ParticleEmitter> justAvoidEmitter_;
 	ParticleParentHandle particleParentHandle_{};
+	ParticleParentHandle effectSpaceParticleParentHandle_{};
 	bool isChargeEffectActive_ = false;
 
 
