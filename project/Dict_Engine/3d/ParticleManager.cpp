@@ -337,8 +337,8 @@ void ParticleManager::DrawGPU()
 	commandList->SetGraphicsRootConstantBufferView(3, perViewResource_->GetGPUVirtualAddress());
 
 	// Material b0、Texture t0
-	gpuParticleMaterial_->Draw(0, 2);
-	gpuParticleModel_->Draw(computeParticle_->GetMaxParticleCount());
+	//gpuParticleMaterial_->Draw(0, 2);
+	//gpuParticleModel_->Draw(computeParticle_->GetMaxParticleCount());
 };
 
 void ParticleManager::Reset()
