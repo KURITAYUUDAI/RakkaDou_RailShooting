@@ -1072,7 +1072,7 @@ void GamePlayScene::StartStageClearSequence()
 	inputMapping_->SetContext(InputContext::Gameplay);
 	player_->StartStageClearSequence();
 	collisionManager_->Clear();
-	BulletManager::GetInstance()->GetBullets().clear();
+	BulletManager::GetInstance()->ClearBullets();
 
 	stageClearPlayerStartPosition_ = player_->GetTranslate();
 	stageClearTimer_ = 0.0f;

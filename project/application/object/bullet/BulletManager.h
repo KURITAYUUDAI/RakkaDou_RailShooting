@@ -65,7 +65,9 @@ public:
 
 public:  // 外部入出力
 
-	std::list<std::unique_ptr<Bullet>>& GetBullets() { return bullets_; }
+	const std::list<std::unique_ptr<Bullet>>& GetBullets() const { return bullets_; }
+
+	void ClearBullets() { bullets_.clear(); }
 
 public:
 
