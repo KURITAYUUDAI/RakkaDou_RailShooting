@@ -17,9 +17,9 @@ void Object3d::Initialize()
 
 	// Transform変数を作る
 	worldTransform_.Initialize();
-	worldTransform_.scale_ = {1.0f, 1.0f, 1.0f};
+	worldTransform_.SetScale({1.0f, 1.0f, 1.0f});
 	worldTransform_.SetRotate({0.0f, pi, 0.0f}); 
-	worldTransform_.translate_ = {0.0f, 0.0f, 0.0f} ;
+	worldTransform_.SetTranslate({0.0f, 0.0f, 0.0f});
 
 	/*std::unique_ptr<MaterialInstance> material = std::make_unique<MaterialInstance>();
 	material->Initialize();
@@ -36,9 +36,9 @@ void Object3d::Update(const Matrix4x4* worldMatrix, const Matrix4x4* multiplyMat
 	worldTransform_.translate_ = transform_.translate;*/
 
 	worldTransform_.UpdateMatrix(worldMatrix);
-	if (worldTransform_.parent_)
+	if (worldTransform_.GetParent())
 	{
-		worldTransform_.worldMatrix_ *= worldTransform_.parent_->worldMatrix_;
+		worldTransform_.SetWorldMatrix(worldTransform_.GetWorldMatrix() * worldTransform_.GetParent()->GetWorldMatrix());
 	}
 
 	if (multiplyMatrix)

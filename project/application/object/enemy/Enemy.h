@@ -188,9 +188,9 @@ protected:
 	}
 
 	Object3d* GetObject3d() { return object3d_.get(); }
-	WorldTransform* GetParentWorldTransform() const
+	const WorldTransform* GetParentWorldTransform() const
 	{
-		return object3d_->GetWorldTransform()->parent_;
+		return object3d_->GetWorldTransform()->GetParent();
 	}
 	void UpdateCameraFade();
 	void ApplyVisualColor(float alphaScale = 1.0f);

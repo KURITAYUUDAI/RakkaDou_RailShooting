@@ -24,7 +24,7 @@
 
 void Bullet::Initialize(
 	const Vector3& position, const Vector3& velocity, const ID& id,
-	const std::string& modelName, WorldTransform* parent)
+	const std::string& modelName, const WorldTransform* parent)
 {
 	OutputDebugStringA(("Bullet::Initialize position: " +
 		std::to_string(position.x) + ", " +
@@ -89,7 +89,7 @@ void Bullet::UpdateObjectAndCollider()
 	Vector3 worldPosition = transform_.translate;
 	if (parent_)
 	{
-		worldPosition = TransformPosition(transform_.translate, parent_->worldMatrix_);
+		worldPosition = TransformPosition(transform_.translate, parent_->GetWorldMatrix());
 	}
 
 	const Matrix4x4 worldBillboard =
@@ -97,7 +97,7 @@ void Bullet::UpdateObjectAndCollider()
 			transform_.scale, transform_.rotate, worldPosition);
 	if (parent_)
 	{
-		const Matrix4x4 localBillboard = worldBillboard * Inverse(parent_->worldMatrix_);
+		const Matrix4x4 localBillboard = worldBillboard * Inverse(parent_->GetWorldMatrix());
 		object3d_->Update(&localBillboard);
 	}
 	else
@@ -173,7 +173,7 @@ void Bullet::OnCollision(
 
 const Vector3 Bullet::GetWorldPosition() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->GetWorldMatrix();
 
 	// ワールド座標を入れる変数
 	Vector3 worldPos;

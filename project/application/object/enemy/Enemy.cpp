@@ -166,7 +166,7 @@ void Enemy::Update(const float& deltaTime, const EnemyUpdateContext& context)
 
 	UpdateObjectTransform();
 	ParticleManager::GetInstance()->UpdateParticleParent(
-		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
+		particleParentHandle_, object3d_->GetWorldTransform()->GetWorldMatrix());
 	const Vector3 currentWorldPosition = GetWorldPosition();
 	if (hasWorldVelocitySample_ && deltaTime_ > 0.000001f)
 	{
@@ -306,7 +306,7 @@ void Enemy::Damage(int damage, const Vector3& hitPosition)
 	}
 
 	const Vector3 localContactPosition = TransformPosition(
-		hitPosition, Inverse(object3d_->GetWorldTransform()->worldMatrix_));
+		hitPosition, Inverse(object3d_->GetWorldTransform()->GetWorldMatrix()));
 	// コライダー表面はモデル表面より外側にあるため、敵原点側へ寄せて
 	// ビルボードのヒットエフェクトが手前に浮いて見えるのを抑える。
 	const Vector3 localHitPosition =
@@ -457,7 +457,7 @@ void Enemy::UpdateCameraFade()
 const Vector3 Enemy::GetWorldPosition() const
 {
 	
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->GetWorldMatrix();
 	
 	// ワールド座標を入れる変数
 	Vector3 worldPos;
@@ -471,17 +471,17 @@ const Vector3 Enemy::GetWorldPosition() const
 
 Vector3 Enemy::GetPlayerLocalPosition() const
 {
-	WorldTransform* parent = object3d_->GetWorldTransform()->parent_;
+	const WorldTransform* parent = object3d_->GetWorldTransform()->GetParent();
 	if (!parent)
 	{
 		return playerWorldPosition_;
 	}
-	return TransformPosition(playerWorldPosition_, Inverse(parent->worldMatrix_));
+	return TransformPosition(playerWorldPosition_, Inverse(parent->GetWorldMatrix()));
 }
 
 const Vector3 Enemy::GetWorldRotate() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->GetWorldMatrix();
 
 	Vector3 worldRotEuler;
 	// 行列からエウラー角を計算する（一般的な公式に基づく抽出）
@@ -503,7 +503,7 @@ void Enemy::SetParent(WorldTransform* worldTransform)
 	object3d_->SetParent(worldTransform);
 	UpdateObjectTransform();
 	ParticleManager::GetInstance()->UpdateParticleParent(
-		particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
+		particleParentHandle_, object3d_->GetWorldTransform()->GetWorldMatrix());
 }
 
 void Enemy::UpdateObjectTransform()
@@ -536,14 +536,14 @@ bool Enemy::BuildRailFollowLocalMatrix(Matrix4x4& localMatrix)
 	const Vector3 viewerCenter =
 		viewerFrame.position + railFollowContext_.pathWorldOffset;
 	float battleOriginDistance = 0.0f;
-	WorldTransform* parent = object3d_->GetWorldTransform()->parent_;
+	const WorldTransform* parent = object3d_->GetWorldTransform()->GetParent();
 	if (parent)
 	{
 		const Vector3 parentPosition =
 		{
-			parent->worldMatrix_.m[3][0],
-			parent->worldMatrix_.m[3][1],
-			parent->worldMatrix_.m[3][2]
+			parent->GetWorldMatrix().m[3][0],
+			parent->GetWorldMatrix().m[3][1],
+			parent->GetWorldMatrix().m[3][2]
 		};
 		battleOriginDistance = Dot(
 			parentPosition - viewerCenter, viewerFrame.tangent);
@@ -578,7 +578,7 @@ bool Enemy::BuildRailFollowLocalMatrix(Matrix4x4& localMatrix)
 		{ transform_.translate.x, transform_.translate.y, 0.0f });
 	const Matrix4x4 enemyWorldMatrix = logicalOffsetMatrix * railWorldMatrix;
 	const Matrix4x4 railLocalMatrix =
-		parent ? enemyWorldMatrix * Inverse(parent->worldMatrix_) : enemyWorldMatrix;
+		parent ? enemyWorldMatrix * Inverse(parent->GetWorldMatrix()) : enemyWorldMatrix;
 	const Vector3 railLocalPosition =
 	{
 		railLocalMatrix.m[3][0],
@@ -609,14 +609,14 @@ bool Enemy::TryGetRailWorldPositionAtLogicalZ(
 	const Vector3 viewerCenter =
 		viewerFrame.position + railFollowContext_.pathWorldOffset;
 	float battleOriginDistance = 0.0f;
-	WorldTransform* parent = object3d_->GetWorldTransform()->parent_;
+	const WorldTransform* parent = object3d_->GetWorldTransform()->GetParent();
 	if (parent)
 	{
 		const Vector3 parentPosition =
 		{
-			parent->worldMatrix_.m[3][0],
-			parent->worldMatrix_.m[3][1],
-			parent->worldMatrix_.m[3][2]
+			parent->GetWorldMatrix().m[3][0],
+			parent->GetWorldMatrix().m[3][1],
+			parent->GetWorldMatrix().m[3][2]
 		};
 		battleOriginDistance = Dot(
 			parentPosition - viewerCenter, viewerFrame.tangent);

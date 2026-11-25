@@ -16,12 +16,12 @@ public:
 public:
 
 	const virtual Vector3& GetRotate(){ return worldTransform_.GetRotate(); }
-	const virtual Vector3& GetTranslate(){ return worldTransform_.translate_; }
+	const virtual Vector3& GetTranslate(){ return worldTransform_.GetTranslate(); }
 	virtual WorldTransform* GetWorldTransform() { return &worldTransform_; }
 	virtual Vector3 GetWorldPosition();
 
 	virtual void SetRotate(const Vector3& rotate){ worldTransform_.SetRotate(rotate); }
-	virtual void SetTranslate(const Vector3& translate){ worldTransform_.translate_ = translate; }
+	virtual void SetTranslate(const Vector3& translate){ worldTransform_.SetTranslate(translate); }
 
 protected:
 

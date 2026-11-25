@@ -35,7 +35,7 @@ void ResultScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	defaultCameraController_->GetWorldTransform()->translate_ = camera_->GetTranslate();
+	defaultCameraController_->GetWorldTransform()->SetTranslate(camera_->GetTranslate());
 	defaultCameraController_->GetWorldTransform()->SetRotate(camera_->GetRotate());
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());

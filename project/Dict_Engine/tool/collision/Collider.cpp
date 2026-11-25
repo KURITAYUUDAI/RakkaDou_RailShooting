@@ -15,7 +15,7 @@ void Collider::UpdateWorldPosition()
 	Vector3 position{};
 	if (parent_)
 	{
-		position = TransformPosition(localPosition_, parent_->worldMatrix_);
+		position = TransformPosition(localPosition_, parent_->GetWorldMatrix());
 	} 
     else
 	{

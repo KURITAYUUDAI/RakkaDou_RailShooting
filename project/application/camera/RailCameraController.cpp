@@ -45,14 +45,14 @@ void RailCameraController::Initialize(Mode mode)
 	isLoop_ = mode_ == Mode::Loop;
 
 	worldTransform_.Initialize();
-	worldTransform_.scale_ = { 1.0f, 1.0f, 1.0f };
+	worldTransform_.SetScale({ 1.0f, 1.0f, 1.0f });
 	worldTransform_.SetRotate({ 0.0f, 0.0f, 0.0f });
 
 	battleWorldTransform_.Initialize();
-	battleWorldTransform_.scale_ = { 1.0f, 1.0f, 1.0f };
+	battleWorldTransform_.SetScale({ 1.0f, 1.0f, 1.0f });
 	battleWorldTransform_.SetRotate({ 0.0f, 0.0f, 0.0f });
 	// Player(z=15) と Enemy(z=30) の初期中点。子側は +/-7.5 に移す。
-	battleWorldTransform_.translate_ = { 0.0f, 0.0f, 22.5f };
+	battleWorldTransform_.SetTranslate({ 0.0f, 0.0f, 22.5f });
 	battleWorldTransform_.UpdateMatrix();
 
 	if (mode_ == Mode::VerticalDescent)
@@ -75,7 +75,7 @@ void RailCameraController::Initialize(Mode mode)
 			railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
 			target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
 		}
-		worldTransform_.translate_ = CalculateEyePosition();
+		worldTransform_.SetTranslate(CalculateEyePosition());
 		Matrix4x4 cameraRotation = MakeIdentity4x4();
 		cameraRotation.m[0][0] = railRight_.x;
 		cameraRotation.m[0][1] = railRight_.y;
@@ -93,7 +93,7 @@ void RailCameraController::Initialize(Mode mode)
 		BuildLenghthTable();
 		railPos_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_));
 		target_ = GetLoopSplinePosition(controlPoints_, GetTFromDistance(currentDistance_ + targetRange_));
-		worldTransform_.translate_ = CalculateEyePosition();
+		worldTransform_.SetTranslate(CalculateEyePosition());
 	}
 	// GamePlayScene::Initialize() で戦闘空間の親として即座に使われるため、
 	// 最初のフレームを待たずにレールカメラの行列を確定する。
@@ -126,7 +126,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 #endif
 
 	if (!mainCamera) return;
-	const Vector3 previousCameraPosition = worldTransform_.translate_;
+	const Vector3 previousCameraPosition = worldTransform_.GetTranslate();
 
 	// 1. 毎フレーム「時間 × 速度」で実際の移動距離を加算する
 	const float moveDistance = isMovementEnabled_
@@ -220,7 +220,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 		railPos_.z + xAxis.z * offset_.x + localUp.z * offset_.y + forward.z * offset_.z
 	};
 
-	worldTransform_.translate_ = eyePos;
+	worldTransform_.SetTranslate(eyePos);
 	Matrix4x4 cameraRotation = MakeIdentity4x4();
 	cameraRotation.m[0][0] = xAxis.x;
 	cameraRotation.m[0][1] = xAxis.y;
@@ -237,7 +237,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 	if (isCameraFollowEnabled_)
 	{
 		mainCamera->SetRotateQuat(worldTransform_.GetRotateQuat());
-		mainCamera->SetTranslate(worldTransform_.translate_);
+		mainCamera->SetTranslate(worldTransform_.GetTranslate());
 	}
 	else if (isCameraCoasting_)
 	{
@@ -247,7 +247,7 @@ void RailCameraController::Update(Camera* mainCamera, const float& deltaTime)
 		const float speedRate =
 			1.0f + (cameraCoastEndSpeedRate_ - 1.0f) * easedProgress;
 		cameraCoastPosition_ +=
-			(worldTransform_.translate_ - previousCameraPosition) * speedRate;
+			(worldTransform_.GetTranslate() - previousCameraPosition) * speedRate;
 		mainCamera->SetTranslate(cameraCoastPosition_);
 		cameraCoastTimer_ += deltaTime;
 	}
@@ -258,7 +258,7 @@ void RailCameraController::StartCameraCoast(
 {
 	isCameraFollowEnabled_ = false;
 	isCameraCoasting_ = true;
-	cameraCoastPosition_ = worldTransform_.translate_;
+	cameraCoastPosition_ = worldTransform_.GetTranslate();
 	cameraCoastTimer_ = 0.0f;
 	cameraCoastDuration_ = std::max(decelerationDuration, 0.0001f);
 	cameraCoastEndSpeedRate_ = std::clamp(endSpeedRate, 0.0f, 1.0f);
@@ -290,7 +290,7 @@ void RailCameraController::SetVerticalStartHeight(float height)
 		railPos_ = { 0.0f, verticalStartHeight_, 0.0f };
 		target_ = { 0.0f, verticalStartHeight_ - targetRange_, 0.0f };
 	}
-	worldTransform_.translate_ = CalculateEyePosition();
+	worldTransform_.SetTranslate(CalculateEyePosition());
 	Matrix4x4 cameraRotation = MakeIdentity4x4();
 	cameraRotation.m[0][0] = railRight_.x;
 	cameraRotation.m[0][1] = railRight_.y;
@@ -308,7 +308,7 @@ void RailCameraController::SetVerticalStartHeight(float height)
 void RailCameraController::SetOffset(const Vector3& offset)
 {
 	offset_ = offset;
-	worldTransform_.translate_ = CalculateEyePosition();
+	worldTransform_.SetTranslate(CalculateEyePosition());
 	worldTransform_.UpdateMatrix();
 }
 
@@ -340,47 +340,47 @@ Matrix4x4 RailCameraController::GetRailFrameWorldMatrix() const
 
 void RailCameraController::SetBattleSpaceParent(WorldTransform* parent)
 {
-	if (battleWorldTransform_.parent_ == parent)
+	if (battleWorldTransform_.GetParent() == parent)
 	{
 		battleWorldTransform_.UpdateMatrix();
 		if (parent)
 		{
-			battleWorldTransform_.worldMatrix_ *= parent->worldMatrix_;
+			battleWorldTransform_.SetWorldMatrix(battleWorldTransform_.GetWorldMatrix() * parent->GetWorldMatrix());
 		}
 		return;
 	}
-	if (battleWorldTransform_.parent_ == nullptr)
+	if (battleWorldTransform_.GetParent() == nullptr)
 	{
 		// 初回だけは z=22.5 の初期ローカル配置をそのまま親へ載せる。
-		battleWorldTransform_.parent_ = parent;
+		battleWorldTransform_.SetParent(parent);
 		battleWorldTransform_.UpdateMatrix();
 		if (parent)
 		{
-			battleWorldTransform_.worldMatrix_ *= parent->worldMatrix_;
+			battleWorldTransform_.SetWorldMatrix(battleWorldTransform_.GetWorldMatrix() * parent->GetWorldMatrix());
 		}
 		return;
 	}
 
 	// 親の切り替え前後で戦闘空間のワールド姿勢を維持する。
-	Matrix4x4 oldWorld = battleWorldTransform_.worldMatrix_;
+	Matrix4x4 oldWorld = battleWorldTransform_.GetWorldMatrix();
 
-	battleWorldTransform_.parent_ = parent;
+	battleWorldTransform_.SetParent(parent);
 	Matrix4x4 localMatrix = oldWorld;
 	if (parent)
 	{
-		localMatrix = oldWorld * Inverse(parent->worldMatrix_);
+		localMatrix = oldWorld * Inverse(parent->GetWorldMatrix());
 	}
 
-	battleWorldTransform_.translate_ =
+	battleWorldTransform_.SetTranslate(
 	{
 		localMatrix.m[3][0], localMatrix.m[3][1], localMatrix.m[3][2]
-	};
-	battleWorldTransform_.scale_ = { 1.0f, 1.0f, 1.0f };
+	});
+	battleWorldTransform_.SetScale({ 1.0f, 1.0f, 1.0f });
 	battleWorldTransform_.SetRotateQuat(MakeFromMatrix(localMatrix));
 	battleWorldTransform_.UpdateMatrix();
 	if (parent)
 	{
-		battleWorldTransform_.worldMatrix_ *= parent->worldMatrix_;
+		battleWorldTransform_.SetWorldMatrix(battleWorldTransform_.GetWorldMatrix() * parent->GetWorldMatrix());
 	}
 }
 
@@ -395,14 +395,14 @@ void RailCameraController::RecenterBattleSpace(
 
 	// 原点を中点へ移し、同量を子から引くことでワールド位置を保存する。
 	const Matrix4x4 localRotation = MakeRotateMatrix(battleWorldTransform_.GetRotateQuat());
-	battleWorldTransform_.translate_ += TransformNormal(localMidpoint, localRotation);
+	battleWorldTransform_.SetTranslate(battleWorldTransform_.GetTranslate() + TransformNormal(localMidpoint, localRotation));
 	playerLocalPosition -= localMidpoint;
 	enemyLocalPosition -= localMidpoint;
 
 	battleWorldTransform_.UpdateMatrix();
-	if (battleWorldTransform_.parent_)
+	if (battleWorldTransform_.GetParent())
 	{
-		battleWorldTransform_.worldMatrix_ *= battleWorldTransform_.parent_->worldMatrix_;
+		battleWorldTransform_.SetWorldMatrix(battleWorldTransform_.GetWorldMatrix() * battleWorldTransform_.GetParent()->GetWorldMatrix());
 	}
 }
 

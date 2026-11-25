@@ -56,14 +56,14 @@ void DebugCamera::Update()
 	rotate_.x = phi;
 	rotate_.y = theta;
 
-	translate_.x = target_->translate_.x + effectiveRadius * std::cos(theta) * std::sin(phi);
-	translate_.y = target_->translate_.y + effectiveRadius * std::sin(theta);
-	translate_.z = target_->translate_.z + effectiveRadius * std::cos(theta) * std::cos(phi);
+	translate_.x = target_->GetTranslate().x + effectiveRadius * std::cos(theta) * std::sin(phi);
+	translate_.y = target_->GetTranslate().y + effectiveRadius * std::sin(theta);
+	translate_.z = target_->GetTranslate().z + effectiveRadius * std::cos(theta) * std::cos(phi);
 
-	viewMatrix_ = MakeLookAtMatrix(translate_, target_->translate_, { 0.0f, 1.0f, 0.0f });
+	viewMatrix_ = MakeLookAtMatrix(translate_, target_->GetTranslate(), { 0.0f, 1.0f, 0.0f });
 
 	ImGui::Text("Target Pos : X:%3.2f, Y:%3.2f, Z:%3.2f", 
-		target_->translate_.x, target_->translate_.y, target_->translate_.z);
+		target_->GetTranslate().x, target_->GetTranslate().y, target_->GetTranslate().z);
 	ImGui::Text("Camera Distance : %3.2f", radius);
 	ImGui::Text("Effective Distance : %3.2f", effectiveRadius);
 

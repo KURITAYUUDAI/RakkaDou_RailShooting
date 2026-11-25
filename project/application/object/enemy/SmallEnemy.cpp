@@ -449,12 +449,12 @@ void SmallEnemy::FireProjectile()
 		worldDirection = Normalize(toPlayer);
 	}
 
-	WorldTransform* parent = GetParentWorldTransform();
+	const WorldTransform* parent = GetParentWorldTransform();
 	Vector3 localPosition = worldPosition;
 	Vector3 localDirection = worldDirection;
 	if (parent)
 	{
-		const Matrix4x4 inverseParent = Inverse(parent->worldMatrix_);
+		const Matrix4x4 inverseParent = Inverse(parent->GetWorldMatrix());
 		localPosition = TransformPosition(worldPosition, inverseParent);
 		localDirection = TransformNormal(worldDirection, inverseParent);
 		if (Length(localDirection) > 0.0001f)

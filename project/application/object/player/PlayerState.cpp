@@ -303,7 +303,7 @@ void PlayerMeleeAttackState::UpdateAttackDirection(Player* player)
 
 	Vector3 currentForward = TransformNormal(
 		{ 0.0f, 0.0f, 1.0f }, player->GetParentWorldTransform()
-			? player->GetParentWorldTransform()->worldMatrix_ : MakeIdentity4x4());
+			? player->GetParentWorldTransform()->GetWorldMatrix() : MakeIdentity4x4());
 	attackDirection_ = Length(currentForward) > 0.0001f
 		? Normalize(currentForward)
 		: Vector3{ 0.0f, 0.0f, 1.0f };
@@ -505,7 +505,7 @@ Vector3 PlayerCounterMeleeState::GetTargetLocalPosition(Player* player) const
 	if (const WorldTransform* parent = player->GetParentWorldTransform())
 	{
 		targetPosition = TransformPosition(
-			targetPosition, Inverse(parent->worldMatrix_));
+			targetPosition, Inverse(parent->GetWorldMatrix()));
 	}
 
 	// カウンター接近は通常移動と同じ画面平面上だけで行う。

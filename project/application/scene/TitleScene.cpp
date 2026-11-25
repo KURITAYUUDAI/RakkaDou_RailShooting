@@ -72,7 +72,7 @@ void TitleScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	defaultCameraController_->GetWorldTransform()->translate_ = entranceCameraStartPosition_;
+	defaultCameraController_->GetWorldTransform()->SetTranslate(entranceCameraStartPosition_);
 	defaultCameraController_->GetWorldTransform()->SetRotate(entranceCameraSideRotation_);
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
@@ -727,7 +727,7 @@ void TitleScene::SkipEntranceSequence()
 
 void TitleScene::SetTitleCameraTransform(const Vector3& translate, const Vector3& rotate)
 {
-	defaultCameraController_->GetWorldTransform()->translate_ = translate;
+	defaultCameraController_->GetWorldTransform()->SetTranslate(translate);
 	defaultCameraController_->GetWorldTransform()->SetRotate(rotate);
 	camera_->SetTranslate(translate);
 	camera_->SetRotate(rotate);

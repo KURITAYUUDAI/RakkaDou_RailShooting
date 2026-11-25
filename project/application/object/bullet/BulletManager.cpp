@@ -207,7 +207,7 @@ void BulletManager::Draw()
 }
 
 void BulletManager::CreatePlayerBullet(
-	const Vector3& position, const Vector3& velocity, WorldTransform* parent)
+	const Vector3& position, const Vector3& velocity, const WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{
@@ -227,7 +227,7 @@ void BulletManager::CreatePlayerBullet(
 }
 
 void BulletManager::CreateChargedPlayerBullet(
-	const Vector3& position, const Vector3& velocity, WorldTransform* parent)
+	const Vector3& position, const Vector3& velocity, const WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{
@@ -243,7 +243,7 @@ void BulletManager::CreateChargedPlayerBullet(
 }
 
 void BulletManager::CreateCounterBullet(
-	const Vector3& position, const Vector3& velocity, WorldTransform* parent)
+	const Vector3& position, const Vector3& velocity, const WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{
@@ -260,7 +260,7 @@ void BulletManager::CreateCounterBullet(
 
 void BulletManager::CreateEnemyBullet(
 	const Vector3& localPosition, const Vector3& localVelocity,
-	WorldTransform* parent)
+	const WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{
@@ -281,7 +281,7 @@ void BulletManager::CreateEnemyBullet(
 
 void BulletManager::CreateSmallEnemyBullet(
 	const Vector3& localPosition, const Vector3& localVelocity,
-	WorldTransform* parent)
+	const WorldTransform* parent)
 {
 	if (bullets_.size() >= kMaxBullet)
 	{

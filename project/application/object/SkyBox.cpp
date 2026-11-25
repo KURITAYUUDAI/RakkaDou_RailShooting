@@ -115,21 +115,21 @@ void SkyBox::Initialize()
 	TextureManager::GetInstance()->LoadTexture("kloofendal_48d_partly_cloudy_puresky_2k.dds");
 	material_->SetTexture("kloofendal_48d_partly_cloudy_puresky_2k.dds");
 	
-
+		
 	CreateVertexResource();
 	CreateIndexResource();
 	
 	worldTransform_.Initialize();
-	worldTransform_.scale_ = { 10000.0f, 10000.0f, 10000.0f };
+	worldTransform_.SetScale({ 10000.0f, 10000.0f, 10000.0f });
 	worldTransform_.SetRotate({0.0f, 0.0f, 0.0f});
-	worldTransform_.translate_ = {0.0f, 0.0f, 0.0f};
+	worldTransform_.SetTranslate({0.0f, 0.0f, 0.0f});
 }
 
 void SkyBox::Update()
 {
 	// 無限遠背景として、カメラが高高度へ移動しても常に立方体の中心に置く。
-	worldTransform_.translate_ =
-		CameraManager::GetInstance()->GetMainCamera()->GetTranslate();
+	worldTransform_.SetTranslate(
+		CameraManager::GetInstance()->GetMainCamera()->GetTranslate());
 	worldTransform_.UpdateMatrix();
 	worldTransform_.TransferMatrix(CameraManager::GetInstance()->GetMainCamera()->GetViewProjectionMatrix());
 }

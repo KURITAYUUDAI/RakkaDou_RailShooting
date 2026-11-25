@@ -23,7 +23,7 @@ public:
 	/// </summary>
 	void Initialize(
 		const Vector3& position, const Vector3& velocity, const ID& id,
-		const std::string& modelName, WorldTransform* parent = nullptr);
+		const std::string& modelName, const WorldTransform* parent = nullptr);
 
 	/// <summary>
 	/// 更新
@@ -72,7 +72,7 @@ private:
 
 	std::unique_ptr<Object3d> object3d_;
 	std::unique_ptr<Collider> collider_;
-	WorldTransform* parent_ = nullptr;
+	const WorldTransform* parent_ = nullptr;
 
 	EulerTransform transform_;
 

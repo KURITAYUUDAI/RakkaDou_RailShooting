@@ -43,7 +43,7 @@ void TestScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	defaultCameraController_->GetWorldTransform()->translate_ = camera_->GetTranslate();
+	defaultCameraController_->GetWorldTransform()->SetTranslate(camera_->GetTranslate());
 	defaultCameraController_->GetWorldTransform()->SetRotate(camera_->GetRotate());
 
 	cameraManager_->AddCameraController("Default", defaultCameraController_.get());
@@ -297,7 +297,7 @@ void TestScene::Update(const float& deltaTime)
 	}
 	particleManager_->UpdateParticleParent(
 		movingBoxParticleParent_,
-		object3ds_[kMovingBoxIndex]->GetWorldTransform()->worldMatrix_);
+		object3ds_[kMovingBoxIndex]->GetWorldTransform()->GetWorldMatrix());
 
 	for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
 	{

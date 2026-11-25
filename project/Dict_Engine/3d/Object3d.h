@@ -51,14 +51,14 @@ public:	// 外部入出力
 	void SetModel(Model* model){ model_ = model; }
 	void SetCamera(Camera* camera){ camera_ = camera; }
 
-	void SetScale(const Vector3& scale){ worldTransform_.scale_ = scale; }
+	void SetScale(const Vector3& scale){ worldTransform_.SetScale(scale); }
 	void SetRotate(const Vector3& rotate){ worldTransform_.SetRotate(rotate); }
-	void SetTranslate(const Vector3& translate){ worldTransform_.translate_ = translate; }
+	void SetTranslate(const Vector3& translate){ worldTransform_.SetTranslate(translate); }
 	void SetTransform(const EulerTransform& transform)
 	{ 
-		worldTransform_.scale_ = transform.scale;
+		worldTransform_.SetScale(transform.scale);
 		worldTransform_.SetRotate(transform.rotate);
-		worldTransform_.translate_ = transform.translate;
+		worldTransform_.SetTranslate(transform.translate);
 	}
 
 	void SetEnableLighting(const int32_t& enableLighting, const uint32_t* materialIndex = nullptr);
@@ -69,19 +69,19 @@ public:	// 外部入出力
 	void SetAlphaReference(const float alphaReference, const uint32_t* materialIndex = nullptr);
 	void SetTexture(const std::string& texturePath, const uint32_t* materialIndex = nullptr);
 
-	void SetParent(WorldTransform* worldTransform){ worldTransform_.parent_ = worldTransform; }
+	void SetParent(const WorldTransform* worldTransform){ worldTransform_.SetParent(worldTransform); }
 
 	// ゲッター
 	const std::string& GetPsoName() const { return psoName_; }
 	const PSOManager::BlendMode& GetBlendMode() const { return blendMode_; }
 	const PSOManager::FillMode& GetFillMode() const { return fillMode_; }
 
-	const Vector3& GetScale() const { return worldTransform_.scale_; }
+	const Vector3& GetScale() const { return worldTransform_.GetScale(); }
 	const Vector3& GetRotate() const { return worldTransform_.GetRotate(); }
-	const Vector3& GetTranslate() const { return worldTransform_.translate_; }
+	const Vector3& GetTranslate() const { return worldTransform_.GetTranslate(); }
 	const EulerTransform& GetTransform() const 
 	{ 
-		return EulerTransform(worldTransform_.scale_, worldTransform_.GetRotate(), worldTransform_.translate_);
+		return EulerTransform(worldTransform_.GetScale(), worldTransform_.GetRotate(), worldTransform_.GetTranslate());
 	}
 	WorldTransform* GetWorldTransform() { return &worldTransform_; }
 

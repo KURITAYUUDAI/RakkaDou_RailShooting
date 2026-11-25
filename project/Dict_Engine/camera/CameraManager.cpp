@@ -60,14 +60,14 @@ void CameraManager::Update(const float& deltaTime)
 		ImGui::Checkbox("DebugCamera", &isDebugCamera_);
 
 		Vector3 cameraRotate = activeCameraController_->GetWorldTransform()->GetRotate();
-		Vector3 cameraTranslate = activeCameraController_->GetWorldTransform()->translate_;
+		Vector3 cameraTranslate = activeCameraController_->GetWorldTransform()->GetTranslate();
 		if (ImGui::DragFloat3("CameraRotate", &cameraRotate.x, (1.0f / 180.0f) * pi))
 		{
 			activeCameraController_->GetWorldTransform()->SetRotate(cameraRotate);
 		}
 		if (ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.1f))
 		{
-			activeCameraController_->GetWorldTransform()->translate_ = cameraTranslate;
+			activeCameraController_->GetWorldTransform()->SetTranslate(cameraTranslate);
 		}
 		ImGui::DragFloat(
 			"Camera Distance Offset", &cameraDistanceOffset_, 0.1f, -100.0f, 100.0f);

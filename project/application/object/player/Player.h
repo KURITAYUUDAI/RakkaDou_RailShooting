@@ -96,7 +96,7 @@ public:	//外部入出力
 
 	const Vector3 GetWorldPosition() const;
 	const Vector3 GetWorldRotate() const;
-	const Matrix4x4& GetWorldMatrix() const { return object3d_->GetWorldTransform()->worldMatrix_; }
+	const Matrix4x4& GetWorldMatrix() const { return object3d_->GetWorldTransform()->GetWorldMatrix(); }
 
 	Collider* GetCollider() { return collider_.get(); }
 	Collider* GetAttackCollider() { return colliderAttack_.get(); }

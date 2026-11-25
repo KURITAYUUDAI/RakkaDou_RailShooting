@@ -314,9 +314,9 @@ void Player::Update(const float& deltaTime)
 	ImGui::End();
 #endif
 
-	const WorldTransform* playerParent = object3d_->GetWorldTransform()->parent_;
+	const WorldTransform* playerParent = object3d_->GetWorldTransform()->GetParent();
 	CameraManager::GetInstance()->LimitPlayerInFrustum(
-		transform_.translate, playerParent ? &playerParent->worldMatrix_ : nullptr);
+		transform_.translate, playerParent ? &playerParent->GetWorldMatrix() : nullptr);
 
 	/*animationTime += deltaTime;
 	animationTime = std::fmod(animationTime, animation_.duration);*/
@@ -883,7 +883,7 @@ void Player::UpdateMeleeFollowUpEffect(float deltaTime)
 	objectMeleeFollowUpEffect_->SetColor({ 2.0f, 2.0f, 2.0f, alpha });
 
 	const Vector3 worldPosition = TransformPosition(
-		kMeleeFollowUpEffectLocalPosition_, object3d_->GetWorldTransform()->worldMatrix_);
+		kMeleeFollowUpEffectLocalPosition_, object3d_->GetWorldTransform()->GetWorldMatrix());
 	const Matrix4x4 billboard = CameraManager::GetInstance()->GetMainCamera()->
 		GetBillboardWorldMatrix(
 			meleeFollowUpEffectTransform_.scale,
@@ -900,7 +900,7 @@ void Player::UpdateMeleeFollowUpEffect(float deltaTime)
 Vector3 Player::CalculateShotDirection()
 {
 	Vector3 forward = TransformNormal(
-		{ 0.0f, 0.0f, 1.0f }, object3d_->GetWorldTransform()->worldMatrix_);
+		{ 0.0f, 0.0f, 1.0f }, object3d_->GetWorldTransform()->GetWorldMatrix());
 	if (Length(forward) <= 0.0001f)
 	{
 		forward = { 0.0f, 0.0f, 1.0f };
@@ -1093,7 +1093,7 @@ void Player::MoveJustAvoid(const Vector3 direction, float speed)
 
 const Vector3 Player::GetWorldPosition() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->GetWorldMatrix();
 
 	// ワールド座標を入れる変数
 	Vector3 worldPos;
@@ -1107,7 +1107,7 @@ const Vector3 Player::GetWorldPosition() const
 
 const Vector3 Player::GetWorldRotate() const
 {
-	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->worldMatrix_;
+	Matrix4x4 worldMatrix = object3d_->GetWorldTransform()->GetWorldMatrix();
 
 	Vector3 worldRotEuler;
 	// 行列からエウラー角を計算する（一般的な公式に基づく抽出）
@@ -1131,7 +1131,7 @@ void Player::SetParent(WorldTransform* worldTransform)
 	hasParentWorldMatrixSample_ = worldTransform != nullptr;
 	if (worldTransform)
 	{
-		previousParentWorldMatrix_ = worldTransform->worldMatrix_;
+		previousParentWorldMatrix_ = worldTransform->GetWorldMatrix();
 	}
 	object3d_->SetParent(worldTransform);
 	// EventDispatch() は最初の Update() より前にワールド座標を配信する。
@@ -1146,14 +1146,14 @@ void Player::SyncParticleParent()
 	if (particleParentHandle_.IsValid())
 	{
 		particleManager->UpdateParticleParent(
-			particleParentHandle_, object3d_->GetWorldTransform()->worldMatrix_);
+			particleParentHandle_, object3d_->GetWorldTransform()->GetWorldMatrix());
 	}
 
 	if (effectSpaceParticleParentHandle_.IsValid())
 	{
 		particleManager->UpdateParticleParent(
 			effectSpaceParticleParentHandle_,
-			parentTransform_ ? parentTransform_->worldMatrix_ : MakeIdentity4x4());
+			parentTransform_ ? parentTransform_->GetWorldMatrix() : MakeIdentity4x4());
 	}
 }
 
@@ -1166,7 +1166,7 @@ void Player::UpdateParentWorldVelocity(float deltaTime)
 		return;
 	}
 
-	const Matrix4x4 currentParentWorldMatrix = parentTransform_->worldMatrix_;
+	const Matrix4x4 currentParentWorldMatrix = parentTransform_->GetWorldMatrix();
 	if (!hasParentWorldMatrixSample_)
 	{
 		previousParentWorldMatrix_ = currentParentWorldMatrix;

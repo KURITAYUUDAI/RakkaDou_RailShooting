@@ -104,9 +104,9 @@ void GamePlayScene::Initialize()
 
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
-	defaultCameraController_->GetWorldTransform()->translate_ =
+	defaultCameraController_->GetWorldTransform()->SetTranslate(
 		stageEntryPlayerStartPosition_ +
-		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_);
+		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
 	defaultCameraController_->GetWorldTransform()->SetRotate({ 0.0f, 0.0f, 0.0f });
 
 	caveRailPath_ = std::make_unique<CaveRailPath>();
@@ -651,9 +651,9 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 			stageEntryPlayerStartPosition_, stageEntryPlayerDoorPosition_, easedProgress);
 		player_->SetTranslate(playerPosition);
 		player_->SetTitleOpacity(std::clamp(progress / 0.35f, 0.0f, 1.0f));
-		defaultCameraController_->GetWorldTransform()->translate_ =
+		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			playerPosition +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_);
+			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
 
 		if (progress >= 1.0f)
 		{
@@ -666,9 +666,9 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 	case StageEntryState::OpeningDoor:
 	{
 		player_->SetTranslate(stageEntryPlayerDoorPosition_);
-		defaultCameraController_->GetWorldTransform()->translate_ =
+		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			stageEntryPlayerDoorPosition_ +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_);
+			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
 		stageEntryTimer_ += deltaTime;
 		const float progress = std::clamp(
 			stageEntryTimer_ / kStageEntryDoorOpenDuration_, 0.0f, 1.0f);
@@ -691,9 +691,9 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 		const Vector3 playerPosition = LerpVector3(
 			stageEntryPlayerDoorPosition_, stageEntryPlayerDiveEndPosition_, easedProgress);
 		player_->SetTranslate(playerPosition);
-		defaultCameraController_->GetWorldTransform()->translate_ =
+		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			playerPosition +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_);
+			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
 		UpdateStageEntryBlur(easedProgress);
 
 		if (progress >= 1.0f)

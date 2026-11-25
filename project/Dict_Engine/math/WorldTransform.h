@@ -28,12 +28,18 @@ public:
 
 public:
 
-	
+	void SetScale(const Vector3& scale) { scale_ = scale; }
+	void SetTranslate(const Vector3& translate) { translate_ = translate; }
 	void SetRotate(const Vector3& rotate);
 	void SetRotateQuat(const Quaternion& rotateQuat);
-	
+	void SetParent(const WorldTransform* parent) { parent_ = parent; }
+	void SetWorldMatrix(const Matrix4x4& worldMatrix) { worldMatrix_ = worldMatrix; }
+
+	const Vector3& GetScale() const { return scale_; }
+	const Vector3& GetTranslate() const { return translate_; }
 	const Vector3& GetRotate() const { return rotate_; }
 	const Quaternion& GetRotateQuat() const { return rotateQuat_; }
+	const WorldTransform* GetParent() const { return parent_; }
 	const Matrix4x4& GetWorldMatrix() const { return worldMatrix_; }
 
 private:
@@ -45,14 +51,12 @@ private:
 	Vector3 rotate_ = { 0.0f, 0.0f, 0.0f };
 	Quaternion rotateQuat_ = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-public:
-
 	Vector3 scale_ = {1.0f, 1.0f, 1.0f};
 	Vector3 translate_{ 0.0f, 0.0f, 0.0f };
 
 	Matrix4x4 worldMatrix_;
 
-	WorldTransform* parent_ = nullptr;
+	const WorldTransform* parent_ = nullptr;
 
 	static uint32_t currentFrame_;
 

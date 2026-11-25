@@ -2,7 +2,7 @@
 
 Vector3 ICameraController::GetWorldPosition()
 {
-	Matrix4x4 worldMatrix = worldTransform_.worldMatrix_;
+	Matrix4x4 worldMatrix = worldTransform_.GetWorldMatrix();
 
 	// ワールド座標を入れる変数
 	Vector3 worldPos;

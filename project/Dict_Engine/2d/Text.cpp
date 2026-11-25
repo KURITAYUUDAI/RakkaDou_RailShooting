@@ -102,7 +102,7 @@ void Text::Initialize(const std::string& fontPath, uint32_t pixelSize, const std
     CreateMaterialResource();
 
     worldTransform_.Initialize();
-    worldTransform_.translate_ = Vector3{ position_.x, position_.y, 0.0f };
+    worldTransform_.SetTranslate(Vector3{ position_.x, position_.y, 0.0f });
 
     SetText(text);
 }
@@ -119,10 +119,10 @@ void Text::Update()
 
     ImGui::Begin("Text Setting");
 
-    Vector3 newTranslate = worldTransform_.translate_;
+    Vector3 newTranslate = worldTransform_.GetTranslate();
     if (ImGui::DragFloat3("translate", &newTranslate.x, 0.1f))
     {
-        worldTransform_.translate_ = newTranslate;
+        worldTransform_.SetTranslate(newTranslate);
         position_ = { newTranslate.x, newTranslate.y };
     }
 
@@ -137,7 +137,7 @@ void Text::Update()
 #endif
 
     worldTransform_.SetRotate(Vector3{ 0.0f, 0.0f, 0.0f });
-    worldTransform_.scale_ = Vector3{ 1.0f, 1.0f, 1.0f };
+    worldTransform_.SetScale(Vector3{ 1.0f, 1.0f, 1.0f });
 
     worldTransform_.UpdateMatrix();
 
@@ -251,7 +251,7 @@ void Text::SetFontStylePaths(
 void Text::SetPosition(const Vector2& position)
 {
     position_ = position;
-    worldTransform_.translate_ = Vector3{ position.x, position.y, 0.0f };
+    worldTransform_.SetTranslate(Vector3{ position.x, position.y, 0.0f });
 }
 
 void Text::SetAnchorPoint(const Vector2& anchorPoint)
