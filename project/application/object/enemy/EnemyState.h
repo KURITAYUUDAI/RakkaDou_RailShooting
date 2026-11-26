@@ -6,6 +6,18 @@
 #include "EnemyUtility.h"
 
 class BossEnemy;
+class IEnemyBossBattlePhase;
+class EnemyMoveToRangedPhase;
+class EnemyRangedPhase;
+class EnemyApproachPhase;
+class EnemyCloseWaitPhase;
+class EnemyCloseAttackPhase;
+class EnemyRecoveryPhase;
+class IEnemyAttackPhase;
+class EnemyAttackApproachPhase;
+class EnemyAttackHomingPhase;
+class EnemyAttackStrikePhase;
+class EnemyAttackAwayPhase;
 
 class IEnemyState
 {
@@ -44,16 +56,26 @@ public:
 class EnemyBossBattleState : public IEnemyState
 {
 public:
+	EnemyBossBattleState();
+	~EnemyBossBattleState() override;
 	void Initialize(BossEnemy* enemy) override;
 	void Update(BossEnemy* enemy, const float& deltaTime) override;
 	void Draw(BossEnemy* enemy) override;
 	void Finalize(BossEnemy* enemy) override;
 
 private:
+	friend class EnemyMoveToRangedPhase;
+	friend class EnemyRangedPhase;
+	friend class EnemyApproachPhase;
+	friend class EnemyCloseWaitPhase;
+	friend class EnemyCloseAttackPhase;
+	friend class EnemyRecoveryPhase;
+
 	void ChangePhase(BossEnemy* enemy, EnemyBattlePhase phase);
 	Vector3 GetHorizontalTrackingTarget(BossEnemy* enemy) const;
 
 	EnemyBattlePhase phase_ = EnemyBattlePhase::MoveToRanged;
+	std::unique_ptr<IEnemyBossBattlePhase> phaseBehavior_;
 	float timer_ = 0.0f;
 	uint32_t shotCount_ = 0;
 	Vector3 stageStartPosition_{};
@@ -104,21 +126,27 @@ private:
 	{
 		Approach,
 		Homing,
-		Lock,
 		Attack,
 		Away,
 	};
 
 public:
-
+	EnemyAttackState();
+	~EnemyAttackState() override;
 	void Initialize(BossEnemy* enemy) override;
 	void Update(BossEnemy* enemy, const float& deltaTime) override;
 	void Draw(BossEnemy* enemy) override;
 	void Finalize(BossEnemy* enemy) override;
 
 private:
+	friend class IEnemyAttackPhase;
+	friend class EnemyAttackApproachPhase;
+	friend class EnemyAttackHomingPhase;
+	friend class EnemyAttackStrikePhase;
+	friend class EnemyAttackAwayPhase;
 
-	AttackPhase attackPhase_ = AttackPhase::Approach;
+	void ChangePhase(BossEnemy* enemy, AttackPhase phase);
+	std::unique_ptr<IEnemyAttackPhase> phaseBehavior_;
 
 	Vector3 beforePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 approachPosition_ = { 0.0f, 0.0f, 20.0f };

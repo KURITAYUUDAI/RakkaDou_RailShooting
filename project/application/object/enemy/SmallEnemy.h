@@ -3,11 +3,20 @@
 #include "Enemy.h"
 
 class ISmallEnemyRoleBehavior;
+class ISmallEnemyState;
 class BasicSmallEnemyBehavior;
 class TurretSmallEnemyBehavior;
 class ChargerSmallEnemyBehavior;
 class ApproacherSmallEnemyBehavior;
 class EliteSmallEnemyBehavior;
+class SmallEnemyEnteringState;
+class SmallEnemySpawnWaitState;
+class SmallEnemyRangedState;
+class SmallEnemyChargingState;
+class SmallEnemyRushingState;
+class SmallEnemyApproachingState;
+class SmallEnemyNearCombatState;
+class SmallEnemyEscapingState;
 
 class SmallEnemy final : public Enemy
 {
@@ -34,14 +43,18 @@ private:
 	friend class ChargerSmallEnemyBehavior;
 	friend class ApproacherSmallEnemyBehavior;
 	friend class EliteSmallEnemyBehavior;
+	friend class SmallEnemyEnteringState;
+	friend class SmallEnemySpawnWaitState;
+	friend class SmallEnemyRangedState;
+	friend class SmallEnemyChargingState;
+	friend class SmallEnemyRushingState;
+	friend class SmallEnemyApproachingState;
+	friend class SmallEnemyNearCombatState;
+	friend class SmallEnemyEscapingState;
 
 	void ChangeState(SmallEnemyState state);
-	void BeginRoleBehavior();
-	void UpdateSpawnEntry(float deltaTime);
-	void UpdateForwardMovement(float deltaTime);
-	void UpdateCharger(float deltaTime);
-	void UpdateApproacher(float deltaTime);
-	void UpdateElite(float deltaTime);
+	SmallEnemyState GetInitialRoleState() const;
+	bool UpdateForwardMovement(float deltaTime);
 	void UpdateEscaping(float deltaTime);
 	void UpdateShooting(float deltaTime);
 	void FireProjectile();
@@ -52,6 +65,7 @@ private:
 	SmallEnemyState state_ = SmallEnemyState::Ranged;
 	EnemyCreateConfig config_{};
 	std::unique_ptr<ISmallEnemyRoleBehavior> roleBehavior_;
+	std::unique_ptr<ISmallEnemyState> stateBehavior_;
 
 	// チャージなどに移行してからの時間
 	float stateElapsedTime_ = 0.0f;
