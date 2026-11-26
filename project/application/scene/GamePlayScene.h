@@ -54,18 +54,6 @@ private:
 		GameOver,
 	};
 
-	enum class StageEntryState
-	{
-		WaitingForFadeIn,
-		BlackHold,
-		Approaching,
-		OpeningDoor,
-		Diving,
-		WhiteOut,
-		LookDown,
-		Complete,
-	};
-
 	enum class GameplayState
 	{
 		Inactive,
@@ -84,16 +72,16 @@ private:
 		Transitioning,
 	};
 
-	void InitializeStageEntry();
-	void UpdateStageEntry(const float& deltaTime);
-	void BeginStageEntryLookDown();
+	void InitializeGameplayPresentation();
+	void InitializeEntrySequence();
+	void UpdateEntrySequence(float deltaTime);
+	void FinishEntrySequence();
 	void UpdateGameplayState(float deltaTime);
 	void BeginSkydivingGameplay();
 	void BeginCaveEntering();
 	void BeginNormalGameplay();
 	void ActivateGameplay();
 	void UpdateSkydivingSpeed(float deltaTime);
-	void UpdateLookDownCamera();
 	void UpdateCaveFog();
 	void UpdateGameplayWindLines(float deltaTime);
 	void UpdateCaveFogEndPlane();
@@ -103,16 +91,13 @@ private:
 	void StartStageClearSequence();
 	void UpdateStageClearSequence(float deltaTime);
 	void DrawStageClearText();
-	void UpdateStageEntryObjects();
-	void DrawStageEntryDarkSpace();
-	void DrawStageEntryField();
 	void DrawGameplayEntryField();
 	void StartStageEntryBlur();
 	void UpdateStageEntryBlur(float progress, float maxWidth = 0.02f);
 	void StopStageEntryBlur();
 	bool IsStageEntryComplete() const
 	{
-		return stageEntryState_ == StageEntryState::Complete;
+		return scenePhase_ != ScenePhase::Entry;
 	}
 	bool IsStageClearSequenceActive() const
 	{
@@ -197,24 +182,14 @@ private:
 	std::unique_ptr<RailCameraController> railCameraController_ = nullptr;
 	std::unique_ptr<CaveRailPath> caveRailPath_ = nullptr;
 
-	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
-	float stageEntryTimer_ = 0.0f;
 	ScenePhase scenePhase_ = ScenePhase::Entry;
 	std::unique_ptr<GamePlaySequence> activeSequence_ = nullptr;
 	GameplayState gameplayState_ = GameplayState::Inactive;
 	float gameplayStateTimer_ = 0.0f;
 	bool isEnemyStageInitialized_ = false;
-	float stageEntryDoorProgress_ = 0.0f;
-
-	std::unique_ptr<Object3d> stageEntryBackdrop_ = nullptr;
-	std::unique_ptr<Object3d> stageEntryLight_ = nullptr;
-	std::unique_ptr<Object3d> stageEntryLeftDoor_ = nullptr;
-	std::unique_ptr<Object3d> stageEntryRightDoor_ = nullptr;
-	std::array<std::unique_ptr<Object3d>, 3> stageEntryDoorFrames_;
 	std::unique_ptr<Object3d> gameplayEntryFieldEntrance_ = nullptr;
 	std::unique_ptr<Object3d> gameplayEntryFieldGround_ = nullptr;
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
-	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
 	std::unique_ptr<Text> stageClearText_ = nullptr;
 	std::unique_ptr<Text> gameOverText_ = nullptr;
@@ -233,7 +208,6 @@ private:
 	float skydivingCurrentSpeed_ = 0.0f;
 	float lookDownCameraForwardHoldDuration_ = 0.25f;
 	float lookDownCameraTurnDuration_ = 0.75f;
-	float lookDownCameraTurnTimer_ = 0.0f;
 	float caveFogBaseStart_ = 20.0f;
 	float caveFogBaseEnd_ = 500.0f;
 	float caveFogEndPlaneScale_ = 50.0f;

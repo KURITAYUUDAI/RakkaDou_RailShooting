@@ -22,6 +22,7 @@
 #include "FontManager.h"
 #include "TextManager.h"
 #include "Enemy/EnemyEvent.h"
+#include "gameSequence/StageEntrySequence.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -413,49 +414,96 @@ void GamePlayScene::Initialize()
 	pauseMenu_->Initialize();
 	isPaused_ = false;
 
-	InitializeStageEntry();
+	InitializeGameplayPresentation();
+	InitializeEntrySequence();
 }
 
-void GamePlayScene::InitializeStageEntry()
+void GamePlayScene::InitializeEntrySequence()
+{
+	StageEntryDependencies dependencies{
+		*player_,
+		*cameraManager_,
+		*defaultCameraController_,
+		*railCameraController_,
+		*SceneManager::GetInstance()->GetPostEffectController(),
+	};
+
+	StageEntryConfig config{};
+	config.doorPosition = stageEntryDoorPosition_;
+	config.playerStartPosition = stageEntryPlayerStartPosition_;
+	config.playerDoorPosition = stageEntryPlayerDoorPosition_;
+	config.playerDiveEndPosition = stageEntryPlayerDiveEndPosition_;
+	config.gameplayPlayerRailPosition = gameplayPlayerRailPosition_;
+	config.skydivingStartHeight = skydivingStartHeight_;
+	config.skydivingInitialSpeed = skydivingInitialSpeed_;
+	config.normalRailSpeed = kNormalRailSpeed_;
+	config.blackHoldDuration = kStageEntryBlackHoldDuration_;
+	config.approachDuration = kStageEntryApproachDuration_;
+	config.doorOpenDuration = kStageEntryDoorOpenDuration_;
+	config.diveDuration = kStageEntryDiveDuration_;
+	config.whiteOutDuration = kStageEntryWhiteOutDuration_;
+	config.whiteFadeDuration = kStageEntryWhiteFadeDuration_;
+	config.lookDownForwardHoldDuration = lookDownCameraForwardHoldDuration_;
+	config.lookDownTurnDuration = lookDownCameraTurnDuration_;
+
+	activeSequence_ = std::make_unique<StageEntrySequence>(dependencies, config);
+	activeSequence_->Start();
+	scenePhase_ = ScenePhase::Entry;
+
+	if (!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
+	{
+		activeSequence_->OnFadeInFinished();
+	}
+}
+
+void GamePlayScene::UpdateEntrySequence(float deltaTime)
+{
+	if (!activeSequence_)
+	{
+		return;
+	}
+
+	WorldTransform::AdvanceFrame();
+	lightManager_->Update();
+
+	const SequenceStatus status = activeSequence_->Update(deltaTime);
+	const SequencePolicy policy = activeSequence_->GetPolicy();
+	if (policy.world == WorldPresentation::GameplayWorld)
+	{
+		terrain_->SetGameplayCaveEntryMode(true);
+		UpdateCaveFog();
+		skyBox_->Update();
+		terrain_->Update(
+			deltaTime,
+			cameraManager_->GetCameraWorldPosition(),
+			railCameraController_->GetCurrentDistance(),
+			railCameraController_->GetPathWorldOffset(),
+			railCameraController_->GetRailFrameWorldMatrix());
+		UpdateCaveFogEndPlane();
+		gameplayEntryFieldEntrance_->Update();
+		gameplayEntryFieldGround_->Update();
+	}
+
+	player_->Update(deltaTime);
+	particleManager_->Update(deltaTime);
+
+	if (status == SequenceStatus::Finished)
+	{
+		FinishEntrySequence();
+	}
+}
+
+void GamePlayScene::FinishEntrySequence()
+{
+	activeSequence_.reset();
+	scenePhase_ = ScenePhase::Play;
+	BeginSkydivingGameplay();
+}
+
+void GamePlayScene::InitializeGameplayPresentation()
 {
 	modelManager_->LoadModel("Field", "FieldEntrance.obj");
 	modelManager_->LoadModel("Field", "FieldGround.obj");
-
-	const auto createBox = [this](const Vector3& scale, const Vector3& translate,
-		const Vector4& color)
-		{
-			auto object = std::make_unique<Object3d>();
-			object->Initialize();
-			object->SetModel("stage_entry_box");
-			object->SetEnableLighting(false);
-			object->SetScale(scale);
-			object->SetTranslate(translate);
-			object->SetColor(color);
-			return object;
-		};
-
-	stageEntryBackdrop_ = createBox(
-		{ 40.0f, 24.0f, 0.5f }, { 0.0f, 0.0f, 10.0f },
-		{ 0.0f, 0.0f, 0.0f, 1.0f });
-	stageEntryLight_ = createBox(
-		{ 8.0f, 10.0f, 0.15f }, { 0.0f, 0.0f, 8.4f },
-		{ 8.0f, 8.0f, 8.0f, 1.0f });
-	stageEntryLeftDoor_ = createBox(
-		{ 4.0f, 10.0f, 0.35f }, { -2.0f, 0.0f, 8.0f },
-		{ 0.015f, 0.02f, 0.035f, 1.0f });
-	stageEntryRightDoor_ = createBox(
-		{ 4.0f, 10.0f, 0.35f }, { 2.0f, 0.0f, 8.0f },
-		{ 0.015f, 0.02f, 0.035f, 1.0f });
-
-	stageEntryDoorFrames_[0] = createBox(
-		{ 0.6f, 11.0f, 0.6f }, { -4.3f, 0.0f, 7.9f },
-		{ 0.12f, 0.14f, 0.2f, 1.0f });
-	stageEntryDoorFrames_[1] = createBox(
-		{ 0.6f, 11.0f, 0.6f }, { 4.3f, 0.0f, 7.9f },
-		{ 0.12f, 0.14f, 0.2f, 1.0f });
-	stageEntryDoorFrames_[2] = createBox(
-		{ 9.2f, 0.6f, 0.6f }, { 0.0f, 5.3f, 7.9f },
-		{ 0.12f, 0.14f, 0.2f, 1.0f });
 
 	gameplayEntryFieldEntrance_ = std::make_unique<Object3d>();
 	gameplayEntryFieldEntrance_->Initialize();
@@ -480,13 +528,6 @@ void GamePlayScene::InitializeStageEntry()
 	caveFogEndPlane_->SetScale(
 		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
 	caveFogEndPlane_->SetColor(DistanceFogManager::GetInstance()->GetColor());
-
-	stageEntryWhiteSprite_ = std::make_unique<Sprite>();
-	stageEntryWhiteSprite_->Initialize("white1x1.png");
-	stageEntryWhiteSprite_->SetSize({
-		static_cast<float>(WindowsAPI::kClientWidth),
-		static_cast<float>(WindowsAPI::kClientHeight) });
-	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
 
 	stageTitleText_ = std::make_unique<Text>();
 	stageTitleText_->Initialize(
@@ -516,8 +557,6 @@ void GamePlayScene::InitializeStageEntry()
 	player_->SetTranslate(stageEntryPlayerStartPosition_);
 	player_->SetTitleOpacity(0.0f);
 
-	stageEntryDoorProgress_ = 0.0f;
-	stageEntryTimer_ = 0.0f;
 	gameplayState_ = GameplayState::Inactive;
 	gameplayStateTimer_ = 0.0f;
 	isEnemyStageInitialized_ = false;
@@ -525,302 +564,13 @@ void GamePlayScene::InitializeStageEntry()
 	isStageTitleTimerActive_ = false;
 	stageClearState_ = StageClearState::Inactive;
 	stageClearTimer_ = 0.0f;
-	stageEntryState_ = SceneManager::GetInstance()->GetSceneTransition().IsRunning()
-		? StageEntryState::WaitingForFadeIn
-		: StageEntryState::BlackHold;
-
-	UpdateStageEntryObjects();
-}
-
-void GamePlayScene::UpdateStageEntry(const float& deltaTime)
-{
-#ifdef _DEBUG
-	ImGui::Begin("StageEntry");
-	ImGui::Text("State: %d", static_cast<int>(stageEntryState_));
-	ImGui::Text("Timer: %.3f", stageEntryTimer_);
-	const char* stageEntryStateNames[] = {
-		"WaitingForFadeIn", "BlackHold", "Approaching", "OpeningDoor",
-		"Diving", "WhiteOut", "LookDown", "Complete"
-	};
-	const int stageEntryStateIndex = static_cast<int>(stageEntryState_);
-	ImGui::Text("Sequence: %s", stageEntryStateNames[stageEntryStateIndex]);
-	Vector3 currentPlayerLocalPosition = player_->GetTranslate();
-	Vector3 currentPlayerWorldPosition = player_->GetWorldPosition();
-	ImGui::InputFloat3(
-		"CurrentPlayerLocal", &currentPlayerLocalPosition.x,
-		"%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3(
-		"CurrentPlayerWorld", &currentPlayerWorldPosition.x,
-		"%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::SeparatorText("Player Sequence Positions");
-	ImGui::DragFloat3(
-		"BlackHold / Approach Start", &stageEntryPlayerStartPosition_.x, 0.1f);
-	ImGui::DragFloat3(
-		"Approach End / Door", &stageEntryPlayerDoorPosition_.x, 0.1f);
-	ImGui::DragFloat3(
-		"Diving End / WhiteOut", &stageEntryPlayerDiveEndPosition_.x, 0.1f);
-	if (ImGui::DragFloat3(
-		"Skydiving / Rail Local", &gameplayPlayerRailPosition_.x, 0.1f))
-	{
-		if (stageEntryState_ == StageEntryState::LookDown ||
-			gameplayState_ == GameplayState::Skydiving ||
-			gameplayState_ == GameplayState::CaveEntering)
-		{
-			player_->SetTranslate(gameplayPlayerRailPosition_);
-		}
-	}
-	ImGui::Separator();
-	ImGui::DragFloat3(
-		"EntranceScale", &gameplayEntryFieldEntranceScale_.x, 0.01f, 0.01f, 10.0f);
-	ImGui::DragFloat3(
-		"EntrancePosition", &gameplayEntryFieldEntrancePosition_.x, 0.1f);
-	ImGui::DragFloat3(
-		"GroundScale", &gameplayEntryFieldGroundScale_.x, 0.01f, 0.01f, 10.0f);
-	ImGui::DragFloat3(
-		"GroundPosition", &gameplayEntryFieldGroundPosition_.x, 0.1f);
-	ImGui::DragFloat3(
-		"Door Position", &stageEntryDoorPosition_.x, 0.1f);
-	ImGui::Separator();
-	ImGui::DragFloat(
-		"SkydivingStartHeight", &skydivingStartHeight_, 1.0f, 100.0f, 3000.0f);
-	ImGui::DragFloat(
-		"SkydivingInitialSpeed", &skydivingInitialSpeed_, 0.5f, 0.0f,
-		kNormalRailSpeed_);
-	ImGui::DragFloat(
-		"SkydivingAcceleration", &skydivingAcceleration_, 0.5f, 0.0f, 300.0f);
-	ImGui::Text("CurrentFallSpeed: %.2f / %.2f",
-		skydivingCurrentSpeed_, kNormalRailSpeed_);
-	ImGui::SeparatorText("Wind Lines");
-	ImGui::DragFloat(
-		"WindMinRadius", &gameplayWindLineMinRadius_, 0.1f, 0.0f, 100.0f);
-	ImGui::DragFloat(
-		"WindMaxRadius", &gameplayWindLineMaxRadius_, 0.1f, 0.0f, 100.0f);
-	ImGui::DragFloat(
-		"WindMinDepth", &gameplayWindLineMinDepth_, 0.5f, 0.0f, 500.0f);
-	ImGui::DragFloat(
-		"WindMaxDepth", &gameplayWindLineMaxDepth_, 0.5f, 0.0f, 500.0f);
-	ImGui::DragFloat(
-		"WindMinLength", &gameplayWindLineMinLength_, 0.1f, 0.1f, 50.0f);
-	ImGui::DragFloat(
-		"WindMaxLength", &gameplayWindLineMaxLength_, 0.1f, 0.1f, 100.0f);
-	ImGui::DragFloat(
-		"WindEmitRate", &gameplayWindLineMaxEmitRate_, 0.5f, 0.0f, 120.0f);
-	ImGui::DragFloat(
-		"WindAlpha", &gameplayWindLineAlpha_, 0.01f, 0.0f, 1.0f);
-	ImGui::DragFloat(
-		"CameraForwardHold", &lookDownCameraForwardHoldDuration_, 0.01f, 0.0f, 3.0f);
-	ImGui::DragFloat(
-		"CameraTurnDuration", &lookDownCameraTurnDuration_, 0.01f, 0.01f, 5.0f);
-	ImGui::DragFloat(
-		"EnemySpawnDelay", &enemyStageSpawnDelay_, 0.1f, 0.0f, 30.0f);
-	ImGui::DragFloat(
-		"CaveFogBaseStart", &caveFogBaseStart_, 0.5f, 0.0f, 1000.0f);
-	ImGui::DragFloat(
-		"CaveFogBaseEnd", &caveFogBaseEnd_, 0.5f, 0.0f, 1000.0f);
-	ImGui::Text("CaveFog: %.1f -> %.1f",
-		DistanceFogManager::GetInstance()->GetStartDistance(),
-		DistanceFogManager::GetInstance()->GetEndDistance());
-	ImGui::DragFloat(
-		"FogEndPlaneScale", &caveFogEndPlaneScale_, 0.5f, 1.0f, 200.0f);
-	ImGui::DragFloat(
-		"FogEndPlaneOffset", &caveFogEndPlaneOffset_, 0.1f, -100.0f, 100.0f);
-	ImGui::End();
-#endif
-
-	switch (stageEntryState_)
-	{
-	case StageEntryState::WaitingForFadeIn:
-		break;
-
-	case StageEntryState::BlackHold:
-		stageEntryTimer_ += deltaTime;
-		if (stageEntryTimer_ >= kStageEntryBlackHoldDuration_)
-		{
-			stageEntryTimer_ = 0.0f;
-			stageEntryState_ = StageEntryState::Approaching;
-		}
-		break;
-
-	case StageEntryState::Approaching:
-	{
-		stageEntryTimer_ += deltaTime;
-		const float progress = std::clamp(
-			stageEntryTimer_ / kStageEntryApproachDuration_, 0.0f, 1.0f);
-		const float easedProgress = SmoothStep01(progress);
-		const Vector3 playerPosition = LerpVector3(
-			stageEntryPlayerStartPosition_, stageEntryPlayerDoorPosition_, easedProgress);
-		player_->SetTranslate(playerPosition);
-		player_->SetTitleOpacity(std::clamp(progress / 0.35f, 0.0f, 1.0f));
-		defaultCameraController_->GetWorldTransform()->SetTranslate(
-			playerPosition +
-			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
-
-		if (progress >= 1.0f)
-		{
-			stageEntryTimer_ = 0.0f;
-			stageEntryState_ = StageEntryState::OpeningDoor;
-		}
-		break;
-	}
-
-	case StageEntryState::OpeningDoor:
-	{
-		player_->SetTranslate(stageEntryPlayerDoorPosition_);
-		defaultCameraController_->GetWorldTransform()->SetTranslate(
-			stageEntryPlayerDoorPosition_ +
-			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
-		stageEntryTimer_ += deltaTime;
-		const float progress = std::clamp(
-			stageEntryTimer_ / kStageEntryDoorOpenDuration_, 0.0f, 1.0f);
-		stageEntryDoorProgress_ = SmoothStep01(progress);
-		if (progress >= 1.0f)
-		{
-			StartStageEntryBlur();
-			stageEntryTimer_ = 0.0f;
-			stageEntryState_ = StageEntryState::Diving;
-		}
-		break;
-	}
-
-	case StageEntryState::Diving:
-	{
-		stageEntryTimer_ += deltaTime;
-		const float progress = std::clamp(
-			stageEntryTimer_ / kStageEntryDiveDuration_, 0.0f, 1.0f);
-		const float easedProgress = progress * progress;
-		const Vector3 playerPosition = LerpVector3(
-			stageEntryPlayerDoorPosition_, stageEntryPlayerDiveEndPosition_, easedProgress);
-		player_->SetTranslate(playerPosition);
-		defaultCameraController_->GetWorldTransform()->SetTranslate(
-			playerPosition +
-			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
-		UpdateStageEntryBlur(easedProgress);
-
-		if (progress >= 1.0f)
-		{
-			StopStageEntryBlur();
-			stageEntryTimer_ = 0.0f;
-			stageEntryState_ = StageEntryState::WhiteOut;
-		}
-		break;
-	}
-
-	case StageEntryState::WhiteOut:
-	{
-		player_->SetTranslate(stageEntryPlayerDiveEndPosition_);
-		stageEntryTimer_ += deltaTime;
-		const float progress = std::clamp(
-			stageEntryTimer_ / kStageEntryWhiteOutDuration_, 0.0f, 1.0f);
-		stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, SmoothStep01(progress) });
-		if (progress >= 1.0f)
-		{
-			BeginStageEntryLookDown();
-		}
-		break;
-	}
-
-	case StageEntryState::LookDown:
-	{
-		stageEntryTimer_ += deltaTime;
-		lookDownCameraTurnTimer_ += deltaTime;
-		UpdateCaveFog();
-
-		const float whiteProgress = std::clamp(
-			stageEntryTimer_ / kStageEntryWhiteFadeDuration_, 0.0f, 1.0f);
-		stageEntryWhiteSprite_->SetColor(
-			{ 1.0f, 1.0f, 1.0f, 1.0f - SmoothStep01(whiteProgress) });
-		break;
-	}
-
-	case StageEntryState::Complete:
-		return;
-	}
-
-	cameraManager_->Update(deltaTime);
-	if (stageEntryState_ == StageEntryState::LookDown)
-	{
-		railCameraController_->SetBattleSpaceParent(
-			railCameraController_->GetWorldTransform());
-		UpdateLookDownCamera();
-		const float lookDownDuration =
-			lookDownCameraForwardHoldDuration_ + lookDownCameraTurnDuration_;
-		if (lookDownCameraTurnTimer_ >= lookDownDuration)
-		{
-			BeginSkydivingGameplay();
-		}
-		skyBox_->Update();
-		terrain_->Update(
-			deltaTime,
-			cameraManager_->GetCameraWorldPosition(),
-			railCameraController_->GetCurrentDistance(),
-			railCameraController_->GetPathWorldOffset(),
-			railCameraController_->GetRailFrameWorldMatrix());
-		UpdateCaveFogEndPlane();
-	}
-
-	UpdateStageEntryObjects();
-	player_->Update(deltaTime);
-	if (IsStageEntryComplete())
-	{
-		UpdateGameplayDebugUI();
-		UpdateGameplaySystems(deltaTime);
-	}
-	UpdateGameplayWindLines(deltaTime);
-	UpdateStageTitle(deltaTime);
-	particleManager_->Update(deltaTime);
-	stageEntryWhiteSprite_->Update();
-}
-
-void GamePlayScene::BeginStageEntryLookDown()
-{
-	StopStageEntryBlur();
-	stageEntryTimer_ = 0.0f;
-	lookDownCameraTurnTimer_ = 0.0f;
-	stageEntryState_ = StageEntryState::LookDown;
-	skydivingCurrentSpeed_ = skydivingInitialSpeed_;
-	if (skydivingCurrentSpeed_ < 0.0f)
-	{
-		skydivingCurrentSpeed_ = 0.0f;
-	}
-	else if (skydivingCurrentSpeed_ > kNormalRailSpeed_)
-	{
-		skydivingCurrentSpeed_ = kNormalRailSpeed_;
-	}
-
-	railCameraController_->SetMovementEnabled(false);
-	railCameraController_->SetVerticalStartHeight(skydivingStartHeight_);
-	railCameraController_->SetMoveSpeed(skydivingCurrentSpeed_);
-	cameraManager_->SetActiveCameraController("Rail");
-	railCameraController_->SetBattleSpaceParent(
-		railCameraController_->GetWorldTransform());
-
-	player_->SetTranslate(gameplayPlayerRailPosition_);
-	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	player_->SetParent(railCameraController_->GetBattleWorldTransform());
-
-	const float heightCorrection =
-		skydivingStartHeight_ - player_->GetWorldPosition().y;
-	railCameraController_->SetVerticalStartHeight(
-		skydivingStartHeight_ + heightCorrection);
-	railCameraController_->SetBattleSpaceParent(
-		railCameraController_->GetWorldTransform());
-	player_->SetParent(railCameraController_->GetBattleWorldTransform());
-	terrain_->SetGameplayCaveEntryMode(true);
-	DistanceFogManager::GetInstance()->SetEnabled(true);
-	UpdateCaveFog();
-	UpdateLookDownCamera();
 }
 
 void GamePlayScene::BeginSkydivingGameplay()
 {
-	stageEntryTimer_ = 0.0f;
-	stageEntryState_ = StageEntryState::Complete;
 	gameplayStateTimer_ = 0.0f;
 	gameplayState_ = GameplayState::Skydiving;
-	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
 	railCameraController_->SetMovementEnabled(true);
-	stageTitleTimer_ = 0.0f;
-	isStageTitleTimerActive_ = true;
 	ActivateGameplay();
 }
 
@@ -872,6 +622,8 @@ void GamePlayScene::BeginNormalGameplay()
 	gameplayState_ = GameplayState::Playing;
 	skydivingCurrentSpeed_ = kNormalRailSpeed_;
 	railCameraController_->SetMoveSpeed(kNormalRailSpeed_);
+	stageTitleTimer_ = 0.0f;
+	isStageTitleTimerActive_ = true;
 }
 
 void GamePlayScene::UpdateSkydivingSpeed(float deltaTime)
@@ -891,36 +643,6 @@ void GamePlayScene::ActivateGameplay()
 		isEnemyStageInitialized_ = true;
 	}
 	eventBus_->Dispatch();
-}
-
-void GamePlayScene::UpdateLookDownCamera()
-{
-	const Vector3 gameplayAnchor = TransformPosition(
-		gameplayPlayerRailPosition_,
-		railCameraController_->GetBattleWorldTransform()->GetWorldMatrix());
-	const float turnDuration =
-		lookDownCameraTurnDuration_ > 0.001f ? lookDownCameraTurnDuration_ : 0.001f;
-	const float turnProgress = std::clamp(
-		(lookDownCameraTurnTimer_ - lookDownCameraForwardHoldDuration_) / turnDuration,
-		0.0f, 1.0f);
-	const float easedProgress = SmoothStep01(turnProgress);
-	const Quaternion railRotation =
-		railCameraController_->GetWorldTransform()->GetRotateQuat();
-	const Quaternion cameraRotation = Slerp(
-		IdentityQuaternion(), railRotation, easedProgress);
-	const Vector3 railCameraOffset =
-		railCameraController_->GetWorldPosition() - gameplayAnchor;
-	const Vector3 localCameraOffset = RotateVector(
-		railCameraOffset, Inverse(railRotation));
-	const Vector3 cameraOffset = RotateVector(
-		localCameraOffset, cameraRotation);
-	const Vector3 cameraPosition = gameplayAnchor + cameraOffset;
-
-	Camera* mainCamera = cameraManager_->GetMainCamera();
-	mainCamera->SetTranslate(cameraPosition);
-	mainCamera->SetRotateQuat(cameraRotation);
-	mainCamera->Update();
-	cameraManager_->SetCameraWorldPosition(cameraPosition);
 }
 
 void GamePlayScene::UpdateCaveFog()
@@ -1176,65 +898,6 @@ void GamePlayScene::DrawStageClearText()
 	stageClearText_->Draw();
 }
 
-void GamePlayScene::UpdateStageEntryObjects()
-{
-	constexpr float doorHalfWidth = 2.0f;
-	const float leftHingeX = stageEntryDoorPosition_.x - 4.0f;
-	const float rightHingeX = stageEntryDoorPosition_.x + 4.0f;
-	const float leftAngle = -stageEntryDoorProgress_ * (pi / 2.0f);
-	const float rightAngle = stageEntryDoorProgress_ * (pi / 2.0f);
-
-	stageEntryBackdrop_->SetTranslate({
-		stageEntryDoorPosition_.x,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z + 2.0f });
-	stageEntryLight_->SetTranslate({
-		stageEntryDoorPosition_.x,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z + 0.4f });
-	stageEntryLeftDoor_->SetRotate({ 0.0f, leftAngle, 0.0f });
-	stageEntryLeftDoor_->SetTranslate({
-		leftHingeX + std::cos(leftAngle) * doorHalfWidth,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z - std::sin(leftAngle) * doorHalfWidth });
-	stageEntryRightDoor_->SetRotate({ 0.0f, rightAngle, 0.0f });
-	stageEntryRightDoor_->SetTranslate({
-		rightHingeX - std::cos(rightAngle) * doorHalfWidth,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z + std::sin(rightAngle) * doorHalfWidth });
-	stageEntryDoorFrames_[0]->SetTranslate({
-		stageEntryDoorPosition_.x - 4.3f,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z - 0.1f });
-	stageEntryDoorFrames_[1]->SetTranslate({
-		stageEntryDoorPosition_.x + 4.3f,
-		stageEntryDoorPosition_.y,
-		stageEntryDoorPosition_.z - 0.1f });
-	stageEntryDoorFrames_[2]->SetTranslate({
-		stageEntryDoorPosition_.x,
-		stageEntryDoorPosition_.y + 5.3f,
-		stageEntryDoorPosition_.z - 0.1f });
-
-	stageEntryBackdrop_->Update();
-	stageEntryLight_->Update();
-	stageEntryLeftDoor_->Update();
-	stageEntryRightDoor_->Update();
-	for (auto& frame : stageEntryDoorFrames_)
-	{
-		frame->Update();
-	}
-
-	if (stageEntryState_ == StageEntryState::LookDown)
-	{
-		gameplayEntryFieldEntrance_->SetScale(gameplayEntryFieldEntranceScale_);
-		gameplayEntryFieldEntrance_->SetTranslate(gameplayEntryFieldEntrancePosition_);
-		gameplayEntryFieldGround_->SetScale(gameplayEntryFieldGroundScale_);
-		gameplayEntryFieldGround_->SetTranslate(gameplayEntryFieldGroundPosition_);
-		gameplayEntryFieldEntrance_->Update();
-		gameplayEntryFieldGround_->Update();
-	}
-}
-
 void GamePlayScene::StartStageEntryBlur()
 {
 	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
@@ -1363,18 +1026,9 @@ void GamePlayScene::Finalize()
 		object3d.reset();
 	}*/
 	object3ds_.clear();
-	stageEntryBackdrop_.reset();
-	stageEntryLight_.reset();
-	stageEntryLeftDoor_.reset();
-	stageEntryRightDoor_.reset();
-	for (auto& frame : stageEntryDoorFrames_)
-	{
-		frame.reset();
-	}
 	gameplayEntryFieldEntrance_.reset();
 	gameplayEntryFieldGround_.reset();
 	caveFogEndPlane_.reset();
-	stageEntryWhiteSprite_.reset();
 
 	if (terrain_)
 	{
@@ -1465,13 +1119,7 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	if (!IsStageEntryComplete())
 	{
-		WorldTransform::AdvanceFrame();
-		lightManager_->Update();
-		UpdateStageEntry(deltaTime);
-		if (isGameOverSequenceActive_)
-		{
-			UpdateGameOverSequence(deltaTime);
-		}
+		UpdateEntrySequence(deltaTime);
 		return;
 	}
 
@@ -2212,10 +1860,9 @@ void GamePlayScene::DrawEnemyStageDebugUI()
 
 void GamePlayScene::FinishFadeIn()
 {
-	if (stageEntryState_ == StageEntryState::WaitingForFadeIn)
+	if (scenePhase_ == ScenePhase::Entry && activeSequence_)
 	{
-		stageEntryTimer_ = 0.0f;
-		stageEntryState_ = StageEntryState::BlackHold;
+		activeSequence_->OnFadeInFinished();
 	}
 }
 
@@ -2223,6 +1870,12 @@ void GamePlayScene::Draw(CanvasId canvasId)
 {
 	if (canvasId == BuiltinCanvas::UI)
 	{
+		if (scenePhase_ == ScenePhase::Entry && activeSequence_)
+		{
+			activeSequence_->DrawUI();
+			return;
+		}
+
 		// 画面固定UIはポストエフェクト適用後に合成する。
 		// HPゲージと操作説明をWorld Canvasへ描くと、ステージクリア時の
 		// ラジアルブラーに巻き込まれるため、UI Canvasへ分離する。
@@ -2235,22 +1888,30 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		return;
 	}
 
-	if (!IsStageEntryComplete())
+	if (scenePhase_ == ScenePhase::Entry && activeSequence_)
 	{
-		if (stageEntryState_ == StageEntryState::LookDown)
+		const SequencePolicy policy = activeSequence_->GetPolicy();
+		if (policy.world == WorldPresentation::GameplayWorld)
 		{
-			DrawStageEntryField();
+			skyBox_->Draw();
+			caveFogEndPlane_->Draw();
+			terrain_->Draw();
+			DrawGameplayEntryField();
 		}
-		else
-		{
-			DrawStageEntryDarkSpace();
-		}
-		particleManager_->Draw();
 
-		if (stageEntryWhiteSprite_ && stageEntryWhiteSprite_->GetColor().w > 0.0f)
+		activeSequence_->DrawWorld();
+		if (policy.playerVisibility == PlayerVisibility::Visible)
 		{
-			stageEntryWhiteSprite_->Draw();
+			player_->Draw();
 		}
+		if (policy.gameplayActors == GameplayActorVisibility::Visible)
+		{
+			enemyManager_->Draw();
+			BulletManager::GetInstance()->Draw();
+		}
+
+		particleManager_->Draw();
+		activeSequence_->DrawOverlay();
 		return;
 	}
 
@@ -2335,34 +1996,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 	DrawStageTitle();
 
 	pauseMenu_->Draw();
-}
-
-void GamePlayScene::DrawStageEntryDarkSpace()
-{
-	stageEntryBackdrop_->Draw();
-	if (stageEntryState_ == StageEntryState::WaitingForFadeIn ||
-		stageEntryState_ == StageEntryState::BlackHold)
-	{
-		return;
-	}
-
-	stageEntryLight_->Draw();
-	stageEntryLeftDoor_->Draw();
-	stageEntryRightDoor_->Draw();
-	for (auto& frame : stageEntryDoorFrames_)
-	{
-		frame->Draw();
-	}
-	player_->Draw();
-}
-
-void GamePlayScene::DrawStageEntryField()
-{
-	skyBox_->Draw();
-	caveFogEndPlane_->Draw();
-	terrain_->Draw();
-	DrawGameplayEntryField();
-	player_->Draw();
 }
 
 void GamePlayScene::DrawGameplayEntryField()
