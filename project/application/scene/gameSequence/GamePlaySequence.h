@@ -8,6 +8,12 @@ enum class SequenceStatus
 	Finished,
 };
 
+enum class SequenceCompletionAction
+{
+	BeginGameplay,
+	ReturnToTitle,
+};
+
 class GamePlaySequence
 {
 public:
@@ -15,6 +21,7 @@ public:
 
 	virtual void Start() = 0;
 	virtual SequenceStatus Update(float deltaTime) = 0;
+	virtual SequenceCompletionAction GetCompletionAction() const = 0;
 	virtual SequencePolicy GetPolicy() const = 0;
 
 	virtual void DrawWorld() = 0;

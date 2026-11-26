@@ -232,6 +232,11 @@ SequenceStatus StageEntrySequence::Update(float deltaTime)
 		: SequenceStatus::Running;
 }
 
+SequenceCompletionAction StageEntrySequence::GetCompletionAction() const
+{
+	return SequenceCompletionAction::BeginGameplay;
+}
+
 SequencePolicy StageEntrySequence::GetPolicy() const
 {
 	SequencePolicy policy{};
@@ -239,6 +244,7 @@ SequencePolicy StageEntrySequence::GetPolicy() const
 		? WorldPresentation::GameplayWorld
 		: WorldPresentation::EntryRoom;
 	policy.simulation = GameplaySimulation::Frozen;
+	policy.stageProgression = StageProgression::Frozen;
 	policy.playerControl = PlayerControl::Sequence;
 	policy.playerVisibility =
 		state_ == State::WaitingForFadeIn || state_ == State::BlackHold

@@ -56,23 +56,15 @@ private:
 		GameOver,
 	};
 
-	void InitializeGameplayPresentation();
 	void InitializeEntrySequence();
-	void UpdateEntrySequence(float deltaTime);
-	void FinishEntrySequence();
-	void BeginSkydivingGameplay();
-	void ActivateGameplay();
+	void StartSequence(std::unique_ptr<GamePlaySequence> sequence, ScenePhase phase);
+	void UpdateActiveSequence(float deltaTime);
+	void FinishActiveSequence(SequenceCompletionAction action);
+	SequencePolicy GetCurrentPolicy() const;
+
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
 	void StartStageClearSequence();
-	bool IsStageEntryComplete() const
-	{
-		return scenePhase_ != ScenePhase::Entry;
-	}
-	bool IsStageClearSequenceActive() const
-	{
-		return scenePhase_ == ScenePhase::Clear;
-	}
 
 	void UpdateGameplayDebugUI();
 	void UpdateGameplaySystems(const float& deltaTime);
@@ -148,24 +140,11 @@ private:
 	std::unique_ptr<GamePlaySequence> activeSequence_ = nullptr;
 	std::unique_ptr<StageProgressLine> stageProgressLine_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
-	Vector3 stageEntryDoorPosition_ = { 0.0f, 3.2f, 8.0f };
-	Vector3 stageEntryPlayerStartPosition_ = { 0.0f, -1.7f, -7.0f };
-	Vector3 stageEntryPlayerDoorPosition_ = { 0.0f, 0.0f, 1.5f };
-	Vector3 stageEntryPlayerDiveEndPosition_ = { 0.0f, 0.0f, 10.5f };
 	Vector3 gameplayPlayerRailPosition_ = { 0.0f, -1.7f, -7.5f };
-	float lookDownCameraForwardHoldDuration_ = 0.25f;
-	float lookDownCameraTurnDuration_ = 0.75f;
 	float stageTitleTimer_ = 0.0f;
 	bool isStageTitleTimerActive_ = false;
 	static constexpr float kStageTitleDelay_ = 1.0f;
 	static constexpr float kStageTitleDuration_ = 3.0f;
-
-	static constexpr float kStageEntryBlackHoldDuration_ = 0.25f;
-	static constexpr float kStageEntryApproachDuration_ = 0.90f;
-	static constexpr float kStageEntryDoorOpenDuration_ = 0.65f;
-	static constexpr float kStageEntryDiveDuration_ = 0.55f;
-	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
-	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 
 	std::unique_ptr<CaveGameplayEnvironment> caveEnvironment_ = nullptr;
@@ -179,7 +158,6 @@ private:
 	std::unique_ptr<ParticleEmitter> ringEmitter_ = nullptr;
 
 	std::unique_ptr<ParticleEmitter> cylinderEmitter_ = nullptr;
-	std::unique_ptr<ParticleEmitter> stageClearShockwaveEmitter_ = nullptr;
 
 	std::unique_ptr<EventBus> eventBus_;
 	EventSubscriber eventSubscriber_;

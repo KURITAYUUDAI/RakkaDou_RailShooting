@@ -2,7 +2,9 @@
 #include "GameClearSequence.h"
 
 #include "ParticleEmitter.h"
+#include "ParticleManager.h"
 #include "Player.h"
+#include "PrimitiveManager.h"
 #include "RadialBlur.h"
 #include "Text.h"
 
@@ -45,6 +47,7 @@ GameClearSequence::~GameClearSequence()
 
 void GameClearSequence::Start()
 {
+	InitializeAssets();
 	state_ = State::RepositioningPlayer;
 	stateTimer_ = 0.0f;
 	playerStartPosition_ = dependencies_.player.GetTranslate();
@@ -58,6 +61,42 @@ void GameClearSequence::Start()
 	clearText_->Update();
 
 	dependencies_.player.StartStageClearSequence();
+}
+
+void GameClearSequence::InitializeAssets()
+{
+	PrimitiveManager::RingConfig shockwaveConfig;
+	shockwaveConfig.segments = 48;
+	shockwaveConfig.doubleSided = true;
+	shockwaveConfig.innerRadius = 1.5f;
+	shockwaveConfig.outerRadius = 2.0f;
+	shockwaveConfig.innerColor = { 0.0f, 0.4f, 2.0f, 0.8f };
+	shockwaveConfig.outerColor = { 0.0f, 2.0f, 5.0f, 1.0f };
+	shockwaveConfig.uvScaleU = 2.0f;
+	shockwaveConfig.uvScaleV = 0.1f;
+	shockwaveConfig.startAngle = 0.0f;
+	shockwaveConfig.endAngle = 2.0f * pi;
+	PrimitiveManager::GetInstance()->CreateRing(
+		"stage_clear_shockwave", shockwaveConfig);
+
+	auto* particleManager = ParticleManager::GetInstance();
+	particleManager->CreateParticleGroup(
+		"stage_clear_shockwave", "gradationLine.png");
+	particleManager->SetModel(
+		"stage_clear_shockwave", "stage_clear_shockwave");
+	particleManager->SetIsMoveAccelerationField(
+		"stage_clear_shockwave", false);
+	particleManager->SetIsBillboard("stage_clear_shockwave", true);
+	particleManager->SetScaleOverLife(
+		"stage_clear_shockwave",
+		{ 0.75f, 0.75f, 0.75f }, { 8.0f, 8.0f, 8.0f });
+	particleManager->SetParticleLifeTime("stage_clear_shockwave", 0.5f);
+
+	shockwaveEmitter_ = std::make_unique<ParticleEmitter>();
+	shockwaveEmitter_->Initialize(
+		"stage_clear_shockwave",
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} },
+		1, 0.2f);
 }
 
 SequenceStatus GameClearSequence::Update(float deltaTime)
@@ -125,11 +164,17 @@ SequenceStatus GameClearSequence::Update(float deltaTime)
 	return SequenceStatus::Running;
 }
 
+SequenceCompletionAction GameClearSequence::GetCompletionAction() const
+{
+	return SequenceCompletionAction::ReturnToTitle;
+}
+
 SequencePolicy GameClearSequence::GetPolicy() const
 {
 	SequencePolicy policy{};
 	policy.world = WorldPresentation::GameplayWorld;
 	policy.simulation = GameplaySimulation::Frozen;
+	policy.stageProgression = StageProgression::Running;
 	policy.playerControl = PlayerControl::Sequence;
 	policy.playerVisibility = PlayerVisibility::Visible;
 	policy.gameplayActors = GameplayActorVisibility::Visible;
@@ -158,9 +203,9 @@ void GameClearSequence::DrawUI()
 void GameClearSequence::StartDive()
 {
 	diveStartPosition_ = dependencies_.player.GetTranslate();
-	dependencies_.shockwaveEmitter.SetTranslate(
+	shockwaveEmitter_->SetTranslate(
 		dependencies_.player.GetWorldPosition());
-	dependencies_.shockwaveEmitter.Emit();
+	shockwaveEmitter_->Emit();
 	StartBlur();
 	stateTimer_ = 0.0f;
 	state_ = State::Diving;

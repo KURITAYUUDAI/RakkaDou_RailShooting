@@ -46,6 +46,7 @@ public:
 
 	void Start() override;
 	SequenceStatus Update(float deltaTime) override;
+	SequenceCompletionAction GetCompletionAction() const override;
 	SequencePolicy GetPolicy() const override;
 
 	void DrawWorld() override;

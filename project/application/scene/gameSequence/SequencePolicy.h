@@ -12,6 +12,12 @@ enum class GameplaySimulation
 	Running,
 };
 
+enum class StageProgression
+{
+	Frozen,
+	Running,
+};
+
 enum class PlayerControl
 {
 	Sequence,
@@ -40,6 +46,7 @@ struct SequencePolicy
 {
 	WorldPresentation world = WorldPresentation::GameplayWorld;
 	GameplaySimulation simulation = GameplaySimulation::Frozen;
+	StageProgression stageProgression = StageProgression::Frozen;
 	PlayerControl playerControl = PlayerControl::Sequence;
 	PlayerVisibility playerVisibility = PlayerVisibility::Visible;
 	GameplayActorVisibility gameplayActors = GameplayActorVisibility::Hidden;

@@ -108,11 +108,17 @@ SequenceStatus GameOverSequence::Update(float deltaTime)
 	return SequenceStatus::Running;
 }
 
+SequenceCompletionAction GameOverSequence::GetCompletionAction() const
+{
+	return SequenceCompletionAction::ReturnToTitle;
+}
+
 SequencePolicy GameOverSequence::GetPolicy() const
 {
 	SequencePolicy policy{};
 	policy.world = WorldPresentation::GameplayWorld;
 	policy.simulation = GameplaySimulation::Running;
+	policy.stageProgression = StageProgression::Running;
 	policy.playerControl = PlayerControl::Sequence;
 	policy.playerVisibility = PlayerVisibility::Visible;
 	policy.gameplayActors = GameplayActorVisibility::Visible;

@@ -64,6 +64,7 @@ void GamePlayScene::Initialize()
 	scenePhase_ = ScenePhase::Entry;
 	activeSequence_.reset();
 	inputMapping_->SetContext(InputContext::Gameplay);
+	const StageEntryConfig defaultEntryConfig{};
 
 	camera_ = std::make_unique<Camera>();
 	camera_->Initialize();
@@ -82,7 +83,7 @@ void GamePlayScene::Initialize()
 
 	camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	camera_->SetTranslate(
-		stageEntryPlayerStartPosition_ +
+		defaultEntryConfig.playerStartPosition +
 		CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 	camera_->SetFarClip(600.0f);
 
@@ -99,7 +100,7 @@ void GamePlayScene::Initialize()
 	defaultCameraController_ = std::make_unique<DefaultCameraController>();
 	defaultCameraController_->Initialize();
 	defaultCameraController_->GetWorldTransform()->SetTranslate(
-		stageEntryPlayerStartPosition_ +
+		defaultEntryConfig.playerStartPosition +
 		CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 	defaultCameraController_->GetWorldTransform()->SetRotate({ 0.0f, 0.0f, 0.0f });
 
@@ -203,31 +204,6 @@ void GamePlayScene::Initialize()
 	particleManager_->SetIsMoveAccelerationField("ring", false);
 	particleManager_->SetIsBillboard("ring", false);
 
-	PrimitiveManager::RingConfig stageClearShockwaveConfig;
-	stageClearShockwaveConfig.segments = 48;
-	stageClearShockwaveConfig.doubleSided = true;
-	stageClearShockwaveConfig.innerRadius = 1.5f;
-	stageClearShockwaveConfig.outerRadius = 2.0f;
-	stageClearShockwaveConfig.innerColor = { 0.0f, 0.4f, 2.0f, 0.8f };
-	stageClearShockwaveConfig.outerColor = { 0.0f, 2.0f, 5.0f, 1.0f };
-	stageClearShockwaveConfig.uvScaleU = 2.0f;
-	stageClearShockwaveConfig.uvScaleV = 0.1f;
-	stageClearShockwaveConfig.startAngle = 0.0f;
-	stageClearShockwaveConfig.endAngle = 2.0f * pi;
-	PrimitiveManager::GetInstance()->CreateRing(
-		"stage_clear_shockwave", stageClearShockwaveConfig);
-	particleManager_->CreateParticleGroup(
-		"stage_clear_shockwave", "gradationLine.png");
-	particleManager_->SetModel(
-		"stage_clear_shockwave", "stage_clear_shockwave");
-	particleManager_->SetIsMoveAccelerationField(
-		"stage_clear_shockwave", false);
-	particleManager_->SetIsBillboard("stage_clear_shockwave", true);
-	particleManager_->SetScaleOverLife(
-		"stage_clear_shockwave",
-		{ 0.75f, 0.75f, 0.75f }, { 8.0f, 8.0f, 8.0f });
-	particleManager_->SetParticleLifeTime("stage_clear_shockwave", 0.5f);
-
 	PrimitiveManager::CylinderConfig cylinderConfig;
 	cylinderConfig.segments = 32;
 	cylinderConfig.stacks = 32;
@@ -312,12 +288,6 @@ void GamePlayScene::Initialize()
 	cylinderEmitter_->Initialize("cylinder",
 		{ {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} }, 1, 0.2f);
 
-	stageClearShockwaveEmitter_ = std::make_unique<ParticleEmitter>();
-	stageClearShockwaveEmitter_->Initialize(
-		"stage_clear_shockwave",
-		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} },
-		1, 0.2f);
-
 	bloomHandle_ = SceneManager::GetInstance()->GetPostEffectController()->Emit<Bloom>("Bloom", std::nullopt, nullptr);
 	//glayscaleHandle_ = SceneManager::GetInstance()->GetPostEffectController()->Emit<Grayscale>("Grayscale", std::nullopt, nullptr);
 
@@ -342,8 +312,7 @@ void GamePlayScene::Initialize()
 				return;
 			}
 
-			auto* controller =
-				SceneManager::GetInstance()->GetPostEffectController();
+			auto* controller = SceneManager::GetInstance()->GetPostEffectController();
 			const PostEffectHandle handle = controller->Emit<Darken>(
 				BuiltinCanvas::Final,
 				"Darken",
@@ -411,7 +380,23 @@ void GamePlayScene::Initialize()
 	pauseMenu_->Initialize();
 	isPaused_ = false;
 
-	InitializeGameplayPresentation();
+
+	stageTitleText_ = std::make_unique<Text>();
+	stageTitleText_->Initialize(
+		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"STAGE 1");
+	stageTitleText_->SetPosition({ 491.0f, 240.0f });
+	stageTitleText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	stageTitleText_->Update();
+
+	player_->SetScale({ 1.0f, 1.0f, 1.0f });
+	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	player_->SetTranslate(StageEntryConfig{}.playerStartPosition);
+	player_->SetTitleOpacity(0.0f);
+
+	stageProgressLine_->Reset();
+	stageTitleTimer_ = 0.0f;
+	isStageTitleTimerActive_ = false;
+
 	InitializeEntrySequence();
 }
 
@@ -426,28 +411,13 @@ void GamePlayScene::InitializeEntrySequence()
 	};
 
 	StageEntryConfig config{};
-	config.doorPosition = stageEntryDoorPosition_;
-	config.playerStartPosition = stageEntryPlayerStartPosition_;
-	config.playerDoorPosition = stageEntryPlayerDoorPosition_;
-	config.playerDiveEndPosition = stageEntryPlayerDiveEndPosition_;
 	config.gameplayPlayerRailPosition = gameplayPlayerRailPosition_;
-	const StageProgressLineConfig& progressLineConfig =
-		stageProgressLine_->GetConfig();
+	const StageProgressLineConfig& progressLineConfig = stageProgressLine_->GetConfig();
 	config.skydivingStartHeight = progressLineConfig.skydivingStartHeight;
 	config.skydivingInitialSpeed = progressLineConfig.initialSpeed;
 	config.normalRailSpeed = progressLineConfig.normalRailSpeed;
-	config.blackHoldDuration = kStageEntryBlackHoldDuration_;
-	config.approachDuration = kStageEntryApproachDuration_;
-	config.doorOpenDuration = kStageEntryDoorOpenDuration_;
-	config.diveDuration = kStageEntryDiveDuration_;
-	config.whiteOutDuration = kStageEntryWhiteOutDuration_;
-	config.whiteFadeDuration = kStageEntryWhiteFadeDuration_;
-	config.lookDownForwardHoldDuration = lookDownCameraForwardHoldDuration_;
-	config.lookDownTurnDuration = lookDownCameraTurnDuration_;
 
-	activeSequence_ = std::make_unique<StageEntrySequence>(dependencies, config);
-	activeSequence_->Start();
-	scenePhase_ = ScenePhase::Entry;
+	StartSequence(std::make_unique<StageEntrySequence>(dependencies, config), ScenePhase::Entry);
 
 	if (!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
 	{
@@ -455,70 +425,62 @@ void GamePlayScene::InitializeEntrySequence()
 	}
 }
 
-void GamePlayScene::UpdateEntrySequence(float deltaTime)
+void GamePlayScene::StartSequence(std::unique_ptr<GamePlaySequence> sequence, ScenePhase phase)
+{
+	activeSequence_ = std::move(sequence);
+	scenePhase_ = phase;
+	activeSequence_->Start();
+}
+
+void GamePlayScene::UpdateActiveSequence(float deltaTime)
 {
 	if (!activeSequence_)
 	{
 		return;
 	}
 
-	WorldTransform::AdvanceFrame();
-	lightManager_->Update();
-
 	const SequenceStatus status = activeSequence_->Update(deltaTime);
-	const SequencePolicy policy = activeSequence_->GetPolicy();
-	if (policy.world == WorldPresentation::GameplayWorld)
-	{
-		caveEnvironment_->SetEntryMode(true);
-		caveEnvironment_->UpdateFog(player_->GetWorldPosition().y);
-		caveEnvironment_->UpdateWorld(deltaTime, true);
-	}
-
-	player_->Update(deltaTime);
-	particleManager_->Update(deltaTime);
-
 	if (status == SequenceStatus::Finished)
 	{
-		FinishEntrySequence();
+		FinishActiveSequence(activeSequence_->GetCompletionAction());
 	}
 }
 
-void GamePlayScene::FinishEntrySequence()
+void GamePlayScene::FinishActiveSequence(SequenceCompletionAction action)
 {
-	activeSequence_.reset();
-	scenePhase_ = ScenePhase::Play;
-	BeginSkydivingGameplay();
+	if (action == SequenceCompletionAction::BeginGameplay)
+	{
+		activeSequence_.reset();
+		scenePhase_ = ScenePhase::Play;
+		stageProgressLine_->StartSkydiving();
+		player_->FinishStageEntry();
+		eventBus_->Dispatch();
+		return;
+	}
+
+	if (SceneManager::GetInstance()->GetSceneTransition().GetState() == SceneTransition::SceneTransitionState::Idle)
+	{
+		SceneManager::GetInstance()->SetSceneRequest("TITLE");
+	}
 }
 
-void GamePlayScene::InitializeGameplayPresentation()
+SequencePolicy GamePlayScene::GetCurrentPolicy() const
 {
-	stageTitleText_ = std::make_unique<Text>();
-	stageTitleText_->Initialize(
-		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"STAGE 1");
-	stageTitleText_->SetPosition({ 491.0f, 240.0f });
-	stageTitleText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-	stageTitleText_->Update();
+	if (activeSequence_)
+	{
+		return activeSequence_->GetPolicy();
+	}
 
-	player_->SetScale({ 1.0f, 1.0f, 1.0f });
-	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	player_->SetTranslate(stageEntryPlayerStartPosition_);
-	player_->SetTitleOpacity(0.0f);
-
-	stageProgressLine_->Reset();
-	stageTitleTimer_ = 0.0f;
-	isStageTitleTimerActive_ = false;
-}
-
-void GamePlayScene::BeginSkydivingGameplay()
-{
-	stageProgressLine_->StartSkydiving();
-	ActivateGameplay();
-}
-
-void GamePlayScene::ActivateGameplay()
-{
-	player_->FinishStageEntry();
-	eventBus_->Dispatch();
+	SequencePolicy policy{};
+	policy.world = WorldPresentation::GameplayWorld;
+	policy.simulation = GameplaySimulation::Running;
+	policy.stageProgression = StageProgression::Running;
+	policy.playerControl = PlayerControl::Gameplay;
+	policy.playerVisibility = PlayerVisibility::Visible;
+	policy.gameplayActors = GameplayActorVisibility::Visible;
+	policy.hud = HudVisibility::Visible;
+	policy.pauseEnabled = true;
+	return policy;
 }
 
 void GamePlayScene::UpdateStageTitle(float deltaTime)
@@ -538,8 +500,7 @@ void GamePlayScene::UpdateStageTitle(float deltaTime)
 
 void GamePlayScene::DrawStageTitle()
 {
-	if (!isStageTitleTimerActive_ || !stageTitleText_ ||
-		stageTitleTimer_ < kStageTitleDelay_)
+	if (!isStageTitleTimerActive_ || !stageTitleText_ || stageTitleTimer_ < kStageTitleDelay_)
 	{
 		return;
 	}
@@ -560,17 +521,14 @@ void GamePlayScene::StartStageClearSequence()
 	collisionManager_->Clear();
 	BulletManager::GetInstance()->ClearBullets();
 
-	GameClearDependencies dependencies{
+	GameClearDependencies dependencies
+	{
 		*player_,
-		*stageClearShockwaveEmitter_,
 		*SceneManager::GetInstance()->GetPostEffectController(),
 	};
 	GameClearConfig config{};
 	config.playerTargetPosition = gameplayPlayerRailPosition_;
-	activeSequence_ =
-		std::make_unique<GameClearSequence>(dependencies, config);
-	activeSequence_->Start();
-	scenePhase_ = ScenePhase::Clear;
+	StartSequence(std::make_unique<GameClearSequence>(dependencies, config), ScenePhase::Clear);
 }
 
 void GamePlayScene::Finalize()
@@ -613,30 +571,17 @@ void GamePlayScene::Finalize()
 
 	BulletManager::GetInstance()->Finalize();
 
-	/*for (auto it = object3ds_.begin(); it != object3ds_.end(); ++it)
-	{
-		std::unique_ptr<Object3d> object3d = std::move(*it);
-		object3d.reset();
-	}*/
 	object3ds_.clear();
 	stageProgressLine_.reset();
 	caveEnvironment_.reset();
 	caveRailPath_.reset();
-
-	/*for (auto it = sprites_.begin(); it != sprites_.end(); ++it)
-	{
-		std::unique_ptr<Sprite> sprite = std::move(*it);
-		sprite.reset();
-	}*/
 	sprites_.clear();
-
 
 	camera_->Finalize();
 	camera_.reset();
 
 	lightManager_->Finalize();
 	cameraManager_->Finalize();
-	//PostEffectManager::GetInstance()->Clear();
 }
 
 void GamePlayScene::Update(const float& deltaTime)
@@ -657,25 +602,21 @@ void GamePlayScene::Update(const float& deltaTime)
 		player_->Damage(player_->GetHitPoint());
 	}
 
-	if (isTransitionIdle && enemyStageDirector_ &&
-		!enemyStageDirector_->IsBossPhase() &&
+	if (isTransitionIdle && enemyStageDirector_ && !enemyStageDirector_->IsBossPhase() && 
 		inputManager_->TriggerKey(DIK_F2))
 	{
 		enemyStageDirector_->SkipToBossPhase();
 	}
 
-	const bool isGameplayActive = IsStageEntryComplete();
-	if (scenePhase_ == ScenePhase::Play &&
-		!IsStageClearSequenceActive() && isTransitionIdle &&
-		inputMapping_->IsTriggered(InputAction::Pause))
+	SequencePolicy policy = GetCurrentPolicy();
+	if (policy.pauseEnabled && isTransitionIdle && inputMapping_->IsTriggered(InputAction::Pause))
 	{
 		isPaused_ = !isPaused_;
 		pauseMenu_->SetVisible(isPaused_);
-		inputMapping_->SetContext(
-			isPaused_ ? InputContext::Pause : InputContext::Gameplay);
+		inputMapping_->SetContext(isPaused_ ? InputContext::Pause : InputContext::Gameplay);
 	}
 
-	if (isGameplayActive && isPaused_)
+	if (isPaused_)
 	{
 		const PauseMenu::Action action = pauseMenu_->Update();
 		if (isTransitionIdle && action == PauseMenu::Action::ContinueGame)
@@ -691,93 +632,31 @@ void GamePlayScene::Update(const float& deltaTime)
 		return;
 	}
 
-	// StageEntry完了後はゲームオーバーシーケンスを開始できる。
-	if (scenePhase_ == ScenePhase::Play &&
-		!IsStageClearSequenceActive() && player_->GetIsDead())
+	if (scenePhase_ == ScenePhase::Play && !activeSequence_ &&
+		player_->GetIsDead())
 	{
 		StartGameOverSequence();
-	}
-
-	if (!IsStageEntryComplete())
-	{
-		UpdateEntrySequence(deltaTime);
-		return;
+		policy = GetCurrentPolicy();
 	}
 
 	WorldTransform::AdvanceFrame();
-
-#ifdef _DEBUG
-
-	// デモウィンドウ表示
-	ImGui::ShowDemoWindow();
-
-	ImGui::Begin("Setting");
-	ImGui::SetWindowSize("Sprite Setting", { 500.0f, 100.0f });
-	Vector2 spritePos = sprites_[0]->GetPosition();
-	if (ImGui::DragFloat2("pos", &spritePos.x, 1.0f, 0.0f, 0.0f, "%05.1f"))
+	if (policy.stageProgression == StageProgression::Frozen)
 	{
-		sprites_[0]->SetPosition(spritePos);
-	}
-	ImGui::Checkbox("DrawSprite", &isDrawSprite_);
-	ImGui::Checkbox("DrawObject3d", &isDrawObject3d_);
-	bool collisionDebugDrawEnabled =
-		debugManager_->IsCollisionDebugDrawEnabled();
-	if (ImGui::Checkbox("Draw Collision", &collisionDebugDrawEnabled))
-	{
-		debugManager_->SetCollisionDebugDrawEnabled(collisionDebugDrawEnabled);
-	}
-	ImGui::End();
-
-	ImGui::Begin("DistanceFogSetting");
-	auto* distanceFog = DistanceFogManager::GetInstance();
-	bool fogEnabled = distanceFog->IsEnabled();
-	float fogStart = distanceFog->GetStartDistance();
-	float fogEnd = distanceFog->GetEndDistance();
-	Vector4 fogColor = distanceFog->GetColor();
-	if (ImGui::Checkbox("EnableDistanceFog", &fogEnabled))
-	{
-		distanceFog->SetEnabled(fogEnabled);
-	}
-	if (ImGui::DragFloat("FogStartDistance", &fogStart, 0.5f, 0.0f))
-	{
-		distanceFog->SetStartDistance(fogStart);
-	}
-	if (ImGui::DragFloat("FogEndDistance", &fogEnd, 0.5f, 0.0f))
-	{
-		distanceFog->SetEndDistance(fogEnd);
-	}
-	if (ImGui::ColorEdit4("FogColor", &fogColor.x))
-	{
-		distanceFog->SetColor(fogColor);
-	}
-	ImGui::End();
-	
-	ImGui::Begin("LightSetting");
-
-	int32_t enableLighting = object3ds_[0]->GetEnableLighting();
-	if (ImGui::Checkbox("EnableLighting", (bool*)&enableLighting))
-	{
-		object3ds_[0]->SetEnableLighting(enableLighting);
+		lightManager_->Update();
+		UpdateActiveSequence(deltaTime);
+		policy = GetCurrentPolicy();
+		if (policy.world == WorldPresentation::GameplayWorld)
+		{
+			caveEnvironment_->SetEntryMode(true);
+			caveEnvironment_->UpdateFog(player_->GetWorldPosition().y);
+			caveEnvironment_->UpdateWorld(deltaTime, true);
+		}
+		player_->Update(deltaTime);
+		particleManager_->Update(deltaTime);
+		return;
 	}
 
-	Vector3 cameraPos = cameraManager_->GetCameraWorldPosition();
-	ImGui::InputFloat3("CameraData", &cameraPos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-
-	ImGui::End();
-
-	ImGui::Begin("CheckFPS");
-
-	// FPS表示
-	ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-
-	ImGui::End();
-
-	if (enemyStageDirector_)
-	{
-		enemyStageDirector_->DrawDebugUI();
-	}
-
-#endif
+	UpdateGameplayDebugUI();
 
 
 
@@ -817,11 +696,7 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 	cameraManager_->Update(deltaTime);
 
-	railCameraController_->SetBattleSpaceParent(
-		cameraManager_->GetActiveCameraController()->GetWorldTransform());
-
-
-
+	railCameraController_->SetBattleSpaceParent(cameraManager_->GetActiveCameraController()->GetWorldTransform());
 
 	for (auto it = sprites_.begin(); it != sprites_.end(); ++it)
 	{
@@ -841,59 +716,47 @@ void GamePlayScene::Update(const float& deltaTime)
 		//emitter->Update(deltaTime);
 	}
 
-	const bool drawEntryField =
-		stageProgressLine_->IsEntryFieldVisible();
+	const bool drawEntryField = stageProgressLine_->IsEntryFieldVisible();
 	caveEnvironment_->UpdateWorld(deltaTime, drawEntryField);
 
-	if (scenePhase_ == ScenePhase::Clear && activeSequence_)
+	policy = GetCurrentPolicy();
+	if (activeSequence_ &&
+		policy.simulation == GameplaySimulation::Frozen)
 	{
-		const SequenceStatus status = activeSequence_->Update(deltaTime);
-		if (status == SequenceStatus::Finished &&
-			SceneManager::GetInstance()->GetSceneTransition().GetState() ==
-			SceneTransition::SceneTransitionState::Idle)
-		{
-			SceneManager::GetInstance()->SetSceneRequest("TITLE");
-		}
+		UpdateActiveSequence(deltaTime);
 	}
 	player_->Update(deltaTime);
-	caveEnvironment_->UpdateWindLines(
-		deltaTime,
-		player_->GetWorldPosition(),
-		stageProgressLine_->GetCurrentSpeed(),
-		stageProgressLine_->IsActive());
+	policy = GetCurrentPolicy();
+	if (activeSequence_ && policy.simulation == GameplaySimulation::Running)
+	{
+		UpdateActiveSequence(deltaTime);
+	}
+	caveEnvironment_->UpdateWindLines(deltaTime, player_->GetWorldPosition(),
+		stageProgressLine_->GetCurrentSpeed(), stageProgressLine_->IsActive());
 	UpdateStageTitle(deltaTime);
 
-	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_0))
+	policy = GetCurrentPolicy();
+	if (policy.playerControl == PlayerControl::Gameplay && inputManager_->TriggerKey(DIK_0))
 	{
 		slashEmitter_->EmitSlash();
 	}
 
-	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_1))
+	if (policy.playerControl == PlayerControl::Gameplay && inputManager_->TriggerKey(DIK_1))
 	{
 		ringEmitter_->Emit();
 	}
 
-	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_2))
+	if (policy.playerControl == PlayerControl::Gameplay && inputManager_->TriggerKey(DIK_2))
 	{
 		cylinderEmitter_->Emit();
 	}
 
-	if (!IsStageClearSequenceActive())
+	if (policy.simulation == GameplaySimulation::Running)
 	{
 		UpdateGameplaySystems(deltaTime);
 	}
 	// 敵の移動と衝突によるエフェクト生成後に、最新の親行列で更新する。
 	particleManager_->Update(deltaTime);
-	if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
-	{
-		const SequenceStatus status = activeSequence_->Update(deltaTime);
-		if (status == SequenceStatus::Finished &&
-			SceneManager::GetInstance()->GetSceneTransition().GetState() ==
-			SceneTransition::SceneTransitionState::Idle)
-		{
-			SceneManager::GetInstance()->SetSceneRequest("TITLE");
-		}
-	}
 
 }
 
@@ -945,16 +808,6 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	sceneUI_->SyncSnapshot(BuildGameUIFrameSnapshot());
 	sceneUI_->Update(deltaTime);
 
-	if (SceneManager::GetInstance()->GetSceneTransition().GetState() !=
-		SceneTransition::SceneTransitionState::Idle)
-	{
-		return;
-	}
-
-	if (player_->GetIsDead())
-	{
-		StartGameOverSequence();
-	}
 }
 
 GameUIFrameSnapshot GamePlayScene::BuildGameUIFrameSnapshot() const
@@ -1014,10 +867,9 @@ void GamePlayScene::StartGameOverSequence()
 		*SceneManager::GetInstance()->GetPostEffectController(),
 	};
 
-	activeSequence_ =
-		std::make_unique<GameOverSequence>(dependencies);
-	activeSequence_->Start();
-	scenePhase_ = ScenePhase::GameOver;
+	StartSequence(
+		std::make_unique<GameOverSequence>(dependencies),
+		ScenePhase::GameOver);
 }
 
 void GamePlayScene::UpdateGameplayDebugUI()
@@ -1090,7 +942,7 @@ void GamePlayScene::UpdateGameplayDebugUI()
 
 void GamePlayScene::FinishFadeIn()
 {
-	if (scenePhase_ == ScenePhase::Entry && activeSequence_)
+	if (activeSequence_)
 	{
 		activeSequence_->OnFadeInFinished();
 	}
@@ -1098,98 +950,55 @@ void GamePlayScene::FinishFadeIn()
 
 void GamePlayScene::Draw(CanvasId canvasId)
 {
+	const SequencePolicy policy = GetCurrentPolicy();
+
 	if (canvasId == BuiltinCanvas::UI)
 	{
-		if (scenePhase_ == ScenePhase::Clear && activeSequence_)
-		{
-			if (activeSequence_->GetPolicy().hud == HudVisibility::Visible)
-			{
-				sceneUI_->DrawLayer(UILayer::Screen);
-			}
-			activeSequence_->DrawUI();
-			return;
-		}
-
-		if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
-		{
-			activeSequence_->DrawUI();
-			return;
-		}
-
-		if (scenePhase_ == ScenePhase::Entry && activeSequence_)
-		{
-			activeSequence_->DrawUI();
-			return;
-		}
-
-		// 画面固定UIはポストエフェクト適用後に合成する。
-		// HPゲージと操作説明をWorld Canvasへ描くと、ステージクリア時の
-		// ラジアルブラーに巻き込まれるため、UI Canvasへ分離する。
-		if (IsStageEntryComplete())
+		if (policy.hud == HudVisibility::Visible)
 		{
 			sceneUI_->DrawLayer(UILayer::Screen);
 		}
+		if (activeSequence_)
+		{
+			activeSequence_->DrawUI();
+		}
 		return;
 	}
 
-	if (scenePhase_ == ScenePhase::Entry && activeSequence_)
+	if (policy.world == WorldPresentation::GameplayWorld)
 	{
-		const SequencePolicy policy = activeSequence_->GetPolicy();
-		if (policy.world == WorldPresentation::GameplayWorld)
-		{
-			caveEnvironment_->Draw(true);
-		}
+		const bool drawEntryField =
+			policy.stageProgression == StageProgression::Frozen ||
+			stageProgressLine_->IsEntryFieldVisible();
+		caveEnvironment_->Draw(drawEntryField, isDrawObject3d_);
+	}
 
+	if (activeSequence_)
+	{
 		activeSequence_->DrawWorld();
-		if (policy.playerVisibility == PlayerVisibility::Visible)
-		{
-			player_->Draw();
-		}
-		if (policy.gameplayActors == GameplayActorVisibility::Visible)
-		{
-			enemyManager_->Draw();
-			BulletManager::GetInstance()->Draw();
-		}
-
-		particleManager_->Draw();
-		activeSequence_->DrawOverlay();
-		return;
 	}
 
-	const bool drawEntryField =
-		stageProgressLine_->IsEntryFieldVisible();
-	caveEnvironment_->Draw(drawEntryField, isDrawObject3d_);
-
-	if (isDrawObject3d_)
+	const bool drawSequencePlayer =
+		policy.world == WorldPresentation::EntryRoom;
+	if (policy.playerVisibility == PlayerVisibility::Visible &&
+		(isDrawObject3d_ || drawSequencePlayer))
 	{
-		/*for (size_t i = 0; i < object3ds_.size(); i++)
-		{
-			object3ds_[i]->Draw();
-		}*/
-
 		player_->Draw();
-		/*enemy_->Draw();*/
+	}
+	if (policy.gameplayActors == GameplayActorVisibility::Visible &&
+		isDrawObject3d_)
+	{
 		enemyManager_->Draw();
 		BulletManager::GetInstance()->Draw();
 	}
 
-	
-	
-
-
 	particleManager_->Draw();
-	if (scenePhase_ == ScenePhase::Clear && activeSequence_)
+	if (activeSequence_)
 	{
-		activeSequence_->DrawWorld();
-		activeSequence_->DrawOverlay();
-	}
-	if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
-	{
-		activeSequence_->DrawWorld();
 		activeSequence_->DrawOverlay();
 	}
 
-	if (isDrawSprite_)
+	if (policy.stageProgression == StageProgression::Running && isDrawSprite_)
 	{
 		for (size_t i = 0; i < sprites_.size(); i++)
 		{
@@ -1197,26 +1006,44 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		}
 	}
 
-	cameraManager_->DrawDebugUI();
+	if (policy.stageProgression == StageProgression::Running)
+	{
+		cameraManager_->DrawDebugUI();
+	}
 
 #ifdef _DEBUG
-	debugManager_->DrawAll(cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
+	if (policy.stageProgression == StageProgression::Running)
+	{
+		debugManager_->DrawAll(
+			cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
+	}
 #endif
 
-	if (inputManager_->TriggerKey(DIK_0))
+	if (policy.stageProgression == StageProgression::Running &&
+		inputManager_->TriggerKey(DIK_0))
 	{
 		soundManager_->SoundPlayWave("Alarm01.wav");
 	}
-	if (inputManager_->TriggerKey(DIK_1))
+	if (policy.stageProgression == StageProgression::Running &&
+		inputManager_->TriggerKey(DIK_1))
 	{
 		soundManager_->SoundPlayWave("test.mp3");
 
 	}
 
-	sceneUI_->DrawLayer(UILayer::World);
-	sceneUI_->DrawLayer(UILayer::Overlay);
-	DrawStageTitle();
+	if (policy.hud == HudVisibility::Visible)
+	{
+		sceneUI_->DrawLayer(UILayer::World);
+		sceneUI_->DrawLayer(UILayer::Overlay);
+	}
+	if (!activeSequence_)
+	{
+		DrawStageTitle();
+	}
 
-	pauseMenu_->Draw();
+	if (policy.pauseEnabled || isPaused_)
+	{
+		pauseMenu_->Draw();
+	}
 }
 

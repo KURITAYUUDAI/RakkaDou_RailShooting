@@ -161,6 +161,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClCompile Include="application\scene\gameSequence\GameClearSequence.cpp" />
 	<ClCompile Include="application\scene\gameSequence\GameOverSequence.cpp" />
     <ClCompile Include="application\scene\gameSequence\StageEntrySequence.cpp" />
+    <ClCompile Include="application\scene\titleSequence\TitleEntranceSequence.cpp" />
+    <ClCompile Include="application\scene\titleSequence\TitleSequence.cpp" />
     <ClCompile Include="Dict_Engine\3d\Particle\ComputeParticle.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimationPlayer.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp" />
@@ -536,6 +538,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
 	<ClInclude Include="application\scene\gameSequence\GameOverSequence.h" />
 	<ClInclude Include="application\scene\gameSequence\SequencePolicy.h" />
     <ClInclude Include="application\scene\gameSequence\StageEntrySequence.h" />
+    <ClInclude Include="application\scene\titleSequence\TitleEntranceSequence.h" />
+    <ClInclude Include="application\scene\titleSequence\TitleSequence.h" />
     <ClInclude Include="Dict_Engine\3d\Particle\ComputeParticle.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />

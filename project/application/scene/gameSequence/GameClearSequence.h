@@ -13,7 +13,6 @@ class Text;
 struct GameClearDependencies
 {
 	Player& player;
-	ParticleEmitter& shockwaveEmitter;
 	PostEffectController& postEffects;
 };
 
@@ -38,6 +37,7 @@ public:
 
 	void Start() override;
 	SequenceStatus Update(float deltaTime) override;
+	SequenceCompletionAction GetCompletionAction() const override;
 	SequencePolicy GetPolicy() const override;
 
 	void DrawWorld() override;
@@ -54,6 +54,7 @@ private:
 		Complete,
 	};
 
+	void InitializeAssets();
 	void StartDive();
 	void StartBlur();
 	void UpdateBlur(float progress);
@@ -68,5 +69,6 @@ private:
 	Vector3 playerStartPosition_{};
 	Vector3 diveStartPosition_{};
 	std::unique_ptr<Text> clearText_;
+	std::unique_ptr<ParticleEmitter> shockwaveEmitter_;
 	PostEffectHandle blurHandle_ = kInvalidPostEffectHandle;
 };
