@@ -480,6 +480,16 @@ void Terrain::BuildContinuousCaveModel()
 
 	for (size_t segmentIndex = 0; segmentIndex < segmentCount; ++segmentIndex)
 	{
+		const float segmentStartDistance = caveStartDistance +
+			static_cast<float>(segmentIndex) * segmentSpan;
+		const float segmentEndDistance = segmentStartDistance + segmentSpan;
+		const float segmentCenterDistance =
+			(segmentStartDistance + segmentEndDistance) * 0.5f;
+		if (!caveRailPath_->IsUnderground(segmentCenterDistance))
+		{
+			continue;
+		}
+
 		for (const std::array<uint32_t, 3>& triangle : sideTriangles)
 		{
 			for (uint32_t sourceVertexIndex : triangle)
@@ -562,6 +572,12 @@ void Terrain::UpdateGameplayCave(
 		});
 	for (size_t i = 0; i < crystalObjects_.size(); ++i)
 	{
+		while (placement != crystalPlacements_.end() &&
+			!caveRailPath_->IsUnderground(placement->distance))
+		{
+			++placement;
+		}
+
 		if (placement == crystalPlacements_.end() ||
 			placement->distance > gameplayCaveViewerDistance_ + forwardCoverage)
 		{

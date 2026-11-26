@@ -53,9 +53,16 @@ private:
 		OpeningDoor,
 		Diving,
 		WhiteOut,
-		Skydiving,
-		Connecting,
+		LookDown,
 		Complete,
+	};
+
+	enum class GameplayState
+	{
+		Inactive,
+		Skydiving,
+		CaveEntering,
+		Playing,
 	};
 
 	enum class StageClearState
@@ -70,13 +77,16 @@ private:
 
 	void InitializeStageEntry();
 	void UpdateStageEntry(const float& deltaTime);
-	void BeginStageEntrySkydiving();
-	void BeginStageEntryRailConnection();
-	void ActivateStageEntryGameplay();
-	void UpdateStageEntryFallSpeed(float deltaTime);
-	void UpdateStageEntrySkydivingCamera();
-	void UpdateStageEntryCaveFog();
-	void UpdateStageEntryWindLines(float deltaTime);
+	void BeginStageEntryLookDown();
+	void UpdateGameplayState(float deltaTime);
+	void BeginSkydivingGameplay();
+	void BeginCaveEntering();
+	void BeginNormalGameplay();
+	void ActivateGameplay();
+	void UpdateSkydivingSpeed(float deltaTime);
+	void UpdateLookDownCamera();
+	void UpdateCaveFog();
+	void UpdateGameplayWindLines(float deltaTime);
 	void UpdateCaveFogEndPlane();
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
@@ -84,10 +94,10 @@ private:
 	void StartStageClearSequence();
 	void UpdateStageClearSequence(float deltaTime);
 	void DrawStageClearText();
-	void CompleteStageEntry();
 	void UpdateStageEntryObjects();
 	void DrawStageEntryDarkSpace();
 	void DrawStageEntryField();
+	void DrawGameplayEntryField();
 	void StartStageEntryBlur();
 	void UpdateStageEntryBlur(float progress, float maxWidth = 0.02f);
 	void StopStageEntryBlur();
@@ -180,9 +190,8 @@ private:
 
 	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
 	float stageEntryTimer_ = 0.0f;
-	bool isStageEntryFieldVisible_ = false;
-	bool isStageEntryRailActive_ = false;
-	bool isStageEntryPlayerControlEnabled_ = false;
+	GameplayState gameplayState_ = GameplayState::Inactive;
+	float gameplayStateTimer_ = 0.0f;
 	bool isEnemyStageInitialized_ = false;
 	float stageEntryDoorProgress_ = 0.0f;
 
@@ -191,46 +200,45 @@ private:
 	std::unique_ptr<Object3d> stageEntryLeftDoor_ = nullptr;
 	std::unique_ptr<Object3d> stageEntryRightDoor_ = nullptr;
 	std::array<std::unique_ptr<Object3d>, 3> stageEntryDoorFrames_;
-	std::unique_ptr<Object3d> stageEntryFieldEntrance_ = nullptr;
-	std::unique_ptr<Object3d> stageEntryFieldGround_ = nullptr;
+	std::unique_ptr<Object3d> gameplayEntryFieldEntrance_ = nullptr;
+	std::unique_ptr<Object3d> gameplayEntryFieldGround_ = nullptr;
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Sprite> stageEntryWhiteSprite_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
 	std::unique_ptr<Text> stageClearText_ = nullptr;
 	std::unique_ptr<Text> gameOverText_ = nullptr;
-	Vector3 stageEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
-	Vector3 stageEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
-	Vector3 stageEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
-	Vector3 stageEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 gameplayEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
+	Vector3 gameplayEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
+	Vector3 gameplayEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
+	Vector3 gameplayEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 stageEntryDoorPosition_ = { 0.0f, 3.2f, 8.0f };
 	Vector3 stageEntryPlayerStartPosition_ = { 0.0f, -1.7f, -7.0f };
 	Vector3 stageEntryPlayerDoorPosition_ = { 0.0f, 0.0f, 1.5f };
 	Vector3 stageEntryPlayerDiveEndPosition_ = { 0.0f, 0.0f, 10.5f };
-	Vector3 stageEntryPlayerRailPosition_ = { 0.0f, -1.7f, -7.5f };
-	float stageEntrySkydivingStartHeight_ = 500.0f;
-	float stageEntrySkydivingInitialSpeed_ = 20.0f;
-	float stageEntrySkydivingAcceleration_ = 80.0f;
-	float stageEntrySkydivingCurrentSpeed_ = 0.0f;
-	float stageEntryCameraForwardHoldDuration_ = 0.25f;
-	float stageEntryCameraTurnDuration_ = 0.75f;
-	float stageEntryCameraTurnTimer_ = 0.0f;
-	float stageEntryRailConnectHeight_ = -30.0f;
-	float stageEntryCaveFogBaseStart_ = 20.0f;
-	float stageEntryCaveFogBaseEnd_ = 500.0f;
+	Vector3 gameplayPlayerRailPosition_ = { 0.0f, -1.7f, -7.5f };
+	float skydivingStartHeight_ = 500.0f;
+	float skydivingInitialSpeed_ = 20.0f;
+	float skydivingAcceleration_ = 80.0f;
+	float skydivingCurrentSpeed_ = 0.0f;
+	float lookDownCameraForwardHoldDuration_ = 0.25f;
+	float lookDownCameraTurnDuration_ = 0.75f;
+	float lookDownCameraTurnTimer_ = 0.0f;
+	float caveFogBaseStart_ = 20.0f;
+	float caveFogBaseEnd_ = 500.0f;
 	float caveFogEndPlaneScale_ = 50.0f;
 	float caveFogEndPlaneOffset_ = 0.0f;
-	float stageEntryWindLineEmitAccumulator_ = 0.0f;
-	float stageEntryWindLineMinRadius_ = 6.0f;
-	float stageEntryWindLineMaxRadius_ = 32.0f;
-	float stageEntryWindLineMinDepth_ = 30.0f;
-	float stageEntryWindLineMaxDepth_ = 150.0f;
-	float stageEntryWindLineMinLength_ = 3.0f;
-	float stageEntryWindLineMaxLength_ = 22.0f;
-	float stageEntryWindLineMaxEmitRate_ = 48.0f;
-	float stageEntryWindLineAlpha_ = 0.28f;
+	float gameplayWindLineEmitAccumulator_ = 0.0f;
+	float gameplayWindLineMinRadius_ = 6.0f;
+	float gameplayWindLineMaxRadius_ = 32.0f;
+	float gameplayWindLineMinDepth_ = 30.0f;
+	float gameplayWindLineMaxDepth_ = 150.0f;
+	float gameplayWindLineMinLength_ = 3.0f;
+	float gameplayWindLineMaxLength_ = 22.0f;
+	float gameplayWindLineMaxEmitRate_ = 48.0f;
+	float gameplayWindLineAlpha_ = 0.28f;
 	float stageTitleTimer_ = 0.0f;
 	bool isStageTitleTimerActive_ = false;
-	static constexpr const char* kStageEntryWindLineGroup_ =
+	static constexpr const char* kGameplayWindLineGroup_ =
 		"stage_entry_wind_line";
 	static constexpr float kStageTitleDelay_ = 1.0f;
 	static constexpr float kStageTitleDuration_ = 3.0f;
@@ -243,8 +251,8 @@ private:
 	static constexpr float kStageEntryDiveDuration_ = 0.55f;
 	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
 	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
-	static constexpr float kStageEntryConnectDuration_ = 0.35f;
-	static constexpr float kStageEntryNormalRailSpeed_ = 300.0f;
+	static constexpr float kGameplayCaveEnterDuration_ = 0.35f;
+	static constexpr float kNormalRailSpeed_ = 300.0f;
 	
 
 	Vector2 mousePosition_ = { 0.0f, 0.0f };

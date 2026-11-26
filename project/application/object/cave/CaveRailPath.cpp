@@ -226,6 +226,12 @@ Vector3 CaveRailPath::GetPosition(float distance) const
 	return GetFrame(distance).position;
 }
 
+bool CaveRailPath::IsUnderground(float distance) const
+{
+	constexpr float kGroundLevel = 0.0f;
+	return GetPosition(distance).y < kGroundLevel;
+}
+
 RailFrame CaveRailPath::GetFrame(float distance) const
 {
 	distance = std::max(distance, 0.0f);

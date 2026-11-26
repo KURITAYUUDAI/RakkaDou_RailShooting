@@ -89,7 +89,7 @@ void GamePlayScene::Initialize()
 	camera_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	camera_->SetTranslate(
 		stageEntryPlayerStartPosition_ +
-		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
+		CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 	camera_->SetFarClip(600.0f);
 
 	/*debugCamera_ = std::make_unique<DebugCamera>();
@@ -106,7 +106,7 @@ void GamePlayScene::Initialize()
 	defaultCameraController_->Initialize();
 	defaultCameraController_->GetWorldTransform()->SetTranslate(
 		stageEntryPlayerStartPosition_ +
-		CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
+		CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 	defaultCameraController_->GetWorldTransform()->SetRotate({ 0.0f, 0.0f, 0.0f });
 
 	caveRailPath_ = std::make_unique<CaveRailPath>();
@@ -260,12 +260,12 @@ void GamePlayScene::Initialize()
 	PrimitiveManager::GetInstance()->CreateCylinder("cylinder_primitive", cylinderConfig);
 	PrimitiveManager::GetInstance()->CreateBox("stage_entry_box");
 	particleManager_->CreateParticleGroup(
-		kStageEntryWindLineGroup_, "white1x1.png");
-	particleManager_->SetModel(kStageEntryWindLineGroup_, "stage_entry_box");
-	particleManager_->SetIsMoveAccelerationField(kStageEntryWindLineGroup_, false);
-	particleManager_->SetIsBillboard(kStageEntryWindLineGroup_, false);
+		kGameplayWindLineGroup_, "white1x1.png");
+	particleManager_->SetModel(kGameplayWindLineGroup_, "stage_entry_box");
+	particleManager_->SetIsMoveAccelerationField(kGameplayWindLineGroup_, false);
+	particleManager_->SetIsBillboard(kGameplayWindLineGroup_, false);
 	particleManager_->SetBlendMode(
-		kStageEntryWindLineGroup_, PSOManager::BlendMode::Normal);
+		kGameplayWindLineGroup_, PSOManager::BlendMode::Normal);
 
 	particleManager_->CreateParticleGroup("cylinder", "uvChecker.png");
 	particleManager_->SetModel("cylinder", "cylinder_primitive");
@@ -292,7 +292,7 @@ void GamePlayScene::Initialize()
 
 	terrain_ = std::make_unique<Terrain>();
 	terrain_->Initialize(Terrain::Mode::GameplayCave, caveRailPath_.get());
-	terrain_->SetCaveSpeed(kStageEntryNormalRailSpeed_);
+	terrain_->SetCaveSpeed(kNormalRailSpeed_);
 
 	player_ = std::make_unique<Player>();
 	player_->Initialize(Player::Mode::StageEntry);
@@ -455,19 +455,19 @@ void GamePlayScene::InitializeStageEntry()
 		{ 9.2f, 0.6f, 0.6f }, { 0.0f, 5.3f, 7.9f },
 		{ 0.12f, 0.14f, 0.2f, 1.0f });
 
-	stageEntryFieldEntrance_ = std::make_unique<Object3d>();
-	stageEntryFieldEntrance_->Initialize();
-	stageEntryFieldEntrance_->SetModel("FieldEntrance.obj");
-	stageEntryFieldEntrance_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	stageEntryFieldEntrance_->SetScale(stageEntryFieldEntranceScale_);
-	stageEntryFieldEntrance_->SetTranslate(stageEntryFieldEntrancePosition_);
+	gameplayEntryFieldEntrance_ = std::make_unique<Object3d>();
+	gameplayEntryFieldEntrance_->Initialize();
+	gameplayEntryFieldEntrance_->SetModel("FieldEntrance.obj");
+	gameplayEntryFieldEntrance_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	gameplayEntryFieldEntrance_->SetScale(gameplayEntryFieldEntranceScale_);
+	gameplayEntryFieldEntrance_->SetTranslate(gameplayEntryFieldEntrancePosition_);
 
-	stageEntryFieldGround_ = std::make_unique<Object3d>();
-	stageEntryFieldGround_->Initialize();
-	stageEntryFieldGround_->SetModel("FieldGround.obj");
-	stageEntryFieldGround_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	stageEntryFieldGround_->SetScale(stageEntryFieldGroundScale_);
-	stageEntryFieldGround_->SetTranslate(stageEntryFieldGroundPosition_);
+	gameplayEntryFieldGround_ = std::make_unique<Object3d>();
+	gameplayEntryFieldGround_->Initialize();
+	gameplayEntryFieldGround_->SetModel("FieldGround.obj");
+	gameplayEntryFieldGround_->SetRotate({ 0.0f, 0.0f, 0.0f });
+	gameplayEntryFieldGround_->SetScale(gameplayEntryFieldGroundScale_);
+	gameplayEntryFieldGround_->SetTranslate(gameplayEntryFieldGroundPosition_);
 
 	// Skyboxには距離フォグを適用しないため、視線の先をフォグ色の面で塞ぐ。
 	// 姿勢と大きさは毎フレーム、カメラと視錐台に合わせて更新する。
@@ -516,9 +516,8 @@ void GamePlayScene::InitializeStageEntry()
 
 	stageEntryDoorProgress_ = 0.0f;
 	stageEntryTimer_ = 0.0f;
-	isStageEntryFieldVisible_ = false;
-	isStageEntryRailActive_ = false;
-	isStageEntryPlayerControlEnabled_ = false;
+	gameplayState_ = GameplayState::Inactive;
+	gameplayStateTimer_ = 0.0f;
 	isEnemyStageInitialized_ = false;
 	stageTitleTimer_ = 0.0f;
 	isStageTitleTimerActive_ = false;
@@ -539,7 +538,7 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 	ImGui::Text("Timer: %.3f", stageEntryTimer_);
 	const char* stageEntryStateNames[] = {
 		"WaitingForFadeIn", "BlackHold", "Approaching", "OpeningDoor",
-		"Diving", "WhiteOut", "Skydiving", "Connecting", "Complete"
+		"Diving", "WhiteOut", "LookDown", "Complete"
 	};
 	const int stageEntryStateIndex = static_cast<int>(stageEntryState_);
 	ImGui::Text("Sequence: %s", stageEntryStateNames[stageEntryStateIndex]);
@@ -559,64 +558,63 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 	ImGui::DragFloat3(
 		"Diving End / WhiteOut", &stageEntryPlayerDiveEndPosition_.x, 0.1f);
 	if (ImGui::DragFloat3(
-		"Skydiving / Rail Local", &stageEntryPlayerRailPosition_.x, 0.1f))
+		"Skydiving / Rail Local", &gameplayPlayerRailPosition_.x, 0.1f))
 	{
-		if (stageEntryState_ == StageEntryState::Skydiving ||
-			stageEntryState_ == StageEntryState::Connecting)
+		if (stageEntryState_ == StageEntryState::LookDown ||
+			gameplayState_ == GameplayState::Skydiving ||
+			gameplayState_ == GameplayState::CaveEntering)
 		{
-			player_->SetTranslate(stageEntryPlayerRailPosition_);
+			player_->SetTranslate(gameplayPlayerRailPosition_);
 		}
 	}
 	ImGui::Separator();
 	ImGui::DragFloat3(
-		"EntranceScale", &stageEntryFieldEntranceScale_.x, 0.01f, 0.01f, 10.0f);
+		"EntranceScale", &gameplayEntryFieldEntranceScale_.x, 0.01f, 0.01f, 10.0f);
 	ImGui::DragFloat3(
-		"EntrancePosition", &stageEntryFieldEntrancePosition_.x, 0.1f);
+		"EntrancePosition", &gameplayEntryFieldEntrancePosition_.x, 0.1f);
 	ImGui::DragFloat3(
-		"GroundScale", &stageEntryFieldGroundScale_.x, 0.01f, 0.01f, 10.0f);
+		"GroundScale", &gameplayEntryFieldGroundScale_.x, 0.01f, 0.01f, 10.0f);
 	ImGui::DragFloat3(
-		"GroundPosition", &stageEntryFieldGroundPosition_.x, 0.1f);
+		"GroundPosition", &gameplayEntryFieldGroundPosition_.x, 0.1f);
 	ImGui::DragFloat3(
 		"Door Position", &stageEntryDoorPosition_.x, 0.1f);
 	ImGui::Separator();
 	ImGui::DragFloat(
-		"SkydivingStartHeight", &stageEntrySkydivingStartHeight_, 1.0f, 100.0f, 3000.0f);
+		"SkydivingStartHeight", &skydivingStartHeight_, 1.0f, 100.0f, 3000.0f);
 	ImGui::DragFloat(
-		"SkydivingInitialSpeed", &stageEntrySkydivingInitialSpeed_, 0.5f, 0.0f,
-		kStageEntryNormalRailSpeed_);
+		"SkydivingInitialSpeed", &skydivingInitialSpeed_, 0.5f, 0.0f,
+		kNormalRailSpeed_);
 	ImGui::DragFloat(
-		"SkydivingAcceleration", &stageEntrySkydivingAcceleration_, 0.5f, 0.0f, 300.0f);
+		"SkydivingAcceleration", &skydivingAcceleration_, 0.5f, 0.0f, 300.0f);
 	ImGui::Text("CurrentFallSpeed: %.2f / %.2f",
-		stageEntrySkydivingCurrentSpeed_, kStageEntryNormalRailSpeed_);
+		skydivingCurrentSpeed_, kNormalRailSpeed_);
 	ImGui::SeparatorText("Wind Lines");
 	ImGui::DragFloat(
-		"WindMinRadius", &stageEntryWindLineMinRadius_, 0.1f, 0.0f, 100.0f);
+		"WindMinRadius", &gameplayWindLineMinRadius_, 0.1f, 0.0f, 100.0f);
 	ImGui::DragFloat(
-		"WindMaxRadius", &stageEntryWindLineMaxRadius_, 0.1f, 0.0f, 100.0f);
+		"WindMaxRadius", &gameplayWindLineMaxRadius_, 0.1f, 0.0f, 100.0f);
 	ImGui::DragFloat(
-		"WindMinDepth", &stageEntryWindLineMinDepth_, 0.5f, 0.0f, 500.0f);
+		"WindMinDepth", &gameplayWindLineMinDepth_, 0.5f, 0.0f, 500.0f);
 	ImGui::DragFloat(
-		"WindMaxDepth", &stageEntryWindLineMaxDepth_, 0.5f, 0.0f, 500.0f);
+		"WindMaxDepth", &gameplayWindLineMaxDepth_, 0.5f, 0.0f, 500.0f);
 	ImGui::DragFloat(
-		"WindMinLength", &stageEntryWindLineMinLength_, 0.1f, 0.1f, 50.0f);
+		"WindMinLength", &gameplayWindLineMinLength_, 0.1f, 0.1f, 50.0f);
 	ImGui::DragFloat(
-		"WindMaxLength", &stageEntryWindLineMaxLength_, 0.1f, 0.1f, 100.0f);
+		"WindMaxLength", &gameplayWindLineMaxLength_, 0.1f, 0.1f, 100.0f);
 	ImGui::DragFloat(
-		"WindEmitRate", &stageEntryWindLineMaxEmitRate_, 0.5f, 0.0f, 120.0f);
+		"WindEmitRate", &gameplayWindLineMaxEmitRate_, 0.5f, 0.0f, 120.0f);
 	ImGui::DragFloat(
-		"WindAlpha", &stageEntryWindLineAlpha_, 0.01f, 0.0f, 1.0f);
+		"WindAlpha", &gameplayWindLineAlpha_, 0.01f, 0.0f, 1.0f);
 	ImGui::DragFloat(
-		"CameraForwardHold", &stageEntryCameraForwardHoldDuration_, 0.01f, 0.0f, 3.0f);
+		"CameraForwardHold", &lookDownCameraForwardHoldDuration_, 0.01f, 0.0f, 3.0f);
 	ImGui::DragFloat(
-		"CameraTurnDuration", &stageEntryCameraTurnDuration_, 0.01f, 0.01f, 5.0f);
-	ImGui::DragFloat(
-		"RailConnectHeight", &stageEntryRailConnectHeight_, 0.5f, -300.0f, 0.0f);
+		"CameraTurnDuration", &lookDownCameraTurnDuration_, 0.01f, 0.01f, 5.0f);
 	ImGui::DragFloat(
 		"EnemySpawnDelay", &enemyStageSpawnDelay_, 0.1f, 0.0f, 30.0f);
 	ImGui::DragFloat(
-		"CaveFogBaseStart", &stageEntryCaveFogBaseStart_, 0.5f, 0.0f, 1000.0f);
+		"CaveFogBaseStart", &caveFogBaseStart_, 0.5f, 0.0f, 1000.0f);
 	ImGui::DragFloat(
-		"CaveFogBaseEnd", &stageEntryCaveFogBaseEnd_, 0.5f, 0.0f, 1000.0f);
+		"CaveFogBaseEnd", &caveFogBaseEnd_, 0.5f, 0.0f, 1000.0f);
 	ImGui::Text("CaveFog: %.1f -> %.1f",
 		DistanceFogManager::GetInstance()->GetStartDistance(),
 		DistanceFogManager::GetInstance()->GetEndDistance());
@@ -653,7 +651,7 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 		player_->SetTitleOpacity(std::clamp(progress / 0.35f, 0.0f, 1.0f));
 		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			playerPosition +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
+			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 
 		if (progress >= 1.0f)
 		{
@@ -668,7 +666,7 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 		player_->SetTranslate(stageEntryPlayerDoorPosition_);
 		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			stageEntryPlayerDoorPosition_ +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
+			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 		stageEntryTimer_ += deltaTime;
 		const float progress = std::clamp(
 			stageEntryTimer_ / kStageEntryDoorOpenDuration_, 0.0f, 1.0f);
@@ -693,7 +691,7 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 		player_->SetTranslate(playerPosition);
 		defaultCameraController_->GetWorldTransform()->SetTranslate(
 			playerPosition +
-			CalculateGameplayCameraForwardOffset(stageEntryPlayerRailPosition_));
+			CalculateGameplayCameraForwardOffset(gameplayPlayerRailPosition_));
 		UpdateStageEntryBlur(easedProgress);
 
 		if (progress >= 1.0f)
@@ -714,63 +712,39 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 		stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, SmoothStep01(progress) });
 		if (progress >= 1.0f)
 		{
-			BeginStageEntrySkydiving();
+			BeginStageEntryLookDown();
 		}
 		break;
 	}
 
-	case StageEntryState::Skydiving:
+	case StageEntryState::LookDown:
 	{
 		stageEntryTimer_ += deltaTime;
-		stageEntryCameraTurnTimer_ += deltaTime;
-		const float gameplayStartTime =
-			stageEntryCameraForwardHoldDuration_ + stageEntryCameraTurnDuration_;
-		if (!isStageEntryPlayerControlEnabled_ &&
-			stageEntryCameraTurnTimer_ >= gameplayStartTime)
-		{
-			ActivateStageEntryGameplay();
-		}
-		UpdateStageEntryFallSpeed(deltaTime);
-		const Vector3 playerPosition = player_->GetWorldPosition();
-		UpdateStageEntryCaveFog();
+		lookDownCameraTurnTimer_ += deltaTime;
+		UpdateCaveFog();
 
 		const float whiteProgress = std::clamp(
 			stageEntryTimer_ / kStageEntryWhiteFadeDuration_, 0.0f, 1.0f);
 		stageEntryWhiteSprite_->SetColor(
 			{ 1.0f, 1.0f, 1.0f, 1.0f - SmoothStep01(whiteProgress) });
-
-		if (playerPosition.y <= stageEntryRailConnectHeight_)
-		{
-			BeginStageEntryRailConnection();
-		}
 		break;
 	}
-
-	case StageEntryState::Connecting:
-		UpdateStageEntryFallSpeed(deltaTime);
-		stageEntryTimer_ += deltaTime;
-		if (stageEntryTimer_ >= kStageEntryConnectDuration_)
-		{
-			CompleteStageEntry();
-		}
-		break;
 
 	case StageEntryState::Complete:
 		return;
 	}
 
 	cameraManager_->Update(deltaTime);
-	if (isStageEntryRailActive_)
+	if (stageEntryState_ == StageEntryState::LookDown)
 	{
 		railCameraController_->SetBattleSpaceParent(
 			railCameraController_->GetWorldTransform());
-	}
-	if (isStageEntryFieldVisible_)
-	{
-		if (stageEntryState_ == StageEntryState::Skydiving &&
-			!isStageEntryPlayerControlEnabled_)
+		UpdateLookDownCamera();
+		const float lookDownDuration =
+			lookDownCameraForwardHoldDuration_ + lookDownCameraTurnDuration_;
+		if (lookDownCameraTurnTimer_ >= lookDownDuration)
 		{
-			UpdateStageEntrySkydivingCamera();
+			BeginSkydivingGameplay();
 		}
 		skyBox_->Update();
 		terrain_->Update(
@@ -784,93 +758,131 @@ void GamePlayScene::UpdateStageEntry(const float& deltaTime)
 
 	UpdateStageEntryObjects();
 	player_->Update(deltaTime);
-	if (isStageEntryPlayerControlEnabled_)
+	if (IsStageEntryComplete())
 	{
 		UpdateGameplayDebugUI();
 		UpdateGameplaySystems(deltaTime);
 	}
-	UpdateStageEntryWindLines(deltaTime);
+	UpdateGameplayWindLines(deltaTime);
 	UpdateStageTitle(deltaTime);
 	particleManager_->Update(deltaTime);
 	stageEntryWhiteSprite_->Update();
 }
 
-void GamePlayScene::BeginStageEntrySkydiving()
+void GamePlayScene::BeginStageEntryLookDown()
 {
 	StopStageEntryBlur();
-	isStageEntryFieldVisible_ = true;
-	isStageEntryRailActive_ = false;
 	stageEntryTimer_ = 0.0f;
-	stageEntryCameraTurnTimer_ = 0.0f;
-	stageEntryState_ = StageEntryState::Skydiving;
-	stageEntrySkydivingCurrentSpeed_ = stageEntrySkydivingInitialSpeed_;
-	if (stageEntrySkydivingCurrentSpeed_ < 0.0f)
+	lookDownCameraTurnTimer_ = 0.0f;
+	stageEntryState_ = StageEntryState::LookDown;
+	skydivingCurrentSpeed_ = skydivingInitialSpeed_;
+	if (skydivingCurrentSpeed_ < 0.0f)
 	{
-		stageEntrySkydivingCurrentSpeed_ = 0.0f;
+		skydivingCurrentSpeed_ = 0.0f;
 	}
-	else if (stageEntrySkydivingCurrentSpeed_ > kStageEntryNormalRailSpeed_)
+	else if (skydivingCurrentSpeed_ > kNormalRailSpeed_)
 	{
-		stageEntrySkydivingCurrentSpeed_ = kStageEntryNormalRailSpeed_;
+		skydivingCurrentSpeed_ = kNormalRailSpeed_;
 	}
 
 	railCameraController_->SetMovementEnabled(false);
-	railCameraController_->SetVerticalStartHeight(stageEntrySkydivingStartHeight_);
-	railCameraController_->SetMoveSpeed(stageEntrySkydivingCurrentSpeed_);
+	railCameraController_->SetVerticalStartHeight(skydivingStartHeight_);
+	railCameraController_->SetMoveSpeed(skydivingCurrentSpeed_);
 	cameraManager_->SetActiveCameraController("Rail");
 	railCameraController_->SetBattleSpaceParent(
 		railCameraController_->GetWorldTransform());
 
-	player_->SetTranslate(stageEntryPlayerRailPosition_);
+	player_->SetTranslate(gameplayPlayerRailPosition_);
 	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	player_->SetParent(railCameraController_->GetBattleWorldTransform());
 
 	const float heightCorrection =
-		stageEntrySkydivingStartHeight_ - player_->GetWorldPosition().y;
+		skydivingStartHeight_ - player_->GetWorldPosition().y;
 	railCameraController_->SetVerticalStartHeight(
-		stageEntrySkydivingStartHeight_ + heightCorrection);
+		skydivingStartHeight_ + heightCorrection);
 	railCameraController_->SetBattleSpaceParent(
 		railCameraController_->GetWorldTransform());
 	player_->SetParent(railCameraController_->GetBattleWorldTransform());
-	railCameraController_->SetMovementEnabled(true);
-	isStageEntryRailActive_ = true;
-
 	terrain_->SetGameplayCaveEntryMode(true);
 	DistanceFogManager::GetInstance()->SetEnabled(true);
-	UpdateStageEntryCaveFog();
-	UpdateStageEntrySkydivingCamera();
+	UpdateCaveFog();
+	UpdateLookDownCamera();
 }
 
-void GamePlayScene::BeginStageEntryRailConnection()
+void GamePlayScene::BeginSkydivingGameplay()
 {
-	UpdateStageEntryCaveFog();
+	stageEntryTimer_ = 0.0f;
+	stageEntryState_ = StageEntryState::Complete;
+	gameplayStateTimer_ = 0.0f;
+	gameplayState_ = GameplayState::Skydiving;
+	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
+	railCameraController_->SetMovementEnabled(true);
+	stageTitleTimer_ = 0.0f;
+	isStageTitleTimerActive_ = true;
+	ActivateGameplay();
+}
+
+void GamePlayScene::UpdateGameplayState(float deltaTime)
+{
+	switch (gameplayState_)
+	{
+	case GameplayState::Inactive:
+		break;
+
+	case GameplayState::Skydiving:
+		UpdateSkydivingSpeed(deltaTime);
+		UpdateCaveFog();
+		if (caveRailPath_->IsUnderground(
+			railCameraController_->GetCurrentDistance()))
+		{
+			BeginCaveEntering();
+		}
+		break;
+
+	case GameplayState::CaveEntering:
+		UpdateSkydivingSpeed(deltaTime);
+		UpdateCaveFog();
+		gameplayStateTimer_ += deltaTime;
+		if (gameplayStateTimer_ >= kGameplayCaveEnterDuration_)
+		{
+			BeginNormalGameplay();
+		}
+		break;
+
+	case GameplayState::Playing:
+		break;
+	}
+}
+
+void GamePlayScene::BeginCaveEntering()
+{
+	UpdateCaveFog();
 	terrain_->SetGameplayCaveEntryMode(false);
 
 	DistanceFogManager::GetInstance()->SetEnabled(true);
-	isStageEntryRailActive_ = true;
-	stageTitleTimer_ = 0.0f;
-	isStageTitleTimerActive_ = true;
-	stageEntryTimer_ = 0.0f;
-	stageEntryState_ = StageEntryState::Connecting;
+	gameplayStateTimer_ = 0.0f;
+	gameplayState_ = GameplayState::CaveEntering;
 }
 
-void GamePlayScene::UpdateStageEntryFallSpeed(float deltaTime)
+void GamePlayScene::BeginNormalGameplay()
 {
-	stageEntrySkydivingCurrentSpeed_ +=
-		stageEntrySkydivingAcceleration_ * deltaTime;
-	stageEntrySkydivingCurrentSpeed_ = std::clamp(
-		stageEntrySkydivingCurrentSpeed_, 0.0f, kStageEntryNormalRailSpeed_);
-	railCameraController_->SetMoveSpeed(stageEntrySkydivingCurrentSpeed_);
+	gameplayStateTimer_ = 0.0f;
+	gameplayState_ = GameplayState::Playing;
+	skydivingCurrentSpeed_ = kNormalRailSpeed_;
+	railCameraController_->SetMoveSpeed(kNormalRailSpeed_);
 }
 
-void GamePlayScene::ActivateStageEntryGameplay()
+void GamePlayScene::UpdateSkydivingSpeed(float deltaTime)
 {
-	if (isStageEntryPlayerControlEnabled_)
-	{
-		return;
-	}
+	skydivingCurrentSpeed_ += skydivingAcceleration_ * deltaTime;
+	skydivingCurrentSpeed_ = std::clamp(
+		skydivingCurrentSpeed_, 0.0f, kNormalRailSpeed_);
+	railCameraController_->SetMoveSpeed(skydivingCurrentSpeed_);
+}
 
+void GamePlayScene::ActivateGameplay()
+{
 	player_->FinishStageEntry();
-	isStageEntryPlayerControlEnabled_ = true;
 	if (!isEnemyStageInitialized_)
 	{
 		InitializeEnemyStage();
@@ -879,15 +891,15 @@ void GamePlayScene::ActivateStageEntryGameplay()
 	eventBus_->Dispatch();
 }
 
-void GamePlayScene::UpdateStageEntrySkydivingCamera()
+void GamePlayScene::UpdateLookDownCamera()
 {
 	const Vector3 gameplayAnchor = TransformPosition(
-		stageEntryPlayerRailPosition_,
+		gameplayPlayerRailPosition_,
 		railCameraController_->GetBattleWorldTransform()->GetWorldMatrix());
 	const float turnDuration =
-		stageEntryCameraTurnDuration_ > 0.001f ? stageEntryCameraTurnDuration_ : 0.001f;
+		lookDownCameraTurnDuration_ > 0.001f ? lookDownCameraTurnDuration_ : 0.001f;
 	const float turnProgress = std::clamp(
-		(stageEntryCameraTurnTimer_ - stageEntryCameraForwardHoldDuration_) / turnDuration,
+		(lookDownCameraTurnTimer_ - lookDownCameraForwardHoldDuration_) / turnDuration,
 		0.0f, 1.0f);
 	const float easedProgress = SmoothStep01(turnProgress);
 	const Quaternion railRotation =
@@ -909,16 +921,16 @@ void GamePlayScene::UpdateStageEntrySkydivingCamera()
 	cameraManager_->SetCameraWorldPosition(cameraPosition);
 }
 
-void GamePlayScene::UpdateStageEntryCaveFog()
+void GamePlayScene::UpdateCaveFog()
 {
 	// FogStartは落下中からRailまで基準値20で固定する。
 	// FogEndだけ入口までの落下距離を加算し、入口通過後は260へ固定する。
 	const float playerHeight = player_->GetWorldPosition().y;
 	const float playerHeightAboveEntrance =
 		playerHeight > 0.0f ? playerHeight : 0.0f;
-	const float fogStartDistance = stageEntryCaveFogBaseStart_;
+	const float fogStartDistance = caveFogBaseStart_;
 	const float fogEndDistance =
-		stageEntryCaveFogBaseEnd_ + playerHeightAboveEntrance;
+		caveFogBaseEnd_ + playerHeightAboveEntrance;
 
 	auto* distanceFog = DistanceFogManager::GetInstance();
 	distanceFog->SetStartDistance(fogStartDistance);
@@ -927,43 +939,41 @@ void GamePlayScene::UpdateStageEntryCaveFog()
 	cameraManager_->GetMainCamera()->SetFarClip(fogEndDistance + 100.0f);
 }
 
-void GamePlayScene::UpdateStageEntryWindLines(float deltaTime)
+void GamePlayScene::UpdateGameplayWindLines(float deltaTime)
 {
 	const bool isWindActive =
-		stageEntryState_ == StageEntryState::Skydiving ||
-		stageEntryState_ == StageEntryState::Connecting ||
-		stageEntryState_ == StageEntryState::Complete;
+		gameplayState_ != GameplayState::Inactive;
 	if (!isWindActive)
 	{
-		stageEntryWindLineEmitAccumulator_ = 0.0f;
+		gameplayWindLineEmitAccumulator_ = 0.0f;
 		return;
 	}
 
 	const bool isOnRail =
-		stageEntryState_ == StageEntryState::Connecting ||
-		stageEntryState_ == StageEntryState::Complete;
+		gameplayState_ == GameplayState::CaveEntering ||
+		gameplayState_ == GameplayState::Playing;
 	const float fallSpeed = isOnRail
 		? railCameraController_->GetMoveSpeed()
-		: stageEntrySkydivingCurrentSpeed_;
+		: skydivingCurrentSpeed_;
 	const float speedRatio = std::clamp(
-		fallSpeed / kStageEntryNormalRailSpeed_,
+		fallSpeed / kNormalRailSpeed_,
 		0.0f, 1.0f);
-	const float emitRate = stageEntryWindLineMaxEmitRate_ *
+	const float emitRate = gameplayWindLineMaxEmitRate_ *
 		(0.15f + 0.85f * speedRatio);
-	stageEntryWindLineEmitAccumulator_ += emitRate * deltaTime;
+	gameplayWindLineEmitAccumulator_ += emitRate * deltaTime;
 
 	auto* random = SeedManager::GetInstance();
-	const float minRadius = (std::max)(0.0f, stageEntryWindLineMinRadius_);
-	const float maxRadius = (std::max)(minRadius, stageEntryWindLineMaxRadius_);
-	const float minDepth = (std::max)(0.0f, stageEntryWindLineMinDepth_);
-	const float maxDepth = (std::max)(minDepth, stageEntryWindLineMaxDepth_);
-	const float minLength = (std::max)(0.1f, stageEntryWindLineMinLength_);
-	const float maxLength = (std::max)(minLength, stageEntryWindLineMaxLength_);
-	const float alpha = std::clamp(stageEntryWindLineAlpha_, 0.0f, 1.0f);
+	const float minRadius = (std::max)(0.0f, gameplayWindLineMinRadius_);
+	const float maxRadius = (std::max)(minRadius, gameplayWindLineMaxRadius_);
+	const float minDepth = (std::max)(0.0f, gameplayWindLineMinDepth_);
+	const float maxDepth = (std::max)(minDepth, gameplayWindLineMaxDepth_);
+	const float minLength = (std::max)(0.1f, gameplayWindLineMinLength_);
+	const float maxLength = (std::max)(minLength, gameplayWindLineMaxLength_);
+	const float alpha = std::clamp(gameplayWindLineAlpha_, 0.0f, 1.0f);
 
-	while (stageEntryWindLineEmitAccumulator_ >= 1.0f)
+	while (gameplayWindLineEmitAccumulator_ >= 1.0f)
 	{
-		stageEntryWindLineEmitAccumulator_ -= 1.0f;
+		gameplayWindLineEmitAccumulator_ -= 1.0f;
 
 		const float angle = random->GenerateFloat(0.0f, 2.0f * pi);
 		const float radius = random->GenerateFloat(minRadius, maxRadius);
@@ -987,7 +997,7 @@ void GamePlayScene::UpdateStageEntryWindLines(float deltaTime)
 			20.0f + fallSpeed * 0.25f;
 		const float lifeTime = random->GenerateFloat(0.35f, 0.70f);
 		particleManager_->EmitParticle(
-			kStageEntryWindLineGroup_, transform,
+			kGameplayWindLineGroup_, transform,
 			{ 0.0f, upwardSpeed, 0.0f },
 			{ 0.72f, 0.88f, 1.0f, alpha }, lifeTime);
 	}
@@ -1092,11 +1102,11 @@ void GamePlayScene::UpdateStageClearSequence(float deltaTime)
 		const float duration = std::max(kStageClearRepositionDuration_, 0.001f);
 		const float progress = std::clamp(stageClearTimer_ / duration, 0.0f, 1.0f);
 		player_->SetTranslate(LerpVector3(
-			stageClearPlayerStartPosition_, stageEntryPlayerRailPosition_,
+			stageClearPlayerStartPosition_, gameplayPlayerRailPosition_,
 			SmoothStep01(progress)));
 		if (progress >= 1.0f)
 		{
-			player_->SetTranslate(stageEntryPlayerRailPosition_);
+			player_->SetTranslate(gameplayPlayerRailPosition_);
 			stageClearTimer_ = 0.0f;
 			stageClearState_ = StageClearState::DisplayingText;
 		}
@@ -1164,19 +1174,6 @@ void GamePlayScene::DrawStageClearText()
 	stageClearText_->Draw();
 }
 
-void GamePlayScene::CompleteStageEntry()
-{
-	stageEntryWhiteSprite_->SetColor({ 1.0f, 1.0f, 1.0f, 0.0f });
-	isStageEntryFieldVisible_ = false;
-	if (!isStageEntryPlayerControlEnabled_)
-	{
-		ActivateStageEntryGameplay();
-	}
-
-	stageEntryTimer_ = 0.0f;
-	stageEntryState_ = StageEntryState::Complete;
-}
-
 void GamePlayScene::UpdateStageEntryObjects()
 {
 	constexpr float doorHalfWidth = 2.0f;
@@ -1225,14 +1222,14 @@ void GamePlayScene::UpdateStageEntryObjects()
 		frame->Update();
 	}
 
-	if (isStageEntryFieldVisible_)
+	if (stageEntryState_ == StageEntryState::LookDown)
 	{
-		stageEntryFieldEntrance_->SetScale(stageEntryFieldEntranceScale_);
-		stageEntryFieldEntrance_->SetTranslate(stageEntryFieldEntrancePosition_);
-		stageEntryFieldGround_->SetScale(stageEntryFieldGroundScale_);
-		stageEntryFieldGround_->SetTranslate(stageEntryFieldGroundPosition_);
-		stageEntryFieldEntrance_->Update();
-		stageEntryFieldGround_->Update();
+		gameplayEntryFieldEntrance_->SetScale(gameplayEntryFieldEntranceScale_);
+		gameplayEntryFieldEntrance_->SetTranslate(gameplayEntryFieldEntrancePosition_);
+		gameplayEntryFieldGround_->SetScale(gameplayEntryFieldGroundScale_);
+		gameplayEntryFieldGround_->SetTranslate(gameplayEntryFieldGroundPosition_);
+		gameplayEntryFieldEntrance_->Update();
+		gameplayEntryFieldGround_->Update();
 	}
 }
 
@@ -1371,8 +1368,8 @@ void GamePlayScene::Finalize()
 	{
 		frame.reset();
 	}
-	stageEntryFieldEntrance_.reset();
-	stageEntryFieldGround_.reset();
+	gameplayEntryFieldEntrance_.reset();
+	gameplayEntryFieldGround_.reset();
 	caveFogEndPlane_.reset();
 	stageEntryWhiteSprite_.reset();
 
@@ -1430,8 +1427,7 @@ void GamePlayScene::Update(const float& deltaTime)
 		railCameraController_->SetTravelledDistance(bossPhaseDistance);
 	}
 
-	const bool isGameplayActive =
-		IsStageEntryComplete() || isStageEntryPlayerControlEnabled_;
+	const bool isGameplayActive = IsStageEntryComplete();
 	if (isGameplayActive && !IsStageClearSequenceActive() && isTransitionIdle &&
 		inputMapping_->IsTriggered(InputAction::Pause))
 	{
@@ -1457,8 +1453,7 @@ void GamePlayScene::Update(const float& deltaTime)
 		return;
 	}
 
-	// PlayerがGameplayになった後は、StageEntryの早期returnより前に
-	// ゲームオーバーシーケンスを開始する。
+	// StageEntry完了後はゲームオーバーシーケンスを開始できる。
 	if (isGameplayActive && !IsStageClearSequenceActive() && player_->GetIsDead() &&
 		!isGameOverSequenceActive_)
 	{
@@ -1633,7 +1628,15 @@ void GamePlayScene::Update(const float& deltaTime)
 		cameraManager_->SetActiveCamera("Default");
 	}
 
+	UpdateGameplayState(deltaTime);
 	cameraManager_->Update(deltaTime);
+
+	if (gameplayState_ == GameplayState::Skydiving || gameplayState_ == GameplayState::CaveEntering)
+	{
+		gameplayEntryFieldEntrance_->Update();
+		gameplayEntryFieldGround_->Update();
+	}
+
 	railCameraController_->SetBattleSpaceParent(
 		cameraManager_->GetActiveCameraController()->GetWorldTransform());
 
@@ -1673,7 +1676,7 @@ void GamePlayScene::Update(const float& deltaTime)
 		UpdateStageClearSequence(deltaTime);
 	}
 	player_->Update(deltaTime);
-	UpdateStageEntryWindLines(deltaTime);
+	UpdateGameplayWindLines(deltaTime);
 	UpdateStageTitle(deltaTime);
 
 	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_0))
@@ -2220,7 +2223,7 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		// 画面固定UIはポストエフェクト適用後に合成する。
 		// HPゲージと操作説明をWorld Canvasへ描くと、ステージクリア時の
 		// ラジアルブラーに巻き込まれるため、UI Canvasへ分離する。
-		if (IsStageEntryComplete() || isStageEntryPlayerControlEnabled_)
+		if (IsStageEntryComplete())
 		{
 			sceneUI_->DrawLayer(UILayer::Screen);
 		}
@@ -2231,7 +2234,7 @@ void GamePlayScene::Draw(CanvasId canvasId)
 
 	if (!IsStageEntryComplete())
 	{
-		if (isStageEntryFieldVisible_)
+		if (stageEntryState_ == StageEntryState::LookDown)
 		{
 			DrawStageEntryField();
 		}
@@ -2240,25 +2243,10 @@ void GamePlayScene::Draw(CanvasId canvasId)
 			DrawStageEntryDarkSpace();
 		}
 		particleManager_->Draw();
-		if (isStageEntryPlayerControlEnabled_)
-		{
-			cameraManager_->DrawDebugUI();
-#ifdef _DEBUG
-			debugManager_->DrawAll(
-				cameraManager_->GetMainCamera()->GetViewProjectionMatrix());
-#endif
-			sceneUI_->DrawLayer(UILayer::World);
-			sceneUI_->DrawLayer(UILayer::Overlay);
-			DrawStageTitle();
-		}
 
 		if (stageEntryWhiteSprite_ && stageEntryWhiteSprite_->GetColor().w > 0.0f)
 		{
 			stageEntryWhiteSprite_->Draw();
-		}
-		if (isStageEntryPlayerControlEnabled_)
-		{
-			pauseMenu_->Draw();
 		}
 		return;
 	}
@@ -2274,6 +2262,11 @@ void GamePlayScene::Draw(CanvasId canvasId)
 
 		caveFogEndPlane_->Draw();
 		terrain_->Draw();
+		if (gameplayState_ == GameplayState::Skydiving ||
+			gameplayState_ == GameplayState::CaveEntering)
+		{
+			DrawGameplayEntryField();
+		}
 		player_->Draw();
 		/*enemy_->Draw();*/
 		enemyManager_->Draw();
@@ -2365,12 +2358,12 @@ void GamePlayScene::DrawStageEntryField()
 	skyBox_->Draw();
 	caveFogEndPlane_->Draw();
 	terrain_->Draw();
-	stageEntryFieldGround_->Draw();
-	stageEntryFieldEntrance_->Draw();
+	DrawGameplayEntryField();
 	player_->Draw();
-	if (isStageEntryPlayerControlEnabled_)
-	{
-		enemyManager_->Draw();
-		BulletManager::GetInstance()->Draw();
-	}
+}
+
+void GamePlayScene::DrawGameplayEntryField()
+{
+	gameplayEntryFieldGround_->Draw();
+	gameplayEntryFieldEntrance_->Draw();
 }

@@ -64,6 +64,7 @@ public:
 
 	Vector3 GetPosition(float distance) const;
 	RailFrame GetFrame(float distance) const;
+	bool IsUnderground(float distance) const;
 	float GetTotalEntryLength() const { return entryTable_.length; }
 	float GetRepeatLength() const { return repeatTable_.length; }
 	const CaveStageSettings& GetSettings() const { return settings_; }
