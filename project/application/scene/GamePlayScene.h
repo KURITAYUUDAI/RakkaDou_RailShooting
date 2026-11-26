@@ -87,7 +87,6 @@ private:
 	void UpdateCaveFogEndPlane();
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
-	void DrawGameOverText();
 	void StartStageClearSequence();
 	void UpdateStageClearSequence(float deltaTime);
 	void DrawStageClearText();
@@ -109,7 +108,6 @@ private:
 	void UpdateGameplaySystems(const float& deltaTime);
 	GameUIFrameSnapshot BuildGameUIFrameSnapshot() const;
 	void StartGameOverSequence();
-	void UpdateGameOverSequence(float deltaTime);
 	void UpdateEnemyStage(const float& deltaTime);
 	void SpawnSmallEnemy(
 		const SmallEnemySpawnConfig& spawnConfig, size_t spawnIndex);
@@ -192,7 +190,6 @@ private:
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
 	std::unique_ptr<Text> stageClearText_ = nullptr;
-	std::unique_ptr<Text> gameOverText_ = nullptr;
 	Vector3 gameplayEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 gameplayEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 gameplayEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
@@ -286,27 +283,7 @@ private:
 	static constexpr float kStageClearDiveDistance_ = 500.0f;
 	static constexpr float kStageClearTransitionDelay_ = 0.5f;
 	static constexpr float kStageClearBlurMaxWidth_ = 0.015f;
-	bool isGameOverSequenceActive_ = false;
-	bool isGameOverFalling_ = false;
-	bool isGameOverCameraReleased_ = false;
-	static constexpr float kGameOverFallDecelerationDuration_ = 3.0f;
-	static constexpr float kGameOverFallEndSpeedRate_ = 0.15f;
-	Vector3 gameOverCameraBaseOffset_ = { 1.0f, 1.0f, 0.0f };
-	float gameOverCameraZoomDistance_ = 6.0f;
-
 	PostEffectHandle bloomHandle_;
 	PostEffectHandle glayscaleHandle_;
-	PostEffectHandle gameOverVignetteHandle_ = kInvalidPostEffectHandle;
-	float gameOverVignetteThreshold_ = 0.32f;
-	float gameOverVignetteSoftness_ = 0.32f;
-	float gameOverVignetteIntensity_ = 0.85f;
-	PostEffectHandle gameOverHSVHandle_ = kInvalidPostEffectHandle;
-	float gameOverHueShift_ = 0.0f;
-	float gameOverSaturation_ = 0.15f;
-	float gameOverValue_ = 0.9f;
-	float gameOverHSVFadeDuration_ = kGameOverFallDecelerationDuration_;
-	bool isGameOverTextVisible_ = false;
-	float gameOverTextTimer_ = 0.0f;
-	float gameOverTextDuration_ = 2.0f;
 };
 

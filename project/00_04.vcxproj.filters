@@ -435,6 +435,9 @@
     <ClCompile Include="application\scene\gameSequence\GamePlaySequence.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+	<ClCompile Include="application\scene\gameSequence\GameOverSequence.cpp">
+	  <Filter>ソース ファイル</Filter>
+	</ClCompile>
     <ClCompile Include="application\scene\gameSequence\StageEntrySequence.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -875,6 +878,9 @@
     <ClInclude Include="application\scene\gameSequence\GamePlaySequence.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+	<ClInclude Include="application\scene\gameSequence\GameOverSequence.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
 	<ClInclude Include="application\scene\gameSequence\SequencePolicy.h">
 	  <Filter>ヘッダー ファイル</Filter>
 	</ClInclude>

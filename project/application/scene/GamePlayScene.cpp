@@ -14,14 +14,13 @@
 #include "BulletManager.h"
 #include "SplineCurve.h"
 #include "HPGageUI.h"
-#include "Vignette.h"
-#include "HSVAdjust.h"
 #include "Darken.h"
 #include "DistanceFogManager.h"
 #include "freetype/FreeTypeManager.h"
 #include "FontManager.h"
 #include "TextManager.h"
 #include "Enemy/EnemyEvent.h"
+#include "gameSequence/GameOverSequence.h"
 #include "gameSequence/StageEntrySequence.h"
 
 #include <algorithm>
@@ -321,13 +320,6 @@ void GamePlayScene::Initialize()
 		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} },
 		1, 0.2f);
 
-	//PostEffectManager::GetInstance()->Add("Outline");
-	//PostEffectManager::GetInstance()->Add("GaussianBlur");
-	//PostEffectManager::GetInstance()->Add("RadialBlur");
-	//PostEffectManager::GetInstance()->Add("Bloom");
-	/*PostEffectManager::GetInstance()->Add("Dissolve");*/
-	/*PostEffectManager::GetInstance()->Add("Random");*/
-
 	bloomHandle_ = SceneManager::GetInstance()->GetPostEffectController()->Emit<Bloom>("Bloom", std::nullopt, nullptr);
 	//glayscaleHandle_ = SceneManager::GetInstance()->GetPostEffectController()->Emit<Grayscale>("Grayscale", std::nullopt, nullptr);
 
@@ -543,14 +535,6 @@ void GamePlayScene::InitializeGameplayPresentation()
 	stageClearText_->SetPosition({ 640.0f, 240.0f });
 	stageClearText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 	stageClearText_->Update();
-
-	gameOverText_ = std::make_unique<Text>();
-	gameOverText_->Initialize(
-		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"GAME OVER");
-	gameOverText_->SetAnchorPoint({ 0.5f, 0.5f });
-	gameOverText_->SetPosition({ 640.0f, 240.0f });
-	gameOverText_->SetColor({ 1.0f, 0.0f, 0.0f, 1.0f });
-	gameOverText_->Update();
 
 	player_->SetScale({ 1.0f, 1.0f, 1.0f });
 	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
@@ -784,16 +768,6 @@ void GamePlayScene::DrawStageTitle()
 	stageTitleText_->Draw();
 }
 
-void GamePlayScene::DrawGameOverText()
-{
-	if (!isGameOverTextVisible_ || !gameOverText_)
-	{
-		return;
-	}
-
-	gameOverText_->Draw();
-}
-
 void GamePlayScene::StartStageClearSequence()
 {
 	if (IsStageClearSequenceActive() || player_->GetIsDead())
@@ -951,22 +925,6 @@ void GamePlayScene::Finalize()
 	activeSequence_.reset();
 	eventSubscriber_.Finalize();
 
-	if (isGameOverSequenceActive_)
-	{
-		railCameraController_->SetOffset(gameOverCameraBaseOffset_);
-	}
-	if (gameOverHSVHandle_.IsValid())
-	{
-		SceneManager::GetInstance()->GetPostEffectController()->Cancel(
-			gameOverHSVHandle_);
-		gameOverHSVHandle_ = kInvalidPostEffectHandle;
-	}
-	if (gameOverVignetteHandle_.IsValid())
-	{
-		SceneManager::GetInstance()->GetPostEffectController()->Cancel(
-			gameOverVignetteHandle_);
-		gameOverVignetteHandle_ = kInvalidPostEffectHandle;
-	}
 	StopStageEntryBlur();
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
 	DistanceFogManager::GetInstance()->SetEnabled(false);
@@ -991,11 +949,6 @@ void GamePlayScene::Finalize()
 		stageClearText_->Finalize();
 		stageClearText_.reset();
 	}
-	if (gameOverText_)
-	{
-		gameOverText_->Finalize();
-		gameOverText_.reset();
-	}
 	FontManager::GetInstance()->Finalize();
 	TextManager::GetInstance()->Finalize();
 	FreeTypeManager::GetInstance()->Finalize();
@@ -1006,14 +959,6 @@ void GamePlayScene::Finalize()
 	
 	debugManager_->Finalize();
 
-	//PostEffectManager::GetInstance()->Clear();
-
-	/*for (auto it = emitters_.begin(); it != emitters_.end(); ++it)
-	{
-		std::unique_ptr<ParticleEmitter> emitter = std::move(*it);
-		emitter.reset();
-
-	}*/
 	emitters_.clear();
 
 	particleManager_->Reset();
@@ -1085,7 +1030,8 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 
 	const bool isGameplayActive = IsStageEntryComplete();
-	if (isGameplayActive && !IsStageClearSequenceActive() && isTransitionIdle &&
+	if (scenePhase_ == ScenePhase::Play &&
+		!IsStageClearSequenceActive() && isTransitionIdle &&
 		inputMapping_->IsTriggered(InputAction::Pause))
 	{
 		isPaused_ = !isPaused_;
@@ -1111,8 +1057,8 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 
 	// StageEntry完了後はゲームオーバーシーケンスを開始できる。
-	if (isGameplayActive && !IsStageClearSequenceActive() && player_->GetIsDead() &&
-		!isGameOverSequenceActive_)
+	if (scenePhase_ == ScenePhase::Play &&
+		!IsStageClearSequenceActive() && player_->GetIsDead())
 	{
 		StartGameOverSequence();
 	}
@@ -1170,60 +1116,6 @@ void GamePlayScene::Update(const float& deltaTime)
 		distanceFog->SetColor(fogColor);
 	}
 	ImGui::End();
-
-
-	/*ImGui::Begin("GaussianBlur");
-	auto* blur = PostEffectManager::GetInstance()->Get<GaussianBlur>("GaussianBlur");
-	float sigma = blur->GetSigma();
-	int kernelRadius = blur->GetKernelRadius();
-	if (ImGui::SliderFloat("Sigma", &sigma, 0.1f, 20.0f))
-	{
-		blur->SetSigma(sigma);
-	}
-	if (ImGui::SliderInt("KernelRadius", &kernelRadius, 1, 64))
-	{
-		blur->SetKernelRadius(kernelRadius);
-	}
-
-	ImGui::End();*/
-
-	/*ImGui::Begin("RadialBlur");
-	auto* blur = PostEffectManager::GetInstance()->Get<RadialBlur>("RadialBlur");
-	Vector2 center = blur->GetCenter();
-	float blurWidth = blur->GetBlurWidth();
-	if (ImGui::SliderFloat2("center", &center.x, 0.0f, 1.0f))
-	{
-		blur->SetCenter(center);
-	}
-	if (ImGui::SliderFloat("BlurWidth", &blurWidth, 0.0f, 0.01f))
-	{
-		blur->SetBlurWidth(blurWidth);
-	}
-
-	ImGui::End();*/
-
-	/*ImGui::Begin("Dissolve");
-	auto* dissolve = PostEffectManager::GetInstance()->Get<Dissolve>("Dissolve");
-	Vector4 edgeColor = dissolve->GetEdgeColor();
-	float threshold = dissolve->GetThreshold();
-	if (ImGui::ColorEdit4("##colorSprite", &edgeColor.x))
-	{
-		dissolve->SetEdgeColor(edgeColor);
-	}
-	if (ImGui::SliderFloat("threshold", &threshold, 0.0f, 1.0f))
-	{
-		dissolve->SetThreshold(threshold);
-	}
-
-	ImGui::End();*/
-
-	//auto* random = PostEffectManager::GetInstance()->Get<Random>("Random");
-	//random->SetTime()
-
-	//ImGui_ImplDX12_NewFrame();
-	//ImGui_ImplWin32_NewFrame();
-	//ImGui::NewFrame();
-
 	
 	ImGui::Begin("LightSetting");
 
@@ -1351,9 +1243,15 @@ void GamePlayScene::Update(const float& deltaTime)
 	}
 	// 敵の移動と衝突によるエフェクト生成後に、最新の親行列で更新する。
 	particleManager_->Update(deltaTime);
-	if (!IsStageClearSequenceActive() && isGameOverSequenceActive_)
+	if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
 	{
-		UpdateGameOverSequence(deltaTime);
+		const SequenceStatus status = activeSequence_->Update(deltaTime);
+		if (status == SequenceStatus::Finished &&
+			SceneManager::GetInstance()->GetSceneTransition().GetState() ==
+			SceneTransition::SceneTransitionState::Idle)
+		{
+			SceneManager::GetInstance()->SetSceneRequest("TITLE");
+		}
 	}
 
 }
@@ -1460,156 +1358,25 @@ GameUIFrameSnapshot GamePlayScene::BuildGameUIFrameSnapshot() const
 
 void GamePlayScene::StartGameOverSequence()
 {
-	if (isGameOverSequenceActive_)
+	if (scenePhase_ == ScenePhase::GameOver)
 	{
 		return;
 	}
 
-	isGameOverSequenceActive_ = true;
-	isGameOverFalling_ = false;
-	isGameOverCameraReleased_ = false;
 	isPaused_ = false;
 	pauseMenu_->SetVisible(false);
 	inputMapping_->SetContext(InputContext::Gameplay);
-	player_->StartGameOverSequence();
-	gameOverCameraBaseOffset_ = railCameraController_->GetOffset();
-	isGameOverTextVisible_ = false;
-	gameOverTextTimer_ = 0.0f;
 
-	gameOverVignetteHandle_ =
-		SceneManager::GetInstance()->GetPostEffectController()->Emit<Vignette>(
-			"Vignette", std::nullopt,
-			[this](Vignette& vignette, float, float elapsedTime)
-			{
-				const float fadeIn = std::clamp(elapsedTime / 0.5f, 0.0f, 1.0f);
-				vignette.SetThreshold(gameOverVignetteThreshold_);
-				vignette.SetSoftness(gameOverVignetteSoftness_);
-				vignette.SetIntensity(gameOverVignetteIntensity_ * fadeIn);
-				vignette.SetDarkColor({ 0.0f, 0.0f, 0.0f, 1.0f });
-			});
-}
-
-void GamePlayScene::UpdateGameOverSequence(float deltaTime)
-{
-#ifdef _DEBUG
-	ImGui::Begin("Game Over Vignette");
-	ImGui::SliderFloat(
-		"Threshold", &gameOverVignetteThreshold_, 0.0f, 0.7f);
-	ImGui::SliderFloat(
-		"Softness", &gameOverVignetteSoftness_, 0.01f, 0.7f);
-	ImGui::SliderFloat(
-		"Intensity", &gameOverVignetteIntensity_, 0.0f, 1.0f);
-	ImGui::End();
-
-	ImGui::Begin("Game Over HSV");
-	ImGui::SliderFloat(
-		"Hue Shift", &gameOverHueShift_, -0.5f, 0.5f);
-	ImGui::SliderFloat(
-		"Saturation", &gameOverSaturation_, 0.0f, 2.0f);
-	ImGui::SliderFloat(
-		"Value", &gameOverValue_, 0.0f, 2.0f);
-	ImGui::SliderFloat(
-		"Fade Duration", &gameOverHSVFadeDuration_, 0.1f, 10.0f);
-	ImGui::End();
-
-	ImGui::Begin("Game Over Text");
-	ImGui::SliderFloat(
-		"Display Duration", &gameOverTextDuration_, 0.1f, 10.0f);
-	ImGui::End();
-
-	ImGui::Begin("Game Over Camera");
-	ImGui::SliderFloat(
-		"Zoom Distance", &gameOverCameraZoomDistance_, 0.0f, 15.0f);
-	ImGui::Text(
-		"Recoil Angle: %.1f deg",
-		player_->GetGameOverRecoilAngle() * 180.0f / pi);
-	ImGui::End();
-
-#endif
-
-	const float recoilAngle = player_->GetGameOverRecoilAngle();
-	const float impactEnd = player_->GetGameOverImpactAngle();
-	const float cameraReleaseAngle =
-		player_->GetGameOverCameraReleaseAngle();
-	const auto hasReachedAngle = [](float current, float target)
-	{
-		return target >= 0.0f ? current >= target : current <= target;
+	GameOverDependencies dependencies{
+		*player_,
+		*railCameraController_,
+		*SceneManager::GetInstance()->GetPostEffectController(),
 	};
 
-	if (!isGameOverCameraReleased_)
-	{
-		float zoomRate = 1.0f;
-		if (!hasReachedAngle(recoilAngle, impactEnd) &&
-			std::abs(impactEnd) > 0.0001f)
-		{
-			zoomRate = SmoothStep01(std::clamp(
-				recoilAngle / impactEnd, 0.0f, 1.0f));
-		}
-
-		Vector3 offset = gameOverCameraBaseOffset_;
-		offset.z += gameOverCameraZoomDistance_ * zoomRate;
-		railCameraController_->SetOffset(offset);
-	}
-
-	if (hasReachedAngle(recoilAngle, cameraReleaseAngle) &&
-		!isGameOverCameraReleased_)
-	{
-		isGameOverCameraReleased_ = true;
-		railCameraController_->SetMovementEnabled(true);
-		railCameraController_->StartCameraCoast(
-			kGameOverFallDecelerationDuration_,
-			kGameOverFallEndSpeedRate_);
-
-		gameOverHSVHandle_ =
-			SceneManager::GetInstance()->GetPostEffectController()->Emit<HSVAdjust>(
-				"HSVAdjust", std::nullopt,
-				[this](HSVAdjust& hsv, float, float elapsedTime)
-				{
-					const float fadeDuration =
-						std::max(gameOverHSVFadeDuration_, 0.0001f);
-					const float fade = std::clamp(
-						elapsedTime / fadeDuration, 0.0f, 1.0f);
-					hsv.SetHueShift(gameOverHueShift_ * fade);
-					hsv.SetSaturation(
-						std::lerp(1.0f, gameOverSaturation_, fade));
-					hsv.SetValue(std::lerp(1.0f, gameOverValue_, fade));
-					hsv.SetIntensity(1.0f);
-				});
-	}
-
-	if (player_->IsGameOverFalling() && !isGameOverFalling_)
-	{
-		isGameOverFalling_ = true;
-	}
-
-	if (!player_->GetIsRemove())
-	{
-		return;
-	}
-
-	if (!isGameOverTextVisible_)
-	{
-		isGameOverTextVisible_ = true;
-		gameOverTextTimer_ = 0.0f;
-		if (gameOverText_)
-		{
-			gameOverText_->Update();
-		}
-		return;
-	}
-
-	gameOverTextTimer_ += deltaTime;
-	if (gameOverText_)
-	{
-		gameOverText_->Update();
-	}
-
-	if (gameOverTextTimer_ >= gameOverTextDuration_ &&
-		SceneManager::GetInstance()->GetSceneTransition().GetState() ==
-		SceneTransition::SceneTransitionState::Idle)
-	{
-		SceneManager::GetInstance()->SetSceneRequest("TITLE");
-	}
+	activeSequence_ =
+		std::make_unique<GameOverSequence>(dependencies);
+	activeSequence_->Start();
+	scenePhase_ = ScenePhase::GameOver;
 }
 
 void GamePlayScene::UpdateGameplayDebugUI()
@@ -1870,6 +1637,12 @@ void GamePlayScene::Draw(CanvasId canvasId)
 {
 	if (canvasId == BuiltinCanvas::UI)
 	{
+		if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
+		{
+			activeSequence_->DrawUI();
+			return;
+		}
+
 		if (scenePhase_ == ScenePhase::Entry && activeSequence_)
 		{
 			activeSequence_->DrawUI();
@@ -1884,7 +1657,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 			sceneUI_->DrawLayer(UILayer::Screen);
 		}
 		DrawStageClearText();
-		DrawGameOverText();
 		return;
 	}
 
@@ -1942,30 +1714,11 @@ void GamePlayScene::Draw(CanvasId canvasId)
 
 
 	particleManager_->Draw();
-
-	/*for (size_t i = 0; i < particle3ds.size(); i++)
+	if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
 	{
-		particle3ds[i]->Draw();
-	}*/
-
-	//// SphereのIndexBufferViewを設定
-	//commandList->IASetIndexBuffer(&indexBufferView);
-	// 
-	//// Sphereの描画
-	//dxBase->GetCommandList()->IASetVertexBuffers(0, 1, &vertexBufferViewSphere);	// VBVを設定
-	//// SphereのIndexBufferViewを設定
-	//dxBase->GetCommandList()->IASetIndexBuffer(&indexBufferViewSphere);
-	//// SphereのマテリアルのCBufferの場所を設定
-	//dxBase->GetCommandList()->SetGraphicsRootConstantBufferView(0, materialResourceSphere->GetGPUVirtualAddress());
-	//// SphereのTransformationMatrixCBufferの場所を設定
-	//dxBase->GetCommandList()->SetGraphicsRootConstantBufferView(1, transformationResourceSphere->GetGPUVirtualAddress());
-	//// SRV用のDescriptorTableの先頭を設定。2はrootParameter[2]である。
-	//dxBase->GetCommandList()->SetGraphicsRootDescriptorTable(2, textureSrvHandles[0]);	// SphereはCheckerを使う
-	//// 平行光源用のCBufferをバインド（rootParameter[3] = b1）
-	//dxBase->GetCommandList()->SetGraphicsRootConstantBufferView(3, DirectionalLightResource->GetGPUVirtualAddress());
-	//// 描画！（DrawCall/ドローコール）。
-	//dxBase->GetCommandList()->DrawIndexedInstanced(kSubdivision * kSubdivision * 6, 1, 0, 0, 0);
-
+		activeSequence_->DrawWorld();
+		activeSequence_->DrawOverlay();
+	}
 
 	if (isDrawSprite_)
 	{
