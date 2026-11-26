@@ -69,6 +69,8 @@ namespace
 
 void GamePlayScene::Initialize()
 {
+	scenePhase_ = ScenePhase::Entry;
+	activeSequence_.reset();
 	inputMapping_->SetContext(InputContext::Gameplay);
 
 	camera_ = std::make_unique<Camera>();
@@ -1283,6 +1285,7 @@ void GamePlayScene::StopStageEntryBlur()
 
 void GamePlayScene::Finalize()
 {
+	activeSequence_.reset();
 	eventSubscriber_.Finalize();
 
 	if (isGameOverSequenceActive_)

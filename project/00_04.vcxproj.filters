@@ -432,6 +432,12 @@
     <ClCompile Include="Dict_Engine\3d\Particle\ComputeParticle.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="application\scene\gameSequence\GamePlaySequence.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="application\scene\gameSequence\StageEntrySequence.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="resources\shaders\Object3d\Object3d.PS.hlsl">
@@ -864,6 +870,18 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Dict_Engine\3d\Particle\ComputeParticle.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\scene\gameSequence\GamePlaySequence.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+	<ClInclude Include="application\scene\gameSequence\SequencePolicy.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
+    <ClInclude Include="application\scene\gameSequence\StageEntrySequence.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="application\scene\GameplayConfig.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

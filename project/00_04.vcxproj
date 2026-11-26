@@ -157,6 +157,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="application\scene\gameSequence\GamePlaySequence.cpp" />
+    <ClCompile Include="application\scene\gameSequence\StageEntrySequence.cpp" />
     <ClCompile Include="Dict_Engine\3d\Particle\ComputeParticle.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimationPlayer.cpp" />
     <ClCompile Include="Dict_Engine\3d\Animation\AnimatedObject3d.cpp" />
@@ -523,6 +525,10 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application\command\InputCommand.h" />
+    <ClInclude Include="application\scene\GameplayConfig.h" />
+    <ClInclude Include="application\scene\gameSequence\GamePlaySequence.h" />
+	<ClInclude Include="application\scene\gameSequence\SequencePolicy.h" />
+    <ClInclude Include="application\scene\gameSequence\StageEntrySequence.h" />
     <ClInclude Include="Dict_Engine\3d\Particle\ComputeParticle.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimationPlayer.h" />
     <ClInclude Include="Dict_Engine\3d\Animation\AnimatedObject3d.h" />

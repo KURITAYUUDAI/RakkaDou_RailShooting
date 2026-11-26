@@ -23,6 +23,7 @@
 
 #include "PostEffectController.h"
 #include "application/command/input/InputMapping.h"
+#include "gameSequence/GamePlaySequence.h"
 
 #include <array>
 
@@ -45,6 +46,14 @@ public:
 	void Draw(CanvasId canvasId) override;
 
 private:
+	enum class ScenePhase
+	{
+		Entry,
+		Play,
+		Clear,
+		GameOver,
+	};
+
 	enum class StageEntryState
 	{
 		WaitingForFadeIn,
@@ -190,6 +199,8 @@ private:
 
 	StageEntryState stageEntryState_ = StageEntryState::WaitingForFadeIn;
 	float stageEntryTimer_ = 0.0f;
+	ScenePhase scenePhase_ = ScenePhase::Entry;
+	std::unique_ptr<GamePlaySequence> activeSequence_ = nullptr;
 	GameplayState gameplayState_ = GameplayState::Inactive;
 	float gameplayStateTimer_ = 0.0f;
 	bool isEnemyStageInitialized_ = false;

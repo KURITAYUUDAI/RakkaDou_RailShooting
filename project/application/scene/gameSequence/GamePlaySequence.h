@@ -1,40 +1,27 @@
 #pragma once
-#include "myMath.h"
 
-enum class SequenceResult
+#include "SequencePolicy.h"
+
+enum class SequenceStatus
 {
-    Running,
-    Completed,
+	Running,
+	Finished,
 };
 
-class GameplaySequence
+class GamePlaySequence
 {
 public:
-    
-    virtual ~GameplaySequence() = default;
+	virtual ~GamePlaySequence() = default;
 
-    void Start();
+	virtual void Start() = 0;
+	virtual SequenceStatus Update(float deltaTime) = 0;
+	virtual SequencePolicy GetPolicy() const = 0;
 
-    SequenceResult Update(float deltaTime);
+	virtual void DrawWorld() = 0;
+	virtual void DrawOverlay() = 0;
+	virtual void DrawUI() = 0;
 
-    void Cancel();
-
-    bool GetIsActive() const { return isActive_; }
-
-    virtual void DrawWorld() {}
-    virtual void DrawUI() {}
-
-protected:
-    
-    virtual void Initialize() = 0;
-
-    virtual void OnStart() = 0;
-    virtual SequenceResult OnUpdate(float deltaTime) = 0;
-
-    virtual void OnFinish() = 0;
-    virtual void OnCancel() = 0;
-
-private:
-    
-    bool isActive_ = false;
+	virtual void OnFadeInFinished()
+	{
+	}
 };
