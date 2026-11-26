@@ -2,6 +2,14 @@
 #include "PlayerState.h"
 #include "Player.h"
 
+void IPlayerState::FireShot(
+	Player* player,
+	const Vector3& bulletPosition,
+	const Vector3& bulletVelocity)
+{
+	player->FireStandardShot(bulletPosition, bulletVelocity);
+}
+
 void PlayerIdleState::Initialize(Player* player)
 {
 	moveCommand_ = std::make_unique<MoveHorizontalCommand>(
@@ -277,6 +285,14 @@ void PlayerJustAvoidState::Draw(Player * player)
 void PlayerJustAvoidState::Finalize(Player * player)
 {
 	player->SetIsHit(true);
+}
+
+void PlayerJustAvoidState::FireShot(
+	Player* player,
+	const Vector3& bulletPosition,
+	const Vector3& bulletVelocity)
+{
+	player->FireCounterShot(bulletPosition, bulletVelocity);
 }
 
 void PlayerMeleeAttackState::Initialize(Player* player)

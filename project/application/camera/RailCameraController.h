@@ -1,8 +1,12 @@
 #pragma once
 #include "ICameraController.h"
 #include "SplineCurve.h"
+#include <memory>
 
 class CaveRailPath;
+class IRailCameraMovementStrategy;
+class LoopRailCameraStrategy;
+class VerticalDescentRailCameraStrategy;
 
 class RailCameraController :public ICameraController
 {
@@ -12,6 +16,9 @@ public:
 		Loop,
 		VerticalDescent,
 	};
+
+	RailCameraController();
+	~RailCameraController();
 
 	void Initialize() override;
 	void Initialize(Mode mode);
@@ -41,7 +48,7 @@ public:
 		travelledDistance_ = distance < 0.0f ? 0.0f : distance;
 	}
 	void SetVerticalStartHeight(float height);
-	Mode GetMode() const { return mode_; }
+	Mode GetMode() const;
 	void SetCaveRailPath(const CaveRailPath* caveRailPath) { caveRailPath_ = caveRailPath; }
 	const Vector3& GetRailPosition() const { return railPos_; }
 	Vector3 GetPathWorldOffset() const { return { 0.0f, verticalPathOffset_, 0.0f }; }
@@ -53,9 +60,12 @@ public:
 	void RecenterBattleSpace(Vector3& playerLocalPosition, Vector3& enemyLocalPosition);
 
 private:
+	friend class LoopRailCameraStrategy;
+	friend class VerticalDescentRailCameraStrategy;
+
 	Vector3 CalculateEyePosition() const;
 
-	Mode mode_ = Mode::Loop;
+	std::unique_ptr<IRailCameraMovementStrategy> movementStrategy_;
 
 	std::vector<Vector3> controlPoints_;
 

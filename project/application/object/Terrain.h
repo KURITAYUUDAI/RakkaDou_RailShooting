@@ -7,6 +7,10 @@
 #include <vector>
 
 class CaveRailPath;
+class ITerrainModeStrategy;
+class GameplayTerrainStrategy;
+class TitleCaveTerrainStrategy;
+class GameplayCaveTerrainStrategy;
 
 class Terrain
 {
@@ -17,6 +21,9 @@ public:
 		TitleCave,
 		GameplayCave,
 	};
+
+	Terrain();
+	~Terrain();
 
 	void Initialize(Mode mode = Mode::Gameplay, const CaveRailPath* caveRailPath = nullptr);
 	void Update(float deltaTime);
@@ -36,6 +43,15 @@ public:
 	float GetGameplayCaveForwardLength() const { return kCaveRecycleHalfDistance_; }
 
 private:
+	friend class GameplayTerrainStrategy;
+	friend class TitleCaveTerrainStrategy;
+	friend class GameplayCaveTerrainStrategy;
+
+	void InitializeLegacyCave(bool centeredAroundOrigin);
+	void UpdateLegacyGameplayCave(
+		float deltaTime, const Vector3& referencePosition);
+	void DrawCaveObjects(bool useVisibility);
+	void DrawCaveDebugUI(bool showVisibility);
 
 	std::unique_ptr<Object3d> object3d_;
 	std::vector<std::unique_ptr<Object3d>> caveObjects_;
@@ -71,7 +87,7 @@ private:
 	Matrix4x4 MakeDisplayMatrix(const Matrix4x4& sourceWorld, float viewerDistance) const;
 
 	EulerTransform transform_;
-	Mode mode_ = Mode::Gameplay;
+	std::unique_ptr<ITerrainModeStrategy> modeStrategy_;
 	float caveSpeed_ = 100.0f;
 	bool isGameplayCaveScrolling_ = false;
 	bool isGameplayCaveEntryMode_ = false;

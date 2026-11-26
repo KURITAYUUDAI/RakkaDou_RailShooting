@@ -21,9 +21,119 @@
 #include "PrimitiveManager.h"
 #include "ParticleManager.h"
 
+class IPlayerModeStrategy
+{
+public:
+	virtual ~IPlayerModeStrategy() = default;
+
+	virtual void Initialize(Player&) {}
+	virtual bool Update(Player& player, float)
+	{
+		player.UpdatePresentationObjects();
+		return true;
+	}
+	virtual void SetOpacity(Player&, float) {}
+	virtual std::unique_ptr<IPlayerModeStrategy> FinishStageEntry(Player&)
+	{
+		return nullptr;
+	}
+	virtual std::unique_ptr<IPlayerModeStrategy> CreateStageClearMode(
+		Player& player);
+};
+
+class GameplayPlayerModeStrategy final : public IPlayerModeStrategy
+{
+public:
+	bool Update(Player&, float) override { return false; }
+};
+
+class TitleFallingPlayerModeStrategy final : public IPlayerModeStrategy
+{
+public:
+	void Initialize(Player& player) override
+	{
+		player.transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
+		player.transform_.translate = { 0.0f, 0.0f, -2.00f };
+
+		player.meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+		player.meleeHandTransform_.rotate = { 0.0f, -1.84f, 0.05f };
+		player.meleeHandTransform_.translate = { 1.2f, 0.0f, 0.0f };
+
+		player.leftHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
+		player.leftHandTransform_.rotate = { 0.0f, 1.84f, -0.05f };
+		player.leftHandTransform_.translate = { -1.2f, 0.0f, 0.0f };
+	}
+
+	void SetOpacity(Player& player, float opacity) override
+	{
+		player.ApplyPresentationOpacity(opacity);
+	}
+};
+
+class StageEntryPlayerModeStrategy final : public IPlayerModeStrategy
+{
+public:
+	void SetOpacity(Player& player, float opacity) override
+	{
+		player.ApplyPresentationOpacity(opacity);
+	}
+
+	std::unique_ptr<IPlayerModeStrategy> FinishStageEntry(
+		Player& player) override
+	{
+		player.ApplyPresentationOpacity(1.0f);
+		player.CompleteStageEntryTransition();
+		return std::make_unique<GameplayPlayerModeStrategy>();
+	}
+};
+
+class StageClearPlayerModeStrategy final : public IPlayerModeStrategy
+{
+public:
+	std::unique_ptr<IPlayerModeStrategy> CreateStageClearMode(
+		Player&) override
+	{
+		return nullptr;
+	}
+};
+
+std::unique_ptr<IPlayerModeStrategy>
+IPlayerModeStrategy::CreateStageClearMode(Player& player)
+{
+	player.PrepareStageClearTransition();
+	return std::make_unique<StageClearPlayerModeStrategy>();
+}
+
+namespace
+{
+	std::unique_ptr<IPlayerModeStrategy> CreatePlayerModeStrategy(
+		Player::Mode mode)
+	{
+		switch (mode)
+		{
+		case Player::Mode::Gameplay:
+			return std::make_unique<GameplayPlayerModeStrategy>();
+		case Player::Mode::TitleFalling:
+			return std::make_unique<TitleFallingPlayerModeStrategy>();
+		case Player::Mode::StageEntry:
+			return std::make_unique<StageEntryPlayerModeStrategy>();
+		case Player::Mode::StageClear:
+			return std::make_unique<StageClearPlayerModeStrategy>();
+		}
+		return std::make_unique<GameplayPlayerModeStrategy>();
+	}
+}
+
+Player::Player()
+	: modeStrategy_(std::make_unique<GameplayPlayerModeStrategy>())
+{
+}
+
+Player::~Player() = default;
+
 void Player::Initialize(Mode mode)
 {
-	mode_ = mode;
+	modeStrategy_ = CreatePlayerModeStrategy(mode);
 	deltaTime_ = 1.0f / 60.0f; // 仮の値。実際のゲームループで更新されるべ
 
 	PSOManager::GetInstance()->RegisterSkinningPSO();
@@ -107,19 +217,7 @@ void Player::Initialize(Mode mode)
 	transform_.scale = { 1.0f, 1.0f, 1.0f };
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
 	transform_.translate = GetGameplayInitialPosition();
-	if (mode_ == Mode::TitleFalling)
-	{
-		transform_.rotate = { pi / 2.0f, 0.0f, 0.0f };
-		transform_.translate = { 0.0f, 0.0f, -2.00f };
-
-		meleeHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
-		meleeHandTransform_.rotate = { 0.0f, -1.84f, 0.05f };
-		meleeHandTransform_.translate = { 1.2f, 0.0f, 0.0f };
-
-		leftHandTransform_.scale = { 0.35f, 0.35f, 0.35f };
-		leftHandTransform_.rotate = { 0.0f, 1.84f, -0.05f };
-		leftHandTransform_.translate = { -1.2f, 0.0f, 0.0f };
-	}
+	modeStrategy_->Initialize(*this);
 
 	hitPoint_ = kMaxHitPoint;
 
@@ -216,10 +314,8 @@ void Player::Update(const float& deltaTime)
 {
 	UpdateParentWorldVelocity(deltaTime);
 
-	if (mode_ == Mode::TitleFalling || mode_ == Mode::StageEntry ||
-		mode_ == Mode::StageClear)
+	if (modeStrategy_->Update(*this, deltaTime))
 	{
-		UpdateTitleFalling();
 		return;
 	}
 
@@ -483,7 +579,7 @@ void Player::UpdateGameOverSequence(float deltaTime)
 	}
 }
 
-void Player::UpdateTitleFalling()
+void Player::UpdatePresentationObjects()
 {
 #ifdef _DEBUG
 	ImGui::Begin("Title Player Setting");
@@ -512,11 +608,11 @@ void Player::UpdateTitleFalling()
 
 void Player::SetTitleOpacity(float opacity)
 {
-	if (mode_ != Mode::TitleFalling && mode_ != Mode::StageEntry)
-	{
-		return;
-	}
+	modeStrategy_->SetOpacity(*this, opacity);
+}
 
+void Player::ApplyPresentationOpacity(float opacity)
+{
 	opacity = opacity < 0.0f ? 0.0f : (opacity > 1.0f ? 1.0f : opacity);
 	auto setOpacity = [opacity](Object3d* object)
 	{
@@ -532,13 +628,15 @@ void Player::SetTitleOpacity(float opacity)
 
 void Player::FinishStageEntry()
 {
-	if (mode_ != Mode::StageEntry)
+	auto nextMode = modeStrategy_->FinishStageEntry(*this);
+	if (nextMode)
 	{
-		return;
+		modeStrategy_ = std::move(nextMode);
 	}
+}
 
-	SetTitleOpacity(1.0f);
-	mode_ = Mode::Gameplay;
+void Player::CompleteStageEntryTransition()
+{
 	transform_.rotate = { 0.0f, 0.0f, 0.0f };
 	velocity_ = { 0.0f, 0.0f, 0.0f };
 
@@ -556,12 +654,15 @@ void Player::FinishStageEntry()
 
 void Player::StartStageClearSequence()
 {
-	if (mode_ == Mode::StageClear)
+	auto nextMode = modeStrategy_->CreateStageClearMode(*this);
+	if (nextMode)
 	{
-		return;
+		modeStrategy_ = std::move(nextMode);
 	}
+}
 
-	mode_ = Mode::StageClear;
+void Player::PrepareStageClearTransition()
+{
 	velocity_ = {};
 	ClearLockOn();
 	StopChargeEffect();
@@ -589,23 +690,6 @@ void Player::Draw()
 
 		object3d_->Draw(/*&skinCluster_.influenceBufferView, &skinCluster_.paletteSrvHandle.second*/);
 	}
-	/*if (isDraw_ && (isMeleeHandVisible_ || mode_ == Mode::TitleFalling))
-	{
-		auto environmentPso = PSOManager::GetInstance()->GetPSOData(
-			"Environment", blendMode_, fillMode_);
-		DirectXBase::GetInstance()->GetCommandList()->SetPipelineState(
-			environmentPso.pipelineState.Get());
-		DirectXBase::GetInstance()->GetCommandList()->SetGraphicsRootSignature(
-			environmentPso.rootSignature.Get());
-		SrvManager::GetInstance()->SetGraphicsRootDescriptorTable(5, environmentTextureIndex_);
-		DissolveManager::GetInstance()->SetCbufferDissolveResource(6, dissolveParams_);
-		DissolveManager::GetInstance()->SetCbufferMaskTexture(7, 0);
-		objectMeleeHand_->Draw();
-	}
-	if (isDraw_ && mode_ == Mode::TitleFalling)
-	{
-		objectLeftHand_->Draw();
-	}*/
 	if (isDraw_ && isChargeEffectActive_)
 	{
 		objectChargeRing_->Draw();
@@ -701,11 +785,6 @@ void Player::OnCollision(
 void Player::Damage(int damage)
 {
 	const int previousHP = hitPoint_;
-
-	//if (state_->GetType() != PlayerStateType::Avoid)
-	//{
-	//	
-	//}
 
 	hitPoint_ -= damage;
 	damageTimer_ = kDamageInvincible_;
@@ -810,18 +889,23 @@ void Player::Shot()
 		assert(false);
 	}
 
-	if (state_->GetType() == PlayerStateType::JustAvoid)
-	{
-		justAvoidEmitter_->Emit();
-		BulletManager::GetInstance()->CreateCounterBullet(
-			bulletPosition, bulletVelocity);
-	}
-	else
-	{
-		BulletManager::GetInstance()->CreatePlayerBullet(
-			bulletPosition, bulletVelocity);
-		ChangeState(std::make_unique<PlayerShotState>());
-	}
+	state_->FireShot(this, bulletPosition, bulletVelocity);
+}
+
+void Player::FireStandardShot(
+	const Vector3& bulletPosition, const Vector3& bulletVelocity)
+{
+	BulletManager::GetInstance()->CreatePlayerBullet(
+		bulletPosition, bulletVelocity);
+	ChangeState(std::make_unique<PlayerShotState>());
+}
+
+void Player::FireCounterShot(
+	const Vector3& bulletPosition, const Vector3& bulletVelocity)
+{
+	justAvoidEmitter_->Emit();
+	BulletManager::GetInstance()->CreateCounterBullet(
+		bulletPosition, bulletVelocity);
 }
 
 void Player::ChargedShot()

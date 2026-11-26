@@ -22,6 +22,12 @@
 
 #include "Animation/AnimatedObject3d.h"
 
+class IPlayerModeStrategy;
+class GameplayPlayerModeStrategy;
+class TitleFallingPlayerModeStrategy;
+class StageEntryPlayerModeStrategy;
+class StageClearPlayerModeStrategy;
+
 class Player : public ICollisionObserver
 {
 public:
@@ -32,6 +38,9 @@ public:
 		StageEntry,
 		StageClear,
 	};
+
+	Player();
+	~Player() override;
 
 	static constexpr Vector3 GetGameplayInitialPosition()
 	{
@@ -160,10 +169,25 @@ public:	//外部入出力
 	void StartStageClearSequence();
 
 private:
+	friend class IPlayerState;
+	friend class PlayerJustAvoidState;
+	friend class IPlayerModeStrategy;
+	friend class GameplayPlayerModeStrategy;
+	friend class TitleFallingPlayerModeStrategy;
+	friend class StageEntryPlayerModeStrategy;
+	friend class StageClearPlayerModeStrategy;
+
 	Vector3 CalculateShotDirection();
 	void UpdateParentWorldVelocity(float deltaTime);
 	void UpdateMeleeFollowUpEffect(float deltaTime);
-	void UpdateTitleFalling();
+	void UpdatePresentationObjects();
+	void ApplyPresentationOpacity(float opacity);
+	void CompleteStageEntryTransition();
+	void PrepareStageClearTransition();
+	void FireStandardShot(
+		const Vector3& bulletPosition, const Vector3& bulletVelocity);
+	void FireCounterShot(
+		const Vector3& bulletPosition, const Vector3& bulletVelocity);
 	void SyncParticleParent();
 	float CalculateDamageRecoilAngle() const;
 	bool TryGetEnemyTarget(EnemyID id, EnemyTargetInfo& outTarget) const;
@@ -197,7 +221,7 @@ private:
 	EulerTransform chargeRingTransform_{};
 	EulerTransform meleeFollowUpEffectTransform_{};
 	bool isMeleeHandVisible_ = false;
-	Mode mode_ = Mode::Gameplay;
+	std::unique_ptr<IPlayerModeStrategy> modeStrategy_;
 	bool isMeleeFollowUpEffectActive_ = false;
 	float meleeFollowUpEffectTimer_ = 0.0f;
 	static constexpr float kMeleeFollowUpEffectDuration_ = 0.18f;

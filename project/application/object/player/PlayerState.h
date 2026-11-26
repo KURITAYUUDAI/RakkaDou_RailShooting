@@ -6,35 +6,24 @@
 
 class Player;
 
-enum class PlayerStateType
-{
-	Idle,
-	Shot,
-	Avoid,
-	JustAvoid,
-	MeleeAttack,
-	CounterMelee,
-};
-
 class IPlayerState
 {
 public:
-	virtual PlayerStateType GetType() const = 0;
+	virtual ~IPlayerState() = default;
 
 	virtual void Initialize(Player* player) = 0;
 	virtual void Update(Player* player, const float& deltaTime) = 0;
 	virtual void Draw(Player* player) = 0;
 	virtual void Finalize(Player* player) = 0;
+	virtual void FireShot(
+		Player* player,
+		const Vector3& bulletPosition,
+		const Vector3& bulletVelocity);
 };
 
 class PlayerIdleState : public IPlayerState
 {
 public:
-	PlayerStateType GetType() const override
-	{
-		return PlayerStateType::Idle;
-	}
-
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
 	void Draw(Player* player) override;
@@ -61,7 +50,6 @@ private:
 	};
 
 public:
-	PlayerStateType GetType() const override { return PlayerStateType::MeleeAttack; }
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
 	void Draw(Player* player) override;
@@ -92,7 +80,6 @@ private:
 class PlayerCounterMeleeState : public IPlayerState
 {
 public:
-	PlayerStateType GetType() const override { return PlayerStateType::CounterMelee; }
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
 	void Draw(Player* player) override;
@@ -111,11 +98,6 @@ private:
 class PlayerShotState : public IPlayerState
 {
 public:
-	PlayerStateType GetType() const override
-	{
-		return PlayerStateType::Shot;
-	}
-
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
 	void Draw(Player* player) override;
@@ -133,11 +115,6 @@ class PlayerAvoidState : public IPlayerState
 public:
 
 	PlayerAvoidState(const Vector2& direction) : inputDirection_(direction) {}
-
-	PlayerStateType GetType() const override
-	{
-		return PlayerStateType::Avoid;
-	}
 	
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
@@ -162,15 +139,14 @@ public:
 		const Vector3& direction, JustAvoidDarken* justAvoidDarken) 
 		: avoidDirection_(direction), justAvoidDarken_(justAvoidDarken) {}
 
-	PlayerStateType GetType() const override
-	{
-		return PlayerStateType::JustAvoid;
-	}
-
 	void Initialize(Player* player) override;
 	void Update(Player* player, const float& deltaTime) override;
 	void Draw(Player* player) override;
 	void Finalize(Player* player) override;
+	void FireShot(
+		Player* player,
+		const Vector3& bulletPosition,
+		const Vector3& bulletVelocity) override;
 
 private:
 	float timer_ = 0.0f;

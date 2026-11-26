@@ -85,65 +85,213 @@ namespace
 	}
 }
 
+class ITerrainModeStrategy
+{
+public:
+	virtual ~ITerrainModeStrategy() = default;
+
+	virtual void Initialize(Terrain& terrain) = 0;
+	virtual void Update(
+		Terrain& terrain,
+		float deltaTime,
+		const Vector3& referencePosition,
+		float railDistance,
+		const Vector3& pathWorldOffset,
+		const Matrix4x4& railFrameWorldMatrix) = 0;
+	virtual void Draw(Terrain& terrain) = 0;
+	virtual void DrawDebugUI(Terrain& terrain) = 0;
+	virtual void SetEntryMode(Terrain&, bool) {}
+};
+
+class GameplayTerrainStrategy final : public ITerrainModeStrategy
+{
+public:
+	void Initialize(Terrain& terrain) override
+	{
+		ModelManager::GetInstance()->LoadModel("", "terrain.obj");
+
+		terrain.object3d_ = std::make_unique<Object3d>();
+		terrain.object3d_->Initialize();
+		terrain.object3d_->SetModel("terrain.obj");
+
+		terrain.transform_.scale = { 1.0f, 1.0f, 1.0f };
+		terrain.transform_.rotate = { 0.0f, 0.0f, 0.0f };
+		terrain.transform_.translate = { 0.0f, -5.0f, 0.0f };
+	}
+
+	void Update(
+		Terrain& terrain, float, const Vector3&, float,
+		const Vector3&, const Matrix4x4&) override
+	{
+		terrain.object3d_->SetTransform(terrain.transform_);
+		terrain.object3d_->Update();
+	}
+
+	void Draw(Terrain& terrain) override
+	{
+		terrain.object3d_->Draw();
+	}
+
+	void DrawDebugUI(Terrain&) override {}
+};
+
+class TitleCaveTerrainStrategy final : public ITerrainModeStrategy
+{
+public:
+	void Initialize(Terrain& terrain) override
+	{
+		terrain.InitializeLegacyCave(false);
+	}
+
+	void Update(
+		Terrain& terrain, float deltaTime, const Vector3&, float,
+		const Vector3&, const Matrix4x4&) override
+	{
+		for (size_t i = 0; i < terrain.caveObjects_.size(); ++i)
+		{
+			terrain.caveTransforms_[i].translate.y += terrain.caveSpeed_ * deltaTime;
+			while (terrain.caveTransforms_[i].translate.y >=
+				Terrain::kCaveSegmentLength_)
+			{
+				terrain.caveTransforms_[i].translate.y -=
+					Terrain::kCaveRecycleDistance_;
+			}
+			terrain.caveObjects_[i]->SetTransform(terrain.caveTransforms_[i]);
+			terrain.caveObjects_[i]->Update();
+		}
+	}
+
+	void Draw(Terrain& terrain) override
+	{
+		terrain.DrawCaveObjects(false);
+	}
+
+	void DrawDebugUI(Terrain& terrain) override
+	{
+#ifdef _DEBUG
+		ImGui::DragFloat("CaveSpeed", &terrain.caveSpeed_, 0.1f);
+		terrain.DrawCaveDebugUI(false);
+#endif
+	}
+};
+
+class GameplayCaveTerrainStrategy final : public ITerrainModeStrategy
+{
+public:
+	void Initialize(Terrain& terrain) override
+	{
+		if (terrain.caveRailPath_)
+		{
+			terrain.InitializeGameplayCave();
+			return;
+		}
+		terrain.InitializeLegacyCave(true);
+	}
+
+	void Update(
+		Terrain& terrain,
+		float deltaTime,
+		const Vector3& referencePosition,
+		float railDistance,
+		const Vector3& pathWorldOffset,
+		const Matrix4x4& railFrameWorldMatrix) override
+	{
+		if (terrain.caveRailPath_)
+		{
+			terrain.UpdateGameplayCave(
+				deltaTime, referencePosition, railDistance,
+				pathWorldOffset, railFrameWorldMatrix);
+			return;
+		}
+		terrain.UpdateLegacyGameplayCave(deltaTime, referencePosition);
+	}
+
+	void Draw(Terrain& terrain) override
+	{
+		terrain.DrawCaveObjects(true);
+		if (!terrain.caveRailPath_)
+		{
+			return;
+		}
+
+		for (size_t i = 0; i < terrain.crystalObjects_.size(); ++i)
+		{
+			if (terrain.crystalVisibility_[i])
+			{
+				terrain.crystalObjects_[i]->Draw();
+			}
+		}
+	}
+
+	void DrawDebugUI(Terrain& terrain) override
+	{
+#ifdef _DEBUG
+		ImGui::DragFloat("CaveSpeed", &terrain.caveSpeed_, 0.1f);
+		ImGui::Checkbox(
+			"GameplayCaveScrolling", &terrain.isGameplayCaveScrolling_);
+		if (terrain.caveRailPath_)
+		{
+			ImGui::Text(
+				"ViewerDistance: %.2f", terrain.gameplayCaveViewerDistance_);
+			ImGui::Text("FieldSegments: %zu", terrain.caveObjects_.size());
+			ImGui::Text("CrystalPool: %zu", terrain.crystalObjects_.size());
+		}
+		terrain.DrawCaveDebugUI(true);
+#endif
+	}
+
+	void SetEntryMode(Terrain& terrain, bool enabled) override
+	{
+		if (terrain.isGameplayCaveEntryMode_ == enabled)
+		{
+			return;
+		}
+
+		terrain.isGameplayCaveEntryMode_ = enabled;
+		if (terrain.caveRailPath_ || !enabled)
+		{
+			return;
+		}
+
+		for (size_t i = 0; i < terrain.caveTransforms_.size(); ++i)
+		{
+			terrain.caveTransforms_[i].translate = {
+				0.0f,
+				-Terrain::kCaveSegmentLength_ * (static_cast<float>(i) + 0.5f),
+				0.0f,
+			};
+		}
+	}
+};
+
+namespace
+{
+	std::unique_ptr<ITerrainModeStrategy> CreateTerrainModeStrategy(
+		Terrain::Mode mode)
+	{
+		switch (mode)
+		{
+		case Terrain::Mode::Gameplay:
+			return std::make_unique<GameplayTerrainStrategy>();
+		case Terrain::Mode::TitleCave:
+			return std::make_unique<TitleCaveTerrainStrategy>();
+		case Terrain::Mode::GameplayCave:
+			return std::make_unique<GameplayCaveTerrainStrategy>();
+		}
+		return std::make_unique<GameplayTerrainStrategy>();
+	}
+}
+
+Terrain::Terrain() = default;
+Terrain::~Terrain() = default;
+
 void Terrain::Initialize(Mode mode, const CaveRailPath* caveRailPath)
 {
-	mode_ = mode;
 	caveRailPath_ = caveRailPath;
 	isGameplayCaveScrolling_ = false;
 	isGameplayCaveEntryMode_ = false;
-
-	if (mode_ == Mode::GameplayCave && caveRailPath_)
-	{
-		InitializeGameplayCave();
-		return;
-	}
-
-	if (mode_ == Mode::TitleCave || mode_ == Mode::GameplayCave)
-	{
-		ModelManager::GetInstance()->LoadModel("Field", "OutField.obj");
-		caveObjects_.reserve(kCaveObjectCount_);
-		caveTransforms_.reserve(kCaveObjectCount_);
-		caveVisibility_.reserve(kCaveObjectCount_);
-
-		for (size_t i = 0; i < kCaveObjectCount_; ++i)
-		{
-			auto object = std::make_unique<Object3d>();
-			object->Initialize();
-			object->SetModel("OutField.obj");
-			/*object->SetEnableLighting(false);
-			object->SetEnvironmentCoefficient(0.0f);*/
-
-			EulerTransform transform{};
-			transform.scale = { 1.0f, 1.0f, 1.0f };
-			transform.rotate = { 0.0f, 0.0f, 0.0f };
-			if (mode_ == Mode::GameplayCave)
-			{
-				const float centeredIndex =
-					static_cast<float>(kCaveObjectCount_ / 2) - 1.0f - static_cast<float>(i);
-				transform.translate = { 0.0f, centeredIndex * kCaveSegmentLength_, 0.0f };
-			}
-			else
-			{
-				transform.translate =
-					{ 0.0f, -kCaveSegmentLength_ * static_cast<float>(i), 0.0f };
-			}
-
-			caveObjects_.push_back(std::move(object));
-			caveTransforms_.push_back(transform);
-			caveVisibility_.push_back(true);
-		}
-		return;
-	}
-
-	ModelManager::GetInstance()->LoadModel("", "terrain.obj");
-
-	object3d_ = std::make_unique<Object3d>();
-	object3d_->Initialize();
-	object3d_->SetModel("terrain.obj");
-
-	transform_.scale = { 1.0f, 1.0f, 1.0f };
-	transform_.rotate = { 0.0f, 0.0f, 0.0f };
-	transform_.translate = { 0.0f, -5.0f, 0.0f };
+	modeStrategy_ = CreateTerrainModeStrategy(mode);
+	modeStrategy_->Initialize(*this);
 }
 
 void Terrain::Update(float deltaTime)
@@ -164,67 +312,9 @@ void Terrain::Update(
 	const Vector3& pathWorldOffset,
 	const Matrix4x4& railFrameWorldMatrix)
 {
-	if (mode_ == Mode::TitleCave)
-	{
-		for (size_t i = 0; i < caveObjects_.size(); ++i)
-		{
-			caveTransforms_[i].translate.y += caveSpeed_ * deltaTime;
-			while (caveTransforms_[i].translate.y >= kCaveSegmentLength_)
-			{
-				caveTransforms_[i].translate.y -= kCaveRecycleDistance_;
-			}
-			caveObjects_[i]->SetTransform(caveTransforms_[i]);
-			caveObjects_[i]->Update();
-		}
-	}
-	else if (mode_ == Mode::GameplayCave)
-	{
-		if (caveRailPath_)
-		{
-			UpdateGameplayCave(
-				deltaTime, referencePosition, railDistance,
-				pathWorldOffset, railFrameWorldMatrix);
-		}
-		else
-		{
-		auto* distanceFog = DistanceFogManager::GetInstance();
-		const bool isFogEnabled = distanceFog->IsEnabled();
-		const float fogEndDistance = distanceFog->GetEndDistance();
-
-		for (size_t i = 0; i < caveObjects_.size(); ++i)
-		{
-			if (isGameplayCaveScrolling_)
-			{
-				caveTransforms_[i].translate.y += caveSpeed_ * deltaTime;
-			}
-
-			if (!isGameplayCaveEntryMode_)
-			{
-				while (caveTransforms_[i].translate.y - referencePosition.y > kCaveRecycleHalfDistance_)
-				{
-					caveTransforms_[i].translate.y -= kCaveRecycleDistance_;
-				}
-				while (caveTransforms_[i].translate.y - referencePosition.y < -kCaveRecycleHalfDistance_)
-				{
-					caveTransforms_[i].translate.y += kCaveRecycleDistance_;
-				}
-			}
-
-			const Vector3 difference = caveTransforms_[i].translate - referencePosition;
-			caveVisibility_[i] = !isFogEnabled ||
-				Length(difference) - kOutFieldBoundingRadius_ <=
-				fogEndDistance + kOutFieldVisibilityMargin_;
-
-			caveObjects_[i]->SetTransform(caveTransforms_[i]);
-			caveObjects_[i]->Update();
-		}
-		}
-	}
-	else
-	{
-		object3d_->SetTransform(transform_);
-		object3d_->Update();
-	}
+	modeStrategy_->Update(
+		*this, deltaTime, referencePosition, railDistance,
+		pathWorldOffset, railFrameWorldMatrix);
 
 #ifdef _DEBUG
 	ImGui::Begin("TerrainSetting");
@@ -233,34 +323,113 @@ void Terrain::Update(
 	{
 		isDraw_ = isDraw;
 	}
-	if (mode_ == Mode::TitleCave || mode_ == Mode::GameplayCave)
-	{
-		ImGui::DragFloat("CaveSpeed", &caveSpeed_, 0.1f);
-	}
-	if (mode_ == Mode::GameplayCave)
-	{
-		ImGui::Checkbox("GameplayCaveScrolling", &isGameplayCaveScrolling_);
-		if (caveRailPath_)
-		{
-			ImGui::Text("ViewerDistance: %.2f", gameplayCaveViewerDistance_);
-			ImGui::Text("FieldSegments: %zu", caveObjects_.size());
-			ImGui::Text("CrystalPool: %zu", crystalObjects_.size());
-		}
-	}
-	if (mode_ == Mode::TitleCave || mode_ == Mode::GameplayCave)
-	{
-		for (size_t i = 0; i < caveTransforms_.size(); ++i)
-		{
-			ImGui::PushID(static_cast<int>(i));
-			ImGui::DragFloat3("CavePosition", &caveTransforms_[i].translate.x, 0.1f);
-			if (mode_ == Mode::GameplayCave)
-			{
-				ImGui::Text("Visible: %s", caveVisibility_[i] ? "true" : "false");
-			}
-			ImGui::PopID();
-		}
-	}
+	modeStrategy_->DrawDebugUI(*this);
 	ImGui::End();
+#endif
+}
+
+void Terrain::InitializeLegacyCave(bool centeredAroundOrigin)
+{
+	ModelManager::GetInstance()->LoadModel("Field", "OutField.obj");
+	caveObjects_.reserve(kCaveObjectCount_);
+	caveTransforms_.reserve(kCaveObjectCount_);
+	caveVisibility_.reserve(kCaveObjectCount_);
+
+	for (size_t i = 0; i < kCaveObjectCount_; ++i)
+	{
+		auto object = std::make_unique<Object3d>();
+		object->Initialize();
+		object->SetModel("OutField.obj");
+
+		EulerTransform transform{};
+		transform.scale = { 1.0f, 1.0f, 1.0f };
+		transform.rotate = { 0.0f, 0.0f, 0.0f };
+		if (centeredAroundOrigin)
+		{
+			const float centeredIndex =
+				static_cast<float>(kCaveObjectCount_ / 2) - 1.0f -
+				static_cast<float>(i);
+			transform.translate =
+				{ 0.0f, centeredIndex * kCaveSegmentLength_, 0.0f };
+		}
+		else
+		{
+			transform.translate =
+				{ 0.0f, -kCaveSegmentLength_ * static_cast<float>(i), 0.0f };
+		}
+
+		caveObjects_.push_back(std::move(object));
+		caveTransforms_.push_back(transform);
+		caveVisibility_.push_back(true);
+	}
+}
+
+void Terrain::UpdateLegacyGameplayCave(
+	float deltaTime, const Vector3& referencePosition)
+{
+	auto* distanceFog = DistanceFogManager::GetInstance();
+	const bool isFogEnabled = distanceFog->IsEnabled();
+	const float fogEndDistance = distanceFog->GetEndDistance();
+
+	for (size_t i = 0; i < caveObjects_.size(); ++i)
+	{
+		if (isGameplayCaveScrolling_)
+		{
+			caveTransforms_[i].translate.y += caveSpeed_ * deltaTime;
+		}
+
+		if (!isGameplayCaveEntryMode_)
+		{
+			while (caveTransforms_[i].translate.y - referencePosition.y >
+				kCaveRecycleHalfDistance_)
+			{
+				caveTransforms_[i].translate.y -= kCaveRecycleDistance_;
+			}
+			while (caveTransforms_[i].translate.y - referencePosition.y <
+				-kCaveRecycleHalfDistance_)
+			{
+				caveTransforms_[i].translate.y += kCaveRecycleDistance_;
+			}
+		}
+
+		const Vector3 difference = caveTransforms_[i].translate - referencePosition;
+		caveVisibility_[i] = !isFogEnabled ||
+			Length(difference) - kOutFieldBoundingRadius_ <=
+			fogEndDistance + kOutFieldVisibilityMargin_;
+
+		caveObjects_[i]->SetTransform(caveTransforms_[i]);
+		caveObjects_[i]->Update();
+	}
+}
+
+void Terrain::DrawCaveObjects(bool useVisibility)
+{
+	for (size_t i = 0; i < caveObjects_.size(); ++i)
+	{
+		if (!useVisibility || caveVisibility_[i])
+		{
+			caveObjects_[i]->Draw();
+		}
+	}
+}
+
+void Terrain::DrawCaveDebugUI(bool showVisibility)
+{
+#ifdef _DEBUG
+	for (size_t i = 0; i < caveTransforms_.size(); ++i)
+	{
+		ImGui::PushID(static_cast<int>(i));
+		ImGui::DragFloat3(
+			"CavePosition", &caveTransforms_[i].translate.x, 0.1f);
+		if (showVisibility)
+		{
+			ImGui::Text(
+				"Visible: %s", caveVisibility_[i] ? "true" : "false");
+		}
+		ImGui::PopID();
+	}
+#else
+	(void)showVisibility;
 #endif
 }
 
@@ -653,57 +822,14 @@ void Terrain::SetGameplayCaveScrolling(bool enabled)
 
 void Terrain::SetGameplayCaveEntryMode(bool enabled)
 {
-	if (mode_ != Mode::GameplayCave || isGameplayCaveEntryMode_ == enabled)
-	{
-		return;
-	}
-
-	isGameplayCaveEntryMode_ = enabled;
-	if (caveRailPath_)
-	{
-		return;
-	}
-	if (!enabled)
-	{
-		return;
-	}
-
-	// 地表より上へ洞窟区画を出さず、開口部から下へ隙間なく連結する。
-	for (size_t i = 0; i < caveTransforms_.size(); ++i)
-	{
-		caveTransforms_[i].translate =
-			{ 0.0f, -kCaveSegmentLength_ * (static_cast<float>(i) + 0.5f), 0.0f };
-	}
+	modeStrategy_->SetEntryMode(*this, enabled);
 }
 
 void Terrain::Draw()
 {
 	if (isDraw_)
 	{
-		if (mode_ == Mode::TitleCave || mode_ == Mode::GameplayCave)
-		{
-			for (size_t i = 0; i < caveObjects_.size(); ++i)
-			{
-				if (mode_ == Mode::TitleCave || caveVisibility_[i])
-				{
-					caveObjects_[i]->Draw();
-				}
-			}
-			if (mode_ == Mode::GameplayCave && caveRailPath_)
-			{
-				for (size_t i = 0; i < crystalObjects_.size(); ++i)
-				{
-					if (crystalVisibility_[i])
-					{
-						crystalObjects_[i]->Draw();
-					}
-				}
-			}
-		}
-		else
-		{
-			object3d_->Draw();
-		}
+		modeStrategy_->Draw(*this);
 	}
 }
 
