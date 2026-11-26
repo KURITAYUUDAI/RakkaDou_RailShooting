@@ -252,15 +252,6 @@ void GamePlayScene::Initialize()
 	cylinderConfig.alphaFade.startFadeRange = 0.15f;
 	cylinderConfig.alphaFade.endFadeRange = 0.15f;
 	PrimitiveManager::GetInstance()->CreateCylinder("cylinder_primitive", cylinderConfig);
-	PrimitiveManager::GetInstance()->CreateBox("stage_entry_box");
-	particleManager_->CreateParticleGroup(
-		kGameplayWindLineGroup_, "white1x1.png");
-	particleManager_->SetModel(kGameplayWindLineGroup_, "stage_entry_box");
-	particleManager_->SetIsMoveAccelerationField(kGameplayWindLineGroup_, false);
-	particleManager_->SetIsBillboard(kGameplayWindLineGroup_, false);
-	particleManager_->SetBlendMode(
-		kGameplayWindLineGroup_, PSOManager::BlendMode::Normal);
-
 	particleManager_->CreateParticleGroup("cylinder", "uvChecker.png");
 	particleManager_->SetModel("cylinder", "cylinder_primitive");
 	particleManager_->SetIsMoveAccelerationField("cylinder", false);
@@ -280,17 +271,32 @@ void GamePlayScene::Initialize()
 		emitters_.push_back(std::move(emitter));
 	}*/
 
-	skyBox_ = new SkyBox();
-	skyBox_->Initialize();
-	skyBox_->SetCamera(camera_.get());
-
-	terrain_ = std::make_unique<Terrain>();
-	terrain_->Initialize(Terrain::Mode::GameplayCave, caveRailPath_.get());
-	terrain_->SetCaveSpeed(kNormalRailSpeed_);
+	StageProgressLineConfig progressLineConfig{};
+	caveEnvironment_ = std::make_unique<CaveGameplayEnvironment>(
+		CaveGameplayEnvironmentDependencies{
+			*camera_,
+			*cameraManager_,
+			*railCameraController_,
+			*caveRailPath_,
+			*particleManager_,
+		},
+		CaveGameplayEnvironmentConfig{
+			.normalRailSpeed = progressLineConfig.normalRailSpeed,
+		});
+	caveEnvironment_->Initialize();
+	stageProgressLine_ = std::make_unique<StageProgressLine>(
+		StageProgressLineDependencies{
+			*railCameraController_,
+			*caveRailPath_,
+			*caveEnvironment_,
+		},
+		progressLineConfig);
+	stageProgressLine_->Reset();
 
 	player_ = std::make_unique<Player>();
 	player_->Initialize(Player::Mode::StageEntry);
-	player_->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
+	player_->SetEnvironmentTextureIndex(
+		caveEnvironment_->GetEnvironmentTextureIndex());
 
 	BulletManager::GetInstance()->Initialize();
 
@@ -330,8 +336,8 @@ void GamePlayScene::Initialize()
 	eventSubscriber_.Subscribe<BossDefeatedSequenceStartedEvent>(
 		[this](const BossDefeatedSequenceStartedEvent& event)
 		{
-			if (enemyStagePhase_ != EnemyStagePhase::Boss ||
-				event.enemyID != bossEnemyID_)
+			if (!enemyStageDirector_ ||
+				!enemyStageDirector_->IsCurrentBoss(event.enemyID))
 			{
 				return;
 			}
@@ -371,8 +377,8 @@ void GamePlayScene::Initialize()
 	eventSubscriber_.Subscribe<BossDefeatedSequenceFinishedEvent>(
 		[this](const BossDefeatedSequenceFinishedEvent& event)
 		{
-			if (enemyStagePhase_ != EnemyStagePhase::Boss ||
-				event.enemyID != bossEnemyID_)
+			if (!enemyStageDirector_ ||
+				!enemyStageDirector_->IsCurrentBoss(event.enemyID))
 			{
 				return;
 			}
@@ -389,8 +395,15 @@ void GamePlayScene::Initialize()
 	enemyManager_->SetRailFollowContext(
 		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
 		railCameraController_->GetPathWorldOffset());
-	InitializeEnemyStage();
-	isEnemyStageInitialized_ = true;
+	enemyStageDirector_ = std::make_unique<EnemyStageDirector>(
+		EnemyStageDependencies{
+			*enemyManager_,
+			*railCameraController_,
+			caveEnvironment_->GetTerrain(),
+			caveEnvironment_->GetSkyBox(),
+			*eventBus_,
+		});
+	enemyStageDirector_->Initialize();
 	
 	eventBus_->Dispatch();
 
@@ -418,9 +431,11 @@ void GamePlayScene::InitializeEntrySequence()
 	config.playerDoorPosition = stageEntryPlayerDoorPosition_;
 	config.playerDiveEndPosition = stageEntryPlayerDiveEndPosition_;
 	config.gameplayPlayerRailPosition = gameplayPlayerRailPosition_;
-	config.skydivingStartHeight = skydivingStartHeight_;
-	config.skydivingInitialSpeed = skydivingInitialSpeed_;
-	config.normalRailSpeed = kNormalRailSpeed_;
+	const StageProgressLineConfig& progressLineConfig =
+		stageProgressLine_->GetConfig();
+	config.skydivingStartHeight = progressLineConfig.skydivingStartHeight;
+	config.skydivingInitialSpeed = progressLineConfig.initialSpeed;
+	config.normalRailSpeed = progressLineConfig.normalRailSpeed;
 	config.blackHoldDuration = kStageEntryBlackHoldDuration_;
 	config.approachDuration = kStageEntryApproachDuration_;
 	config.doorOpenDuration = kStageEntryDoorOpenDuration_;
@@ -454,18 +469,9 @@ void GamePlayScene::UpdateEntrySequence(float deltaTime)
 	const SequencePolicy policy = activeSequence_->GetPolicy();
 	if (policy.world == WorldPresentation::GameplayWorld)
 	{
-		terrain_->SetGameplayCaveEntryMode(true);
-		UpdateCaveFog();
-		skyBox_->Update();
-		terrain_->Update(
-			deltaTime,
-			cameraManager_->GetCameraWorldPosition(),
-			railCameraController_->GetCurrentDistance(),
-			railCameraController_->GetPathWorldOffset(),
-			railCameraController_->GetRailFrameWorldMatrix());
-		UpdateCaveFogEndPlane();
-		gameplayEntryFieldEntrance_->Update();
-		gameplayEntryFieldGround_->Update();
+		caveEnvironment_->SetEntryMode(true);
+		caveEnvironment_->UpdateFog(player_->GetWorldPosition().y);
+		caveEnvironment_->UpdateWorld(deltaTime, true);
 	}
 
 	player_->Update(deltaTime);
@@ -486,33 +492,6 @@ void GamePlayScene::FinishEntrySequence()
 
 void GamePlayScene::InitializeGameplayPresentation()
 {
-	modelManager_->LoadModel("Field", "FieldEntrance.obj");
-	modelManager_->LoadModel("Field", "FieldGround.obj");
-
-	gameplayEntryFieldEntrance_ = std::make_unique<Object3d>();
-	gameplayEntryFieldEntrance_->Initialize();
-	gameplayEntryFieldEntrance_->SetModel("FieldEntrance.obj");
-	gameplayEntryFieldEntrance_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	gameplayEntryFieldEntrance_->SetScale(gameplayEntryFieldEntranceScale_);
-	gameplayEntryFieldEntrance_->SetTranslate(gameplayEntryFieldEntrancePosition_);
-
-	gameplayEntryFieldGround_ = std::make_unique<Object3d>();
-	gameplayEntryFieldGround_->Initialize();
-	gameplayEntryFieldGround_->SetModel("FieldGround.obj");
-	gameplayEntryFieldGround_->SetRotate({ 0.0f, 0.0f, 0.0f });
-	gameplayEntryFieldGround_->SetScale(gameplayEntryFieldGroundScale_);
-	gameplayEntryFieldGround_->SetTranslate(gameplayEntryFieldGroundPosition_);
-
-	// Skyboxには距離フォグを適用しないため、視線の先をフォグ色の面で塞ぐ。
-	// 姿勢と大きさは毎フレーム、カメラと視錐台に合わせて更新する。
-	caveFogEndPlane_ = std::make_unique<Object3d>();
-	caveFogEndPlane_->Initialize();
-	caveFogEndPlane_->SetModel("plane.obj");
-	caveFogEndPlane_->SetEnableLighting(false);
-	caveFogEndPlane_->SetScale(
-		{ caveFogEndPlaneScale_, caveFogEndPlaneScale_, 1.0f });
-	caveFogEndPlane_->SetColor(DistanceFogManager::GetInstance()->GetColor());
-
 	stageTitleText_ = std::make_unique<Text>();
 	stageTitleText_->Initialize(
 		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"STAGE 1");
@@ -525,203 +504,21 @@ void GamePlayScene::InitializeGameplayPresentation()
 	player_->SetTranslate(stageEntryPlayerStartPosition_);
 	player_->SetTitleOpacity(0.0f);
 
-	gameplayState_ = GameplayState::Inactive;
-	gameplayStateTimer_ = 0.0f;
-	isEnemyStageInitialized_ = false;
+	stageProgressLine_->Reset();
 	stageTitleTimer_ = 0.0f;
 	isStageTitleTimerActive_ = false;
 }
 
 void GamePlayScene::BeginSkydivingGameplay()
 {
-	gameplayStateTimer_ = 0.0f;
-	gameplayState_ = GameplayState::Skydiving;
-	railCameraController_->SetMovementEnabled(true);
+	stageProgressLine_->StartSkydiving();
 	ActivateGameplay();
-}
-
-void GamePlayScene::UpdateGameplayState(float deltaTime)
-{
-	switch (gameplayState_)
-	{
-	case GameplayState::Inactive:
-		break;
-
-	case GameplayState::Skydiving:
-		UpdateSkydivingSpeed(deltaTime);
-		UpdateCaveFog();
-		if (caveRailPath_->IsUnderground(
-			railCameraController_->GetCurrentDistance()))
-		{
-			BeginCaveEntering();
-		}
-		break;
-
-	case GameplayState::CaveEntering:
-		UpdateSkydivingSpeed(deltaTime);
-		UpdateCaveFog();
-		gameplayStateTimer_ += deltaTime;
-		if (gameplayStateTimer_ >= kGameplayCaveEnterDuration_)
-		{
-			BeginNormalGameplay();
-		}
-		break;
-
-	case GameplayState::Playing:
-		break;
-	}
-}
-
-void GamePlayScene::BeginCaveEntering()
-{
-	UpdateCaveFog();
-	terrain_->SetGameplayCaveEntryMode(false);
-
-	DistanceFogManager::GetInstance()->SetEnabled(true);
-	gameplayStateTimer_ = 0.0f;
-	gameplayState_ = GameplayState::CaveEntering;
-}
-
-void GamePlayScene::BeginNormalGameplay()
-{
-	gameplayStateTimer_ = 0.0f;
-	gameplayState_ = GameplayState::Playing;
-	skydivingCurrentSpeed_ = kNormalRailSpeed_;
-	railCameraController_->SetMoveSpeed(kNormalRailSpeed_);
-	stageTitleTimer_ = 0.0f;
-	isStageTitleTimerActive_ = true;
-}
-
-void GamePlayScene::UpdateSkydivingSpeed(float deltaTime)
-{
-	skydivingCurrentSpeed_ += skydivingAcceleration_ * deltaTime;
-	skydivingCurrentSpeed_ = std::clamp(
-		skydivingCurrentSpeed_, 0.0f, kNormalRailSpeed_);
-	railCameraController_->SetMoveSpeed(skydivingCurrentSpeed_);
 }
 
 void GamePlayScene::ActivateGameplay()
 {
 	player_->FinishStageEntry();
-	if (!isEnemyStageInitialized_)
-	{
-		InitializeEnemyStage();
-		isEnemyStageInitialized_ = true;
-	}
 	eventBus_->Dispatch();
-}
-
-void GamePlayScene::UpdateCaveFog()
-{
-	// FogStartは落下中からRailまで基準値20で固定する。
-	// FogEndだけ入口までの落下距離を加算し、入口通過後は260へ固定する。
-	const float playerHeight = player_->GetWorldPosition().y;
-	const float playerHeightAboveEntrance =
-		playerHeight > 0.0f ? playerHeight : 0.0f;
-	const float fogStartDistance = caveFogBaseStart_;
-	const float fogEndDistance =
-		caveFogBaseEnd_ + playerHeightAboveEntrance;
-
-	auto* distanceFog = DistanceFogManager::GetInstance();
-	distanceFog->SetStartDistance(fogStartDistance);
-	distanceFog->SetEndDistance(fogEndDistance);
-	distanceFog->SetEnabled(true);
-	cameraManager_->GetMainCamera()->SetFarClip(fogEndDistance + 100.0f);
-}
-
-void GamePlayScene::UpdateGameplayWindLines(float deltaTime)
-{
-	const bool isWindActive =
-		gameplayState_ != GameplayState::Inactive;
-	if (!isWindActive)
-	{
-		gameplayWindLineEmitAccumulator_ = 0.0f;
-		return;
-	}
-
-	const bool isOnRail =
-		gameplayState_ == GameplayState::CaveEntering ||
-		gameplayState_ == GameplayState::Playing;
-	const float fallSpeed = isOnRail
-		? railCameraController_->GetMoveSpeed()
-		: skydivingCurrentSpeed_;
-	const float speedRatio = std::clamp(
-		fallSpeed / kNormalRailSpeed_,
-		0.0f, 1.0f);
-	const float emitRate = gameplayWindLineMaxEmitRate_ *
-		(0.15f + 0.85f * speedRatio);
-	gameplayWindLineEmitAccumulator_ += emitRate * deltaTime;
-
-	auto* random = SeedManager::GetInstance();
-	const float minRadius = (std::max)(0.0f, gameplayWindLineMinRadius_);
-	const float maxRadius = (std::max)(minRadius, gameplayWindLineMaxRadius_);
-	const float minDepth = (std::max)(0.0f, gameplayWindLineMinDepth_);
-	const float maxDepth = (std::max)(minDepth, gameplayWindLineMaxDepth_);
-	const float minLength = (std::max)(0.1f, gameplayWindLineMinLength_);
-	const float maxLength = (std::max)(minLength, gameplayWindLineMaxLength_);
-	const float alpha = std::clamp(gameplayWindLineAlpha_, 0.0f, 1.0f);
-
-	while (gameplayWindLineEmitAccumulator_ >= 1.0f)
-	{
-		gameplayWindLineEmitAccumulator_ -= 1.0f;
-
-		const float angle = random->GenerateFloat(0.0f, 2.0f * pi);
-		const float radius = random->GenerateFloat(minRadius, maxRadius);
-		const float depth = random->GenerateFloat(minDepth, maxDepth);
-		const float width = random->GenerateFloat(0.035f, 0.10f);
-		const float baseLength = random->GenerateFloat(minLength, maxLength);
-		const float length = baseLength * (0.35f + 0.65f * speedRatio);
-		const Vector3 playerPosition = player_->GetWorldPosition();
-
-		EulerTransform transform{};
-		transform.scale = { width, length, width };
-		transform.rotate = { 0.0f, 0.0f, 0.0f };
-		transform.translate =
-		{
-			playerPosition.x + std::cos(angle) * radius,
-			playerPosition.y - depth,
-			playerPosition.z + std::sin(angle) * radius,
-		};
-
-		const float upwardSpeed =
-			20.0f + fallSpeed * 0.25f;
-		const float lifeTime = random->GenerateFloat(0.35f, 0.70f);
-		particleManager_->EmitParticle(
-			kGameplayWindLineGroup_, transform,
-			{ 0.0f, upwardSpeed, 0.0f },
-			{ 0.72f, 0.88f, 1.0f, alpha }, lifeTime);
-	}
-}
-
-void GamePlayScene::UpdateCaveFogEndPlane()
-{
-	if (!caveFogEndPlane_)
-	{
-		return;
-	}
-
-	auto* distanceFog = DistanceFogManager::GetInstance();
-	Camera* camera = cameraManager_->GetMainCamera();
-	const Vector3 cameraPosition = camera->GetTranslate();
-	const float fogEndDistance = distanceFog->GetEndDistance();
-	const float planeDistance =
-		std::max(fogEndDistance - caveFogEndPlaneOffset_, 0.001f);
-	constexpr float kCoverageMargin = 1.05f;
-	const float halfHeight =
-		std::tan(camera->GetFovY() * 0.5f) * planeDistance * kCoverageMargin;
-	const float halfWidth = halfHeight * camera->GetAspectRatio();
-	const Quaternion faceCameraRotation = Multiply(
-		camera->GetRotateQuat(),
-		MakeRotateAxisAngleQuaternion({ 0.0f, 1.0f, 0.0f }, pi));
-
-	caveFogEndPlane_->SetScale(
-		{ std::max(caveFogEndPlaneScale_, halfWidth),
-		  std::max(caveFogEndPlaneScale_, halfHeight), 1.0f });
-	caveFogEndPlane_->GetWorldTransform()->SetRotateQuat(faceCameraRotation);
-	caveFogEndPlane_->SetTranslate(
-		cameraPosition + camera->GetForward() * planeDistance);
-	caveFogEndPlane_->SetColor(distanceFog->GetColor());
-	caveFogEndPlane_->Update();
 }
 
 void GamePlayScene::UpdateStageTitle(float deltaTime)
@@ -804,6 +601,7 @@ void GamePlayScene::Finalize()
 	FreeTypeManager::GetInstance()->Finalize();
 
 	player_->SetEnemyQueryProvider(nullptr);
+	enemyStageDirector_.reset();
 	enemyManager_->Finalize();
 	player_->Finalize();
 	
@@ -821,19 +619,9 @@ void GamePlayScene::Finalize()
 		object3d.reset();
 	}*/
 	object3ds_.clear();
-	gameplayEntryFieldEntrance_.reset();
-	gameplayEntryFieldGround_.reset();
-	caveFogEndPlane_.reset();
-
-	if (terrain_)
-	{
-		terrain_->Finalize();
-		terrain_.reset();
-	}
+	stageProgressLine_.reset();
+	caveEnvironment_.reset();
 	caveRailPath_.reset();
-
-	skyBox_->Finalize();
-	delete skyBox_;
 
 	/*for (auto it = sprites_.begin(); it != sprites_.end(); ++it)
 	{
@@ -869,14 +657,11 @@ void GamePlayScene::Update(const float& deltaTime)
 		player_->Damage(player_->GetHitPoint());
 	}
 
-	if (isTransitionIdle && enemyStagePhase_ == EnemyStagePhase::SmallEnemies &&
+	if (isTransitionIdle && enemyStageDirector_ &&
+		!enemyStageDirector_->IsBossPhase() &&
 		inputManager_->TriggerKey(DIK_F2))
 	{
-		const float bossPhaseDistance =
-			std::max(0.0f, enemyStageSpawnDelay_) +
-			enemyStageConfig_.smallEnemyPhaseDistance;
-
-		railCameraController_->SetTravelledDistance(bossPhaseDistance);
+		enemyStageDirector_->SkipToBossPhase();
 	}
 
 	const bool isGameplayActive = IsStageEntryComplete();
@@ -987,7 +772,10 @@ void GamePlayScene::Update(const float& deltaTime)
 
 	ImGui::End();
 
-	DrawEnemyStageDebugUI();
+	if (enemyStageDirector_)
+	{
+		enemyStageDirector_->DrawDebugUI();
+	}
 
 #endif
 
@@ -1021,14 +809,13 @@ void GamePlayScene::Update(const float& deltaTime)
 		cameraManager_->SetActiveCamera("Default");
 	}
 
-	UpdateGameplayState(deltaTime);
-	cameraManager_->Update(deltaTime);
-
-	if (gameplayState_ == GameplayState::Skydiving || gameplayState_ == GameplayState::CaveEntering)
+	if (stageProgressLine_->Update(
+		deltaTime, player_->GetWorldPosition().y))
 	{
-		gameplayEntryFieldEntrance_->Update();
-		gameplayEntryFieldGround_->Update();
+		stageTitleTimer_ = 0.0f;
+		isStageTitleTimerActive_ = true;
 	}
+	cameraManager_->Update(deltaTime);
 
 	railCameraController_->SetBattleSpaceParent(
 		cameraManager_->GetActiveCameraController()->GetWorldTransform());
@@ -1054,15 +841,9 @@ void GamePlayScene::Update(const float& deltaTime)
 		//emitter->Update(deltaTime);
 	}
 
-	skyBox_->Update();
-
-	terrain_->Update(
-		deltaTime,
-		cameraManager_->GetCameraWorldPosition(),
-		railCameraController_->GetCurrentDistance(),
-		railCameraController_->GetPathWorldOffset(),
-		railCameraController_->GetRailFrameWorldMatrix());
-	UpdateCaveFogEndPlane();
+	const bool drawEntryField =
+		stageProgressLine_->IsEntryFieldVisible();
+	caveEnvironment_->UpdateWorld(deltaTime, drawEntryField);
 
 	if (scenePhase_ == ScenePhase::Clear && activeSequence_)
 	{
@@ -1075,7 +856,11 @@ void GamePlayScene::Update(const float& deltaTime)
 		}
 	}
 	player_->Update(deltaTime);
-	UpdateGameplayWindLines(deltaTime);
+	caveEnvironment_->UpdateWindLines(
+		deltaTime,
+		player_->GetWorldPosition(),
+		stageProgressLine_->GetCurrentSpeed(),
+		stageProgressLine_->IsActive());
 	UpdateStageTitle(deltaTime);
 
 	if (!IsStageClearSequenceActive() && inputManager_->TriggerKey(DIK_0))
@@ -1117,7 +902,7 @@ void GamePlayScene::UpdateGameplaySystems(const float& deltaTime)
 	enemyManager_->SetRailFollowContext(
 		caveRailPath_.get(), railCameraController_->GetCurrentDistance(),
 		railCameraController_->GetPathWorldOffset());
-	UpdateEnemyStage(deltaTime);
+	enemyStageDirector_->Update(deltaTime);
 	const EnemyUpdateContext enemyUpdateContext
 	{
 		.playerWorldPosition = player_->GetWorldPosition(),
@@ -1296,188 +1081,10 @@ void GamePlayScene::UpdateGameplayDebugUI()
 	ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 	ImGui::End();
 
-	DrawEnemyStageDebugUI();
-#endif
-}
-
-void GamePlayScene::InitializeEnemyStage()
-{
-	enemyStageConfig_ = EnemyStageConfig::CreateDefault();
-	enemyStageConfig_.Load("enemy/enemy_stage.json");
-	enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
-	nextSmallEnemyIndex_ = 0;
-	bossEnemyID_ = 0;
-	smallEnemyPoolHandles_.clear();
-	smallEnemyPoolHandles_.reserve(enemyStageConfig_.smallEnemies.size());
-	for (const SmallEnemySpawnConfig& spawn : enemyStageConfig_.smallEnemies)
+	if (enemyStageDirector_)
 	{
-		smallEnemyPoolHandles_.push_back(
-			enemyManager_->PrewarmEnemy(spawn.enemy));
+		enemyStageDirector_->DrawDebugUI();
 	}
-	bossEnemyPoolHandle_ = enemyManager_->PrewarmEnemy(enemyStageConfig_.boss);
-
-	// railRatio == 0 の敵も、洞窟内部へ到達するための開始遅延後に出現させる。
-	UpdateEnemyStage(0.0f);
-}
-
-void GamePlayScene::UpdateEnemyStage(const float& deltaTime)
-{
-	if (enemyStagePhase_ != EnemyStagePhase::SmallEnemies)
-	{
-		return;
-	}
-
-	static_cast<void>(deltaTime);
-	const float phaseDistance = enemyStageConfig_.smallEnemyPhaseDistance;
-	const float spawnDelay = enemyStageSpawnDelay_ > 0.0f ? enemyStageSpawnDelay_ : 0.0f;
-	const float travelledDistance = railCameraController_->GetTravelledDistance();
-
-	while (nextSmallEnemyIndex_ < enemyStageConfig_.smallEnemies.size())
-	{
-		const SmallEnemySpawnConfig& spawn =
-			enemyStageConfig_.smallEnemies[nextSmallEnemyIndex_];
-		const float spawnDistance = spawnDelay + spawn.railRatio * phaseDistance;
-		if (travelledDistance < spawnDistance)
-		{
-			break;
-		}
-		SpawnSmallEnemy(spawn, nextSmallEnemyIndex_);
-		++nextSmallEnemyIndex_;
-	}
-
-	if (travelledDistance >= spawnDelay + phaseDistance)
-	{
-		StartBossPhase();
-	}
-}
-
-void GamePlayScene::SpawnSmallEnemy(
-	const SmallEnemySpawnConfig& spawnConfig, size_t spawnIndex)
-{
-	EnemyID id = 0;
-	if (spawnIndex < smallEnemyPoolHandles_.size())
-	{
-		id = enemyManager_->ActivatePrewarmedEnemy(
-			smallEnemyPoolHandles_[spawnIndex]);
-	}
-	if (id == 0)
-	{
-		id = enemyManager_->AddEnemy(spawnConfig.enemy);
-	}
-	ConfigureEnemy(id, false);
-}
-
-void GamePlayScene::StartBossPhase()
-{
-	// ボス戦では戦闘空間を固定し、洞窟側を流して無限落下を表現する。
-	railCameraController_->SetMovementEnabled(false);
-	terrain_->SetGameplayCaveScrolling(true);
-
-	enemyManager_->RemoveSmallEnemies();
-	bossEnemyID_ =
-		enemyManager_->ActivatePrewarmedEnemy(bossEnemyPoolHandle_);
-	if (bossEnemyID_ == 0)
-	{
-		bossEnemyID_ = enemyManager_->AddEnemy(enemyStageConfig_.boss);
-	}
-	ConfigureEnemy(bossEnemyID_, true);
-	enemyStagePhase_ = EnemyStagePhase::Boss;
-}
-
-void GamePlayScene::ConfigureEnemy(EnemyID id, bool isBoss)
-{
-	Enemy* enemy = enemyManager_->FindEnemy(id);
-	if (!enemy)
-	{
-		return;
-	}
-
-	enemy->SetEnvironmentTextureIndex(skyBox_->GetEnvironmentTextureIndex());
-	if (!isBoss)
-	{
-		enemy->SetContinuousRailFollowEnabled(
-			enemyStageConfig_.smallEnemyContinuousRailFollowEnabled);
-	}
-	enemy->SetParent(railCameraController_->GetBattleWorldTransform());
-	enemy->SetEventBus(eventBus_.get());
-	if (isBoss)
-	{
-		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::ScreenBoss);
-		enemy->SetScreenBossPriority(50);
-	}
-	else
-	{
-		enemy->SetHPGageDisplayType(EnemyHPGageDisplayType::OverHead);
-	}
-	enemy->EventDispatch();
-}
-
-void GamePlayScene::DrawEnemyStageDebugUI()
-{
-#ifdef _DEBUG
-	const float travelledDistance = railCameraController_ ?
-		railCameraController_->GetTravelledDistance() : 0.0f;
-	const float phaseDistance = enemyStageConfig_.smallEnemyPhaseDistance;
-	const float spawnDelay = enemyStageSpawnDelay_ > 0.0f ? enemyStageSpawnDelay_ : 0.0f;
-	const float progress = phaseDistance > 0.0f ?
-		std::clamp((travelledDistance - spawnDelay) / phaseDistance, 0.0f, 1.0f) : 0.0f;
-
-	ImGui::Begin("Enemy Stage Debug");
-	ImGui::Text("Rail travelled distance: %.3f", travelledDistance);
-	ImGui::Text("Enemy spawn delay: %.3f", spawnDelay);
-	ImGui::Text("Small enemy phase distance: %.3f", phaseDistance);
-	ImGui::Text("Progress: %.3f / %.1f%%", progress, progress * 100.0f);
-	ImGui::ProgressBar(progress, ImVec2(-FLT_MIN, 0.0f));
-	ImGui::Text("Next spawn index: %zu / %zu",
-		nextSmallEnemyIndex_, enemyStageConfig_.smallEnemies.size());
-
-	constexpr ImGuiTableFlags tableFlags =
-		ImGuiTableFlags_Borders |
-		ImGuiTableFlags_RowBg |
-		ImGuiTableFlags_Resizable |
-		ImGuiTableFlags_ScrollX;
-	if (ImGui::BeginTable("ActiveEnemies", 7, tableFlags, ImVec2(0.0f, 260.0f)))
-	{
-		ImGui::TableSetupColumn("Enemy ID");
-		ImGui::TableSetupColumn("Role");
-		ImGui::TableSetupColumn("State");
-		ImGui::TableSetupColumn("Spawn Local");
-		ImGui::TableSetupColumn("Current Local");
-		ImGui::TableSetupColumn("Max HP");
-		ImGui::TableSetupColumn("Current HP");
-		ImGui::TableHeadersRow();
-
-		for (const EnemyID id : enemyManager_->GetEnemyIDs())
-		{
-			const Enemy* enemy = enemyManager_->FindEnemy(id);
-			if (!enemy || enemy->GetIsDead())
-			{
-				continue;
-			}
-
-			const Vector3& spawnPosition = enemy->GetSpawnPosition();
-			const Vector3& currentPosition = enemy->GetTranslate();
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0);
-			ImGui::Text("%u", static_cast<unsigned int>(id));
-			ImGui::TableSetColumnIndex(1);
-			ImGui::TextUnformatted(enemy->GetRoleName());
-			ImGui::TableSetColumnIndex(2);
-			ImGui::TextUnformatted(enemy->GetBehaviorStateName());
-			ImGui::TableSetColumnIndex(3);
-			ImGui::Text("(%.2f, %.2f, %.2f)",
-				spawnPosition.x, spawnPosition.y, spawnPosition.z);
-			ImGui::TableSetColumnIndex(4);
-			ImGui::Text("(%.2f, %.2f, %.2f)",
-				currentPosition.x, currentPosition.y, currentPosition.z);
-			ImGui::TableSetColumnIndex(5);
-			ImGui::Text("%d", enemy->GetMaxHitPoint());
-			ImGui::TableSetColumnIndex(6);
-			ImGui::Text("%d", enemy->GetHitPoint());
-		}
-		ImGui::EndTable();
-	}
-	ImGui::End();
 #endif
 }
 
@@ -1530,10 +1137,7 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		const SequencePolicy policy = activeSequence_->GetPolicy();
 		if (policy.world == WorldPresentation::GameplayWorld)
 		{
-			skyBox_->Draw();
-			caveFogEndPlane_->Draw();
-			terrain_->Draw();
-			DrawGameplayEntryField();
+			caveEnvironment_->Draw(true);
 		}
 
 		activeSequence_->DrawWorld();
@@ -1552,7 +1156,9 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		return;
 	}
 
-	skyBox_->Draw();
+	const bool drawEntryField =
+		stageProgressLine_->IsEntryFieldVisible();
+	caveEnvironment_->Draw(drawEntryField, isDrawObject3d_);
 
 	if (isDrawObject3d_)
 	{
@@ -1561,13 +1167,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 			object3ds_[i]->Draw();
 		}*/
 
-		caveFogEndPlane_->Draw();
-		terrain_->Draw();
-		if (gameplayState_ == GameplayState::Skydiving ||
-			gameplayState_ == GameplayState::CaveEntering)
-		{
-			DrawGameplayEntryField();
-		}
 		player_->Draw();
 		/*enemy_->Draw();*/
 		enemyManager_->Draw();
@@ -1621,8 +1220,3 @@ void GamePlayScene::Draw(CanvasId canvasId)
 	pauseMenu_->Draw();
 }
 
-void GamePlayScene::DrawGameplayEntryField()
-{
-	gameplayEntryFieldGround_->Draw();
-	gameplayEntryFieldEntrance_->Draw();
-}

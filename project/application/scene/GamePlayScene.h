@@ -12,10 +12,12 @@
 #include "RailCameraController.h"
 #include "SkyBox.h"
 #include "Terrain.h"
+#include "application/object/cave/CaveGameplayEnvironment.h"
 #include "application/object/cave/CaveRailPath.h"
+#include "application/object/cave/StageProgressLine.h"
 #include "Player.h"
 #include "Enemy/EnemyManager.h"
-#include "Enemy/EnemyStageConfig.h"
+#include "Enemy/EnemyStageDirector.h"
 
 #include "EventBus.h"
 #include "GamePlaySceneUI.h"
@@ -54,31 +56,15 @@ private:
 		GameOver,
 	};
 
-	enum class GameplayState
-	{
-		Inactive,
-		Skydiving,
-		CaveEntering,
-		Playing,
-	};
-
 	void InitializeGameplayPresentation();
 	void InitializeEntrySequence();
 	void UpdateEntrySequence(float deltaTime);
 	void FinishEntrySequence();
-	void UpdateGameplayState(float deltaTime);
 	void BeginSkydivingGameplay();
-	void BeginCaveEntering();
-	void BeginNormalGameplay();
 	void ActivateGameplay();
-	void UpdateSkydivingSpeed(float deltaTime);
-	void UpdateCaveFog();
-	void UpdateGameplayWindLines(float deltaTime);
-	void UpdateCaveFogEndPlane();
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
 	void StartStageClearSequence();
-	void DrawGameplayEntryField();
 	bool IsStageEntryComplete() const
 	{
 		return scenePhase_ != ScenePhase::Entry;
@@ -88,17 +74,10 @@ private:
 		return scenePhase_ == ScenePhase::Clear;
 	}
 
-	void InitializeEnemyStage();
 	void UpdateGameplayDebugUI();
 	void UpdateGameplaySystems(const float& deltaTime);
 	GameUIFrameSnapshot BuildGameUIFrameSnapshot() const;
 	void StartGameOverSequence();
-	void UpdateEnemyStage(const float& deltaTime);
-	void SpawnSmallEnemy(
-		const SmallEnemySpawnConfig& spawnConfig, size_t spawnIndex);
-	void StartBossPhase();
-	void ConfigureEnemy(EnemyID id, bool isBoss);
-	void DrawEnemyStageDebugUI();
 
 private:
 
@@ -167,45 +146,17 @@ private:
 
 	ScenePhase scenePhase_ = ScenePhase::Entry;
 	std::unique_ptr<GamePlaySequence> activeSequence_ = nullptr;
-	GameplayState gameplayState_ = GameplayState::Inactive;
-	float gameplayStateTimer_ = 0.0f;
-	bool isEnemyStageInitialized_ = false;
-	std::unique_ptr<Object3d> gameplayEntryFieldEntrance_ = nullptr;
-	std::unique_ptr<Object3d> gameplayEntryFieldGround_ = nullptr;
-	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
+	std::unique_ptr<StageProgressLine> stageProgressLine_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
-	Vector3 gameplayEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
-	Vector3 gameplayEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
-	Vector3 gameplayEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
-	Vector3 gameplayEntryFieldGroundPosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 stageEntryDoorPosition_ = { 0.0f, 3.2f, 8.0f };
 	Vector3 stageEntryPlayerStartPosition_ = { 0.0f, -1.7f, -7.0f };
 	Vector3 stageEntryPlayerDoorPosition_ = { 0.0f, 0.0f, 1.5f };
 	Vector3 stageEntryPlayerDiveEndPosition_ = { 0.0f, 0.0f, 10.5f };
 	Vector3 gameplayPlayerRailPosition_ = { 0.0f, -1.7f, -7.5f };
-	float skydivingStartHeight_ = 500.0f;
-	float skydivingInitialSpeed_ = 20.0f;
-	float skydivingAcceleration_ = 80.0f;
-	float skydivingCurrentSpeed_ = 0.0f;
 	float lookDownCameraForwardHoldDuration_ = 0.25f;
 	float lookDownCameraTurnDuration_ = 0.75f;
-	float caveFogBaseStart_ = 20.0f;
-	float caveFogBaseEnd_ = 500.0f;
-	float caveFogEndPlaneScale_ = 50.0f;
-	float caveFogEndPlaneOffset_ = 0.0f;
-	float gameplayWindLineEmitAccumulator_ = 0.0f;
-	float gameplayWindLineMinRadius_ = 6.0f;
-	float gameplayWindLineMaxRadius_ = 32.0f;
-	float gameplayWindLineMinDepth_ = 30.0f;
-	float gameplayWindLineMaxDepth_ = 150.0f;
-	float gameplayWindLineMinLength_ = 3.0f;
-	float gameplayWindLineMaxLength_ = 22.0f;
-	float gameplayWindLineMaxEmitRate_ = 48.0f;
-	float gameplayWindLineAlpha_ = 0.28f;
 	float stageTitleTimer_ = 0.0f;
 	bool isStageTitleTimerActive_ = false;
-	static constexpr const char* kGameplayWindLineGroup_ =
-		"stage_entry_wind_line";
 	static constexpr float kStageTitleDelay_ = 1.0f;
 	static constexpr float kStageTitleDuration_ = 3.0f;
 
@@ -215,31 +166,13 @@ private:
 	static constexpr float kStageEntryDiveDuration_ = 0.55f;
 	static constexpr float kStageEntryWhiteOutDuration_ = 0.20f;
 	static constexpr float kStageEntryWhiteFadeDuration_ = 0.45f;
-	static constexpr float kGameplayCaveEnterDuration_ = 0.35f;
-	static constexpr float kNormalRailSpeed_ = 300.0f;
-	
-
 	Vector2 mousePosition_ = { 0.0f, 0.0f };
 
-	SkyBox* skyBox_ = nullptr;
-
-	std::unique_ptr<Terrain> terrain_ = nullptr;
+	std::unique_ptr<CaveGameplayEnvironment> caveEnvironment_ = nullptr;
 
 	std::unique_ptr<Player> player_ = nullptr;
 
-	EnemyStageConfig enemyStageConfig_;
-	enum class EnemyStagePhase
-	{
-		SmallEnemies,
-		Boss,
-	};
-	EnemyStagePhase enemyStagePhase_ = EnemyStagePhase::SmallEnemies;
-	float enemyStageSpawnDelay_ = 4.0f;
-	size_t nextSmallEnemyIndex_ = 0;
-	EnemyID bossEnemyID_ = 0;
-	std::vector<EnemyManager::PoolHandle> smallEnemyPoolHandles_;
-	EnemyManager::PoolHandle bossEnemyPoolHandle_ =
-		EnemyManager::kInvalidPoolHandle;
+	std::unique_ptr<EnemyStageDirector> enemyStageDirector_ = nullptr;
 
 	std::unique_ptr<ParticleEmitter> slashEmitter_ = nullptr;
 

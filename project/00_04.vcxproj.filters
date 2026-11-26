@@ -189,6 +189,12 @@
     <ClCompile Include="application\object\cave\CaveRailPath.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+	<ClCompile Include="application\object\cave\CaveGameplayEnvironment.cpp">
+	  <Filter>ソース ファイル</Filter>
+	</ClCompile>
+	<ClCompile Include="application\object\cave\StageProgressLine.cpp">
+	  <Filter>ソース ファイル</Filter>
+	</ClCompile>
     <ClCompile Include="application\object\player\Player.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -321,6 +327,9 @@
     <ClCompile Include="application\object\enemy\EnemyStageConfig.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+	<ClCompile Include="application\object\enemy\EnemyStageDirector.cpp">
+	  <Filter>ソース ファイル</Filter>
+	</ClCompile>
     <ClCompile Include="application\ui\LockOnUI.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -602,6 +611,12 @@
     <ClInclude Include="application\object\cave\CaveRailPath.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+	<ClInclude Include="application\object\cave\CaveGameplayEnvironment.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
+	<ClInclude Include="application\object\cave\StageProgressLine.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
     <ClInclude Include="application\object\player\Player.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -758,6 +773,9 @@
     <ClInclude Include="application\object\enemy\EnemyStageConfig.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+	<ClInclude Include="application\object\enemy\EnemyStageDirector.h">
+	  <Filter>ヘッダー ファイル</Filter>
+	</ClInclude>
     <ClInclude Include="application\object\enemy\EnemyUtility.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>

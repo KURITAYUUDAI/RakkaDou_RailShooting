@@ -221,6 +221,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\ui\PauseMenu.cpp" />
     <ClCompile Include="application\object\enemy\EnemyManager.cpp" />
     <ClCompile Include="application\object\enemy\EnemyStageConfig.cpp" />
+	<ClCompile Include="application\object\enemy\EnemyStageDirector.cpp" />
     <ClCompile Include="application\ui\LockOnUI.cpp" />
     <ClCompile Include="application\tool\postEffect\Dissolve.cpp" />
     <ClCompile Include="Dict_Engine\tool\effect\DissolveManager.cpp" />
@@ -254,6 +255,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClCompile Include="application\object\SkyBox.cpp" />
     <ClCompile Include="application\object\Terrain.cpp" />
     <ClCompile Include="application\object\cave\CaveRailPath.cpp" />
+	<ClCompile Include="application\object\cave\CaveGameplayEnvironment.cpp" />
+	<ClCompile Include="application\object\cave\StageProgressLine.cpp" />
     <ClCompile Include="application\object\player\Player.cpp" />
     <ClCompile Include="Dict_Engine\3d\PrimitiveManager.cpp" />
     <ClCompile Include="Dict_Engine\base\OffscreenRender.cpp" />
@@ -600,6 +603,8 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="Dict_Engine\3d\DistanceFogManager.h" />
     <ClInclude Include="application\object\Terrain.h" />
     <ClInclude Include="application\object\cave\CaveRailPath.h" />
+	<ClInclude Include="application\object\cave\CaveGameplayEnvironment.h" />
+	<ClInclude Include="application\object\cave\StageProgressLine.h" />
     <ClInclude Include="application\object\player\Player.h" />
     <ClInclude Include="Dict_Engine\3d\PrimitiveManager.h" />
     <ClInclude Include="Dict_Engine\base\OffscreenRender.h" />
@@ -638,6 +643,7 @@ copy "$(WindowsSdkDir)bin\$(TargetPlatformVersion)\x64\dxil.dll" "$(TargetDir)dx
     <ClInclude Include="application\ui\PauseMenu.h" />
     <ClInclude Include="application\object\enemy\EnemyManager.h" />
     <ClInclude Include="application\object\enemy\EnemyStageConfig.h" />
+	<ClInclude Include="application\object\enemy\EnemyStageDirector.h" />
     <ClInclude Include="application\ui\LockOnUI.h" />
     <ClInclude Include="application\tool\postEffect\RadialBlur.h" />
     <ClInclude Include="application\tool\postEffect\Dissolve.h" />
