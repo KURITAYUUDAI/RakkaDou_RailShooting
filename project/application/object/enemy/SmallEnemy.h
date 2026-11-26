@@ -2,9 +2,19 @@
 
 #include "Enemy.h"
 
+class ISmallEnemyRoleBehavior;
+class BasicSmallEnemyBehavior;
+class TurretSmallEnemyBehavior;
+class ChargerSmallEnemyBehavior;
+class ApproacherSmallEnemyBehavior;
+class EliteSmallEnemyBehavior;
+
 class SmallEnemy final : public Enemy
 {
 public:
+	SmallEnemy();
+	~SmallEnemy() override;
+
 	SmallEnemyRole GetRole() const { return role_; }
 	SmallEnemyState GetBehaviorState() const { return state_; }
 	const char* GetRoleName() const override { return ToString(role_); }
@@ -19,6 +29,12 @@ protected:
 	float GetRailFollowBlend() const override;
 
 private:
+	friend class BasicSmallEnemyBehavior;
+	friend class TurretSmallEnemyBehavior;
+	friend class ChargerSmallEnemyBehavior;
+	friend class ApproacherSmallEnemyBehavior;
+	friend class EliteSmallEnemyBehavior;
+
 	void ChangeState(SmallEnemyState state);
 	void BeginRoleBehavior();
 	void UpdateSpawnEntry(float deltaTime);
@@ -35,6 +51,7 @@ private:
 	SmallEnemyRole role_ = SmallEnemyRole::Basic;
 	SmallEnemyState state_ = SmallEnemyState::Ranged;
 	EnemyCreateConfig config_{};
+	std::unique_ptr<ISmallEnemyRoleBehavior> roleBehavior_;
 
 	// チャージなどに移行してからの時間
 	float stateElapsedTime_ = 0.0f;

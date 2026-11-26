@@ -7,17 +7,204 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+
+class ISmallEnemyRoleBehavior
+{
+public:
+	virtual ~ISmallEnemyRoleBehavior() = default;
+
+	virtual void Initialize(SmallEnemy& enemy) = 0;
+	virtual void Begin(SmallEnemy& enemy) = 0;
+	virtual void Update(SmallEnemy& enemy, float deltaTime) = 0;
+	virtual void OnPlayerCollision(SmallEnemy& enemy) {}
+	virtual bool UsesBurstFire() const = 0;
+	virtual bool CanShoot(SmallEnemyState state) const = 0;
+	virtual bool EscapesDiagonally() const { return false; }
+};
+
+class BasicSmallEnemyBehavior final : public ISmallEnemyRoleBehavior
+{
+public:
+	void Initialize(SmallEnemy& enemy) override
+	{
+		enemy.SetBodyCollisionDamage(1);
+	}
+
+	void Begin(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::Ranged);
+	}
+
+	void Update(SmallEnemy& enemy, float deltaTime) override
+	{
+		if (enemy.state_ == SmallEnemyState::Escaping)
+		{
+			enemy.UpdateEscaping(deltaTime);
+		}
+		else
+		{
+			enemy.UpdateForwardMovement(deltaTime);
+		}
+	}
+
+	bool UsesBurstFire() const override { return false; }
+	bool CanShoot(SmallEnemyState state) const override
+	{
+		return state == SmallEnemyState::Ranged;
+	}
+	bool EscapesDiagonally() const override { return true; }
+};
+
+class TurretSmallEnemyBehavior final : public ISmallEnemyRoleBehavior
+{
+public:
+	void Initialize(SmallEnemy& enemy) override
+	{
+		enemy.SetBodyCollisionDamage(1);
+	}
+
+	void Begin(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::Ranged);
+	}
+
+	void Update(SmallEnemy&, float) override {}
+	bool UsesBurstFire() const override { return true; }
+	bool CanShoot(SmallEnemyState state) const override
+	{
+		return state == SmallEnemyState::Ranged;
+	}
+};
+
+class ChargerSmallEnemyBehavior final : public ISmallEnemyRoleBehavior
+{
+public:
+	void Initialize(SmallEnemy& enemy) override
+	{
+		ModelManager::GetInstance()->LoadModel("enemy", "CrossEnemy.obj");
+		enemy.GetObject3d()->SetModel("CrossEnemy.obj");
+		enemy.SetBodyCollisionDamage(0);
+	}
+
+	void Begin(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::Charging);
+	}
+
+	void Update(SmallEnemy& enemy, float deltaTime) override
+	{
+		enemy.UpdateCharger(deltaTime);
+	}
+
+	void OnPlayerCollision(SmallEnemy& enemy) override
+	{
+		enemy.MarkForRemoval();
+	}
+
+	bool UsesBurstFire() const override { return false; }
+	bool CanShoot(SmallEnemyState) const override { return false; }
+};
+
+class ApproacherSmallEnemyBehavior final : public ISmallEnemyRoleBehavior
+{
+public:
+	void Initialize(SmallEnemy& enemy) override
+	{
+		enemy.SetBodyCollisionDamage(1);
+	}
+
+	void Begin(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::Ranged);
+	}
+
+	void Update(SmallEnemy& enemy, float deltaTime) override
+	{
+		enemy.UpdateApproacher(deltaTime);
+	}
+
+	bool UsesBurstFire() const override { return false; }
+	bool CanShoot(SmallEnemyState state) const override
+	{
+		return state == SmallEnemyState::Ranged ||
+			state == SmallEnemyState::Approaching ||
+			state == SmallEnemyState::NearCombat;
+	}
+};
+
+class EliteSmallEnemyBehavior final : public ISmallEnemyRoleBehavior
+{
+public:
+	void Initialize(SmallEnemy& enemy) override
+	{
+		enemy.SetBodyCollisionDamage(1);
+	}
+
+	void Begin(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::Ranged);
+	}
+
+	void Update(SmallEnemy& enemy, float deltaTime) override
+	{
+		if (enemy.state_ == SmallEnemyState::Ranged &&
+			!enemy.eliteChargeTriggered_ &&
+			enemy.GetHitPoint() <= enemy.GetMaxHitPoint() / 2)
+		{
+			enemy.eliteChargeTriggered_ = true;
+			enemy.ChangeState(SmallEnemyState::Charging);
+			return;
+		}
+
+		enemy.UpdateElite(deltaTime);
+	}
+
+	void OnPlayerCollision(SmallEnemy& enemy) override
+	{
+		enemy.ChangeState(SmallEnemyState::NearCombat);
+		enemy.restoreBodyDamageNextUpdate_ = true;
+	}
+
+	bool UsesBurstFire() const override { return true; }
+	bool CanShoot(SmallEnemyState state) const override
+	{
+		return state == SmallEnemyState::Ranged ||
+			state == SmallEnemyState::NearCombat;
+	}
+	bool EscapesDiagonally() const override { return true; }
+};
+
+namespace
+{
+	std::unique_ptr<ISmallEnemyRoleBehavior> CreateRoleBehavior(SmallEnemyRole role)
+	{
+		switch (role)
+		{
+		case SmallEnemyRole::Basic:
+			return std::make_unique<BasicSmallEnemyBehavior>();
+		case SmallEnemyRole::Turret:
+			return std::make_unique<TurretSmallEnemyBehavior>();
+		case SmallEnemyRole::Charger:
+			return std::make_unique<ChargerSmallEnemyBehavior>();
+		case SmallEnemyRole::Approacher:
+			return std::make_unique<ApproacherSmallEnemyBehavior>();
+		case SmallEnemyRole::Elite:
+			return std::make_unique<EliteSmallEnemyBehavior>();
+		}
+		return std::make_unique<BasicSmallEnemyBehavior>();
+	}
+}
+
+SmallEnemy::SmallEnemy() = default;
+SmallEnemy::~SmallEnemy() = default;
 
 void SmallEnemy::InitializeSpecific(const EnemyCreateConfig& config)
 {
 	config_ = config;
 	role_ = config.role;
-	if (role_ == SmallEnemyRole::Charger)
-	{
-		ModelManager::GetInstance()->LoadModel("enemy", "CrossEnemy.obj");
-		GetObject3d()->SetModel("CrossEnemy.obj");
-	}
-	SetBodyCollisionDamage(role_ == SmallEnemyRole::Charger ? 0 : 1);
+	roleBehavior_ = CreateRoleBehavior(role_);
+	roleBehavior_->Initialize(*this);
 
 	spawnTargetPosition_ = config.position;
 	Vector3 entryPosition = spawnTargetPosition_;
@@ -46,52 +233,12 @@ void SmallEnemy::UpdateBehavior(const float& deltaTime)
 		return;
 	}
 
-	if (role_ == SmallEnemyRole::Elite &&
-		state_ == SmallEnemyState::Ranged &&
-		!eliteChargeTriggered_ &&
-		GetHitPoint() <= GetMaxHitPoint() / 2)
-	{
-		eliteChargeTriggered_ = true;
-		ChangeState(SmallEnemyState::Charging);
-		return;
-	}
-
-	switch (role_)
-	{
-	case SmallEnemyRole::Basic:
-		if (state_ == SmallEnemyState::Escaping)
-		{
-			UpdateEscaping(deltaTime);
-		}
-		else
-		{
-			UpdateForwardMovement(deltaTime);
-		}
-		break;
-	case SmallEnemyRole::Turret:
-		break;
-	case SmallEnemyRole::Charger:
-		UpdateCharger(deltaTime);
-		break;
-	case SmallEnemyRole::Approacher:
-		UpdateApproacher(deltaTime);
-		break;
-	case SmallEnemyRole::Elite:
-		UpdateElite(deltaTime);
-		break;
-	}
+	roleBehavior_->Update(*this, deltaTime);
 }
 
 void SmallEnemy::BeginRoleBehavior()
 {
-	if (role_ == SmallEnemyRole::Charger)
-	{
-		ChangeState(SmallEnemyState::Charging);
-	}
-	else
-	{
-		ChangeState(SmallEnemyState::Ranged);
-	}
+	roleBehavior_->Begin(*this);
 }
 
 void SmallEnemy::UpdateSpawnEntry(float deltaTime)
@@ -173,15 +320,7 @@ void SmallEnemy::OnPlayerCollision()
 		return;
 	}
 
-	if (role_ == SmallEnemyRole::Charger)
-	{
-		MarkForRemoval();
-	}
-	else if (role_ == SmallEnemyRole::Elite)
-	{
-		ChangeState(SmallEnemyState::NearCombat);
-		restoreBodyDamageNextUpdate_ = true;
-	}
+	roleBehavior_->OnPlayerCollision(*this);
 }
 
 void SmallEnemy::ChangeState(SmallEnemyState state)
@@ -192,7 +331,7 @@ void SmallEnemy::ChangeState(SmallEnemyState state)
 	chargeReady_ = false;
 	SetAttackChargeProgress(0.0f);
 	if (state == SmallEnemyState::Escaping &&
-		(role_ == SmallEnemyRole::Basic || role_ == SmallEnemyRole::Elite))
+		roleBehavior_->EscapesDiagonally())
 	{
 		escapeDirectionX_ = GetTranslate().x >= 0.0f ? 1.0f : -1.0f;
 	}
@@ -384,8 +523,7 @@ void SmallEnemy::UpdateElite(float deltaTime)
 void SmallEnemy::UpdateEscaping(float deltaTime)
 {
 	Vector3 position = GetTranslate();
-	const bool escapesDiagonally =
-		role_ == SmallEnemyRole::Basic || role_ == SmallEnemyRole::Elite;
+	const bool escapesDiagonally = roleBehavior_->EscapesDiagonally();
 	if (escapesDiagonally)
 	{
 		position.x += escapeDirectionX_ * config_.escapeHorizontalSpeed * deltaTime;
@@ -468,25 +606,10 @@ void SmallEnemy::FireProjectile()
 
 bool SmallEnemy::UsesBurstFire() const
 {
-	return role_ == SmallEnemyRole::Turret || role_ == SmallEnemyRole::Elite;
+	return roleBehavior_->UsesBurstFire();
 }
 
 bool SmallEnemy::CanShootInCurrentState() const
 {
-	switch (role_)
-	{
-	case SmallEnemyRole::Basic:
-	case SmallEnemyRole::Turret:
-		return state_ == SmallEnemyState::Ranged;
-	case SmallEnemyRole::Approacher:
-		return state_ == SmallEnemyState::Ranged ||
-			state_ == SmallEnemyState::Approaching ||
-			state_ == SmallEnemyState::NearCombat;
-	case SmallEnemyRole::Elite:
-		return state_ == SmallEnemyState::Ranged ||
-			state_ == SmallEnemyState::NearCombat;
-	case SmallEnemyRole::Charger:
-		return false;
-	}
-	return false;
+	return roleBehavior_->CanShoot(state_);
 }

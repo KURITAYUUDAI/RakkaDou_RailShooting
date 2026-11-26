@@ -230,16 +230,7 @@ void Enemy::Draw()
 #ifdef _DEBUG
 	if (DebugDrawManager::GetInstance()->IsCollisionDebugDrawEnabled())
 	{
-		if (collider_->GetShape() == ColliderShape::AABB)
-		{
-			DebugDrawManager::GetInstance()->AddBox(collider_->GetWorldPosition(),
-				collider_->GetSize(), { 1.0f, 0.0f, 1.0f, 1.0f });
-		}
-		else
-		{
-			DebugDrawManager::GetInstance()->AddSphere(collider_->GetWorldPosition(),
-				collider_->GetRadius(), { 1.0f, 0.0f, 1.0f, 1.0f }, 8);
-		}
+		collider_->DrawDebug({ 1.0f, 0.0f, 1.0f, 1.0f });
 		DrawAdditionalDebug();
 	}
 #endif

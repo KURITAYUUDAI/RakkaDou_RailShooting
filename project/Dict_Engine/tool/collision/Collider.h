@@ -1,9 +1,13 @@
 #pragma once
 #include "myMath.h"
 #include <functional>
+#include <memory>
 #include "WorldTransform.h"
 
 class ICollisionObserver;
+class IColliderShape;
+class SphereColliderShape;
+class AABBColliderShape;
 
 struct CollisionContact
 {
@@ -13,6 +17,12 @@ struct CollisionContact
 	// 1.0は現在フレーム終端。Sweep時は[0, 1]内の最初の接触時刻。
 	float timeOfImpact = 1.0f;
 	bool isContinuous = false;
+};
+
+struct CollisionResult
+{
+	bool isColliding = false;
+	CollisionContact contact{};
 };
 
 enum class CollisionAttribute : uint32_t
@@ -38,13 +48,17 @@ public:
 		std::function<void(Collider*, Collider*, const CollisionContact&)>;
 
 public:
+	Collider();
+	~Collider();
 
 	const Vector3& GetWorldPosition() const { return worldPosition_; }
 	const Vector3& GetPreviousWorldPosition() const { return previousWorldPosition_; }
 	const float& GetRadius() const { return radius_; }
-	ColliderShape GetShape() const { return shape_; }
+	ColliderShape GetShape() const;
 	const Vector3& GetSize() const { return size_; }
 	AABB GetAABB() const;
+	CollisionResult CheckCollision(const Collider& other) const;
+	void DrawDebug(const Vector4& color, uint32_t sphereSubdivision = 8) const;
 	uint32_t GetAttribute() const { return attribute_; }
 	uint32_t GetMask() const {return mask_; }
 	int GetDamage() const { return damage_; }
@@ -59,7 +73,7 @@ public:
 	void SetWorldPosition(const Vector3& position);
 
 	void SetRadius(const float& radius){ radius_ = radius; }
-	void SetShape(ColliderShape shape) { shape_ = shape; }
+	void SetShape(ColliderShape shape);
 	void SetSize(const Vector3& size) { size_ = size; }
 
 	void SetAttribute(CollisionAttribute attribute) { attribute_ = static_cast<uint32_t>(attribute); }
@@ -75,10 +89,12 @@ public:
 	void OnCollision(Collider* other, const CollisionContact& contact);
 
 private:
+	friend class SphereColliderShape;
+	friend class AABBColliderShape;
 
 	float radius_ = 1.0f;
-	ColliderShape shape_ = ColliderShape::Sphere;
 	Vector3 size_{ 2.0f, 2.0f, 2.0f };
+	std::unique_ptr<IColliderShape> shape_;
 	ICollisionObserver* owner_ = nullptr;
 	CollisionCallback onCollision_;
 

@@ -291,16 +291,7 @@ void BossEnemy::DrawAdditional()
 void BossEnemy::DrawAdditionalDebug()
 {
 #ifdef _DEBUG
-	if (colliderAttack_->GetShape() == ColliderShape::AABB)
-	{
-		DebugDrawManager::GetInstance()->AddBox(colliderAttack_->GetWorldPosition(),
-			colliderAttack_->GetSize(), { 1.0f, 0.0f, 1.0f, 1.0f });
-	}
-	else
-	{
-		DebugDrawManager::GetInstance()->AddSphere(colliderAttack_->GetWorldPosition(),
-			colliderAttack_->GetRadius(), { 1.0f, 0.0f, 1.0f, 1.0f }, 8);
-	}
+	colliderAttack_->DrawDebug({ 1.0f, 0.0f, 1.0f, 1.0f });
 #endif
 }
 
