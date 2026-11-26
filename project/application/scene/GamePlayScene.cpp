@@ -6,7 +6,6 @@
 #include "PrimitiveManager.h"
 #include "PostEffectManager.h"
 #include "GaussianBlur.h"
-#include "RadialBlur.h"
 #include "Dissolve.h"
 #include "Random.h"
 #include "Bloom.h"
@@ -20,6 +19,7 @@
 #include "FontManager.h"
 #include "TextManager.h"
 #include "Enemy/EnemyEvent.h"
+#include "gameSequence/GameClearSequence.h"
 #include "gameSequence/GameOverSequence.h"
 #include "gameSequence/StageEntrySequence.h"
 
@@ -57,14 +57,6 @@ namespace
 		return start + (end - start) * t;
 	}
 
-	Vector3 LerpVector3(const Vector3& start, const Vector3& end, float t)
-	{
-		return {
-			LerpFloat(start.x, end.x, t),
-			LerpFloat(start.y, end.y, t),
-			LerpFloat(start.z, end.z, t),
-		};
-	}
 }
 
 void GamePlayScene::Initialize()
@@ -528,14 +520,6 @@ void GamePlayScene::InitializeGameplayPresentation()
 	stageTitleText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 	stageTitleText_->Update();
 
-	stageClearText_ = std::make_unique<Text>();
-	stageClearText_->Initialize(
-		"fonts/x8y12pxTheStrongGamer.ttf", 64, U"STAGE CLEAR");
-	stageClearText_->SetAnchorPoint({ 0.5f, 0.5f });
-	stageClearText_->SetPosition({ 640.0f, 240.0f });
-	stageClearText_->SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-	stageClearText_->Update();
-
 	player_->SetScale({ 1.0f, 1.0f, 1.0f });
 	player_->SetRotate({ 0.0f, 0.0f, 0.0f });
 	player_->SetTranslate(stageEntryPlayerStartPosition_);
@@ -546,8 +530,6 @@ void GamePlayScene::InitializeGameplayPresentation()
 	isEnemyStageInitialized_ = false;
 	stageTitleTimer_ = 0.0f;
 	isStageTitleTimerActive_ = false;
-	stageClearState_ = StageClearState::Inactive;
-	stageClearTimer_ = 0.0f;
 }
 
 void GamePlayScene::BeginSkydivingGameplay()
@@ -770,7 +752,7 @@ void GamePlayScene::DrawStageTitle()
 
 void GamePlayScene::StartStageClearSequence()
 {
-	if (IsStageClearSequenceActive() || player_->GetIsDead())
+	if (scenePhase_ != ScenePhase::Play || player_->GetIsDead())
 	{
 		return;
 	}
@@ -778,146 +760,20 @@ void GamePlayScene::StartStageClearSequence()
 	isPaused_ = false;
 	pauseMenu_->SetVisible(false);
 	inputMapping_->SetContext(InputContext::Gameplay);
-	player_->StartStageClearSequence();
 	collisionManager_->Clear();
 	BulletManager::GetInstance()->ClearBullets();
 
-	stageClearPlayerStartPosition_ = player_->GetTranslate();
-	stageClearTimer_ = 0.0f;
-	stageClearState_ = StageClearState::RepositioningPlayer;
-}
-
-void GamePlayScene::UpdateStageClearSequence(float deltaTime)
-{
-	switch (stageClearState_)
-	{
-	case StageClearState::Inactive:
-		return;
-
-	case StageClearState::RepositioningPlayer:
-	{
-		stageClearTimer_ += deltaTime;
-		const float duration = std::max(kStageClearRepositionDuration_, 0.001f);
-		const float progress = std::clamp(stageClearTimer_ / duration, 0.0f, 1.0f);
-		player_->SetTranslate(LerpVector3(
-			stageClearPlayerStartPosition_, gameplayPlayerRailPosition_,
-			SmoothStep01(progress)));
-		if (progress >= 1.0f)
-		{
-			player_->SetTranslate(gameplayPlayerRailPosition_);
-			stageClearTimer_ = 0.0f;
-			stageClearState_ = StageClearState::DisplayingText;
-		}
-		break;
-	}
-
-	case StageClearState::DisplayingText:
-		stageClearTimer_ += deltaTime;
-		stageClearText_->Update();
-		if (stageClearTimer_ >= kStageClearTextDuration_)
-		{
-			stageClearDiveStartPosition_ = player_->GetTranslate();
-			stageClearShockwaveEmitter_->SetTranslate(player_->GetWorldPosition());
-			stageClearShockwaveEmitter_->Emit();
-			StartStageEntryBlur();
-			stageClearTimer_ = 0.0f;
-			stageClearState_ = StageClearState::Diving;
-		}
-		break;
-
-	case StageClearState::Diving:
-	{
-		stageClearTimer_ += deltaTime;
-		stageClearText_->Update();
-		const float duration = std::max(kStageClearDiveDuration_, 0.001f);
-		const float progress = std::clamp(stageClearTimer_ / duration, 0.0f, 1.0f);
-		const float easedProgress = progress * progress;
-		Vector3 playerPosition = stageClearDiveStartPosition_;
-		playerPosition.z += kStageClearDiveDistance_ * easedProgress;
-		player_->SetTranslate(playerPosition);
-		UpdateStageEntryBlur(easedProgress, kStageClearBlurMaxWidth_);
-		if (progress >= 1.0f)
-		{
-			stageClearTimer_ = 0.0f;
-			stageClearState_ = StageClearState::WaitingForTransition;
-		}
-		break;
-	}
-
-	case StageClearState::WaitingForTransition:
-		stageClearTimer_ += deltaTime;
-		if (stageClearTimer_ >= kStageClearTransitionDelay_ &&
-			!SceneManager::GetInstance()->GetSceneTransition().IsRunning())
-		{
-			SceneManager::GetInstance()->SetSceneRequest("TITLE");
-			stageClearState_ = StageClearState::Transitioning;
-		}
-		break;
-
-	case StageClearState::Transitioning:
-		break;
-	}
-}
-
-void GamePlayScene::DrawStageClearText()
-{
-	const bool isTextVisible =
-		stageClearState_ == StageClearState::DisplayingText ||
-		stageClearState_ == StageClearState::Diving;
-	if (!isTextVisible || !stageClearText_)
-	{
-		return;
-	}
-
-	stageClearText_->Draw();
-}
-
-void GamePlayScene::StartStageEntryBlur()
-{
-	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
-	if (controller->IsActive(stageEntryBlurHandle_))
-	{
-		return;
-	}
-
-	stageEntryBlurHandle_ = controller->Emit<RadialBlur>(
-		"RadialBlur", std::nullopt, nullptr);
-	controller->Edit<RadialBlur>(
-		stageEntryBlurHandle_,
-		[](RadialBlur& blur)
-		{
-			blur.SetCenter({ 0.5f, 0.5f });
-			blur.SetBlurWidth(0.0f);
-		});
-}
-
-void GamePlayScene::UpdateStageEntryBlur(float progress, float maxWidth)
-{
-	auto* controller = SceneManager::GetInstance()->GetPostEffectController();
-	if (!controller->IsActive(stageEntryBlurHandle_))
-	{
-		return;
-	}
-
-	const float blurWidth =
-		std::max(0.0f, maxWidth) * std::clamp(progress, 0.0f, 1.0f);
-	controller->Edit<RadialBlur>(
-		stageEntryBlurHandle_,
-		[blurWidth](RadialBlur& blur)
-		{
-			blur.SetBlurWidth(blurWidth);
-		});
-}
-
-void GamePlayScene::StopStageEntryBlur()
-{
-	if (stageEntryBlurHandle_ == kInvalidPostEffectHandle)
-	{
-		return;
-	}
-
-	SceneManager::GetInstance()->GetPostEffectController()->Cancel(stageEntryBlurHandle_);
-	stageEntryBlurHandle_ = kInvalidPostEffectHandle;
+	GameClearDependencies dependencies{
+		*player_,
+		*stageClearShockwaveEmitter_,
+		*SceneManager::GetInstance()->GetPostEffectController(),
+	};
+	GameClearConfig config{};
+	config.playerTargetPosition = gameplayPlayerRailPosition_;
+	activeSequence_ =
+		std::make_unique<GameClearSequence>(dependencies, config);
+	activeSequence_->Start();
+	scenePhase_ = ScenePhase::Clear;
 }
 
 void GamePlayScene::Finalize()
@@ -925,7 +781,6 @@ void GamePlayScene::Finalize()
 	activeSequence_.reset();
 	eventSubscriber_.Finalize();
 
-	StopStageEntryBlur();
 	SceneManager::GetInstance()->GetPostEffectController()->Cancel(bloomHandle_);
 	DistanceFogManager::GetInstance()->SetEnabled(false);
 
@@ -943,11 +798,6 @@ void GamePlayScene::Finalize()
 	{
 		stageTitleText_->Finalize();
 		stageTitleText_.reset();
-	}
-	if (stageClearText_)
-	{
-		stageClearText_->Finalize();
-		stageClearText_.reset();
 	}
 	FontManager::GetInstance()->Finalize();
 	TextManager::GetInstance()->Finalize();
@@ -1214,9 +1064,15 @@ void GamePlayScene::Update(const float& deltaTime)
 		railCameraController_->GetRailFrameWorldMatrix());
 	UpdateCaveFogEndPlane();
 
-	if (IsStageClearSequenceActive())
+	if (scenePhase_ == ScenePhase::Clear && activeSequence_)
 	{
-		UpdateStageClearSequence(deltaTime);
+		const SequenceStatus status = activeSequence_->Update(deltaTime);
+		if (status == SequenceStatus::Finished &&
+			SceneManager::GetInstance()->GetSceneTransition().GetState() ==
+			SceneTransition::SceneTransitionState::Idle)
+		{
+			SceneManager::GetInstance()->SetSceneRequest("TITLE");
+		}
 	}
 	player_->Update(deltaTime);
 	UpdateGameplayWindLines(deltaTime);
@@ -1637,6 +1493,16 @@ void GamePlayScene::Draw(CanvasId canvasId)
 {
 	if (canvasId == BuiltinCanvas::UI)
 	{
+		if (scenePhase_ == ScenePhase::Clear && activeSequence_)
+		{
+			if (activeSequence_->GetPolicy().hud == HudVisibility::Visible)
+			{
+				sceneUI_->DrawLayer(UILayer::Screen);
+			}
+			activeSequence_->DrawUI();
+			return;
+		}
+
 		if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
 		{
 			activeSequence_->DrawUI();
@@ -1656,7 +1522,6 @@ void GamePlayScene::Draw(CanvasId canvasId)
 		{
 			sceneUI_->DrawLayer(UILayer::Screen);
 		}
-		DrawStageClearText();
 		return;
 	}
 
@@ -1714,6 +1579,11 @@ void GamePlayScene::Draw(CanvasId canvasId)
 
 
 	particleManager_->Draw();
+	if (scenePhase_ == ScenePhase::Clear && activeSequence_)
+	{
+		activeSequence_->DrawWorld();
+		activeSequence_->DrawOverlay();
+	}
 	if (scenePhase_ == ScenePhase::GameOver && activeSequence_)
 	{
 		activeSequence_->DrawWorld();

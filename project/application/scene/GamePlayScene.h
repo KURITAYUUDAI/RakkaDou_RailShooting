@@ -62,16 +62,6 @@ private:
 		Playing,
 	};
 
-	enum class StageClearState
-	{
-		Inactive,
-		RepositioningPlayer,
-		DisplayingText,
-		Diving,
-		WaitingForTransition,
-		Transitioning,
-	};
-
 	void InitializeGameplayPresentation();
 	void InitializeEntrySequence();
 	void UpdateEntrySequence(float deltaTime);
@@ -88,19 +78,14 @@ private:
 	void UpdateStageTitle(float deltaTime);
 	void DrawStageTitle();
 	void StartStageClearSequence();
-	void UpdateStageClearSequence(float deltaTime);
-	void DrawStageClearText();
 	void DrawGameplayEntryField();
-	void StartStageEntryBlur();
-	void UpdateStageEntryBlur(float progress, float maxWidth = 0.02f);
-	void StopStageEntryBlur();
 	bool IsStageEntryComplete() const
 	{
 		return scenePhase_ != ScenePhase::Entry;
 	}
 	bool IsStageClearSequenceActive() const
 	{
-		return stageClearState_ != StageClearState::Inactive;
+		return scenePhase_ == ScenePhase::Clear;
 	}
 
 	void InitializeEnemyStage();
@@ -189,7 +174,6 @@ private:
 	std::unique_ptr<Object3d> gameplayEntryFieldGround_ = nullptr;
 	std::unique_ptr<Object3d> caveFogEndPlane_ = nullptr;
 	std::unique_ptr<Text> stageTitleText_ = nullptr;
-	std::unique_ptr<Text> stageClearText_ = nullptr;
 	Vector3 gameplayEntryFieldEntranceScale_ = { 1.0f, 1.0f, 1.0f };
 	Vector3 gameplayEntryFieldEntrancePosition_ = { 0.0f, 0.0f, 0.0f };
 	Vector3 gameplayEntryFieldGroundScale_ = { 1.0f, 1.0f, 1.0f };
@@ -224,8 +208,6 @@ private:
 		"stage_entry_wind_line";
 	static constexpr float kStageTitleDelay_ = 1.0f;
 	static constexpr float kStageTitleDuration_ = 3.0f;
-
-	PostEffectHandle stageEntryBlurHandle_ = kInvalidPostEffectHandle;
 
 	static constexpr float kStageEntryBlackHoldDuration_ = 0.25f;
 	static constexpr float kStageEntryApproachDuration_ = 0.90f;
@@ -273,16 +255,6 @@ private:
 
 	std::unique_ptr<PauseMenu> pauseMenu_;
 	bool isPaused_ = false;
-	StageClearState stageClearState_ = StageClearState::Inactive;
-	float stageClearTimer_ = 0.0f;
-	Vector3 stageClearPlayerStartPosition_{};
-	Vector3 stageClearDiveStartPosition_{};
-	static constexpr float kStageClearRepositionDuration_ = 1.0f;
-	static constexpr float kStageClearTextDuration_ = 2.0f;
-	static constexpr float kStageClearDiveDuration_ = 1.0f;
-	static constexpr float kStageClearDiveDistance_ = 500.0f;
-	static constexpr float kStageClearTransitionDelay_ = 0.5f;
-	static constexpr float kStageClearBlurMaxWidth_ = 0.015f;
 	PostEffectHandle bloomHandle_;
 	PostEffectHandle glayscaleHandle_;
 };
