@@ -6,6 +6,105 @@
 
 std::unique_ptr<DeltaTimeManager> DeltaTimeManager::instance_ = nullptr;
 
+class DeltaTimeManager::DeltaTimeIdlePhase final : public IDeltaTimePhase
+{
+public:
+    const char* GetName() const override { return "Idle"; }
+    std::unique_ptr<IDeltaTimePhase> Update(
+        GroupState&, float) override;
+};
+
+class DeltaTimeManager::DeltaTimeBlendInPhase final : public IDeltaTimePhase
+{
+public:
+    const char* GetName() const override { return "BlendIn"; }
+    std::unique_ptr<IDeltaTimePhase> Update(
+        GroupState& state, float rawDeltaTime) override;
+
+private:
+    float timer_ = 0.0f;
+};
+
+class DeltaTimeManager::DeltaTimeHoldPhase final : public IDeltaTimePhase
+{
+public:
+    const char* GetName() const override { return "Hold"; }
+    std::unique_ptr<IDeltaTimePhase> Update(
+        GroupState& state, float rawDeltaTime) override;
+
+private:
+    float timer_ = 0.0f;
+};
+
+class DeltaTimeManager::DeltaTimeBlendOutPhase final : public IDeltaTimePhase
+{
+public:
+    const char* GetName() const override { return "BlendOut"; }
+    std::unique_ptr<IDeltaTimePhase> Update(
+        GroupState& state, float rawDeltaTime) override;
+
+private:
+    float timer_ = 0.0f;
+};
+
+std::unique_ptr<DeltaTimeManager::IDeltaTimePhase>
+DeltaTimeManager::DeltaTimeIdlePhase::Update(GroupState&, float)
+{
+    return nullptr;
+}
+
+std::unique_ptr<DeltaTimeManager::IDeltaTimePhase>
+DeltaTimeManager::DeltaTimeBlendInPhase::Update(
+    GroupState& state, float rawDeltaTime)
+{
+    timer_ += rawDeltaTime;
+    const float t = state.blendDuration > 0.0f
+        ? std::clamp(timer_ / state.blendDuration, 0.0f, 1.0f)
+        : 1.0f;
+    const float ease = 1.0f - std::pow(1.0f - t, 3.0f);
+    state.currentScale =
+        state.defaultScale + (state.targetScale - state.defaultScale) * ease;
+    if (t < 1.0f)
+    {
+        return nullptr;
+    }
+
+    state.currentScale = state.targetScale;
+    return std::make_unique<DeltaTimeHoldPhase>();
+}
+
+std::unique_ptr<DeltaTimeManager::IDeltaTimePhase>
+DeltaTimeManager::DeltaTimeHoldPhase::Update(
+    GroupState& state, float rawDeltaTime)
+{
+    timer_ += rawDeltaTime;
+    if (timer_ < state.holdTime)
+    {
+        return nullptr;
+    }
+    return std::make_unique<DeltaTimeBlendOutPhase>();
+}
+
+std::unique_ptr<DeltaTimeManager::IDeltaTimePhase>
+DeltaTimeManager::DeltaTimeBlendOutPhase::Update(
+    GroupState& state, float rawDeltaTime)
+{
+    timer_ += rawDeltaTime;
+    const float t = state.blendOutDuration > 0.0f
+        ? std::clamp(timer_ / state.blendOutDuration, 0.0f, 1.0f)
+        : 1.0f;
+    const float ease = std::pow(t, 2.0f);
+    state.currentScale =
+        state.targetScale + (state.defaultScale - state.targetScale) * ease;
+    if (t < 1.0f)
+    {
+        return nullptr;
+    }
+
+    state.currentScale = state.defaultScale;
+    return std::make_unique<DeltaTimeIdlePhase>();
+}
+
 DeltaTimeManager* DeltaTimeManager::GetInstance()
 {
     if (instance_ == nullptr)
@@ -22,6 +121,7 @@ void DeltaTimeManager::Finalize()
 
 void DeltaTimeManager::Initialize()
 {
+    groups_.clear();
     // 全グループをデフォルト値で登録
     for (auto group : {
         DeltaTimeGroup::Player,
@@ -30,12 +130,11 @@ void DeltaTimeManager::Initialize()
         DeltaTimeGroup::World,
         DeltaTimeGroup::UI })
     {
-        GroupState state;
+        GroupState& state = groups_.try_emplace(group).first->second;
         state.currentScale = 1.0f;
         state.targetScale = 1.0f;
         state.defaultScale = 1.0f;
-        state.phase = GroupState::Phase::Idle;
-        groups_[group] = state;
+        state.phase = std::make_unique<DeltaTimeIdlePhase>();
     }
 }
 
@@ -55,8 +154,6 @@ void DeltaTimeManager::ImGuiDebug()
     ImGui::Begin("DeltaTime View");
 
     const char* groupNames[] = { "Player", "Enemy", "Effect", "World", "UI" };
-    const char* phaseNames[] = { "Idle", "BlendIn", "Hold", "BlendOut" };
-
     ImGui::Text("RawDeltaTime : %.4f", rawDeltaTime_);
     ImGui::Text("RawFPS       : %.1f", 1.0f / rawDeltaTime_);
     ImGui::Separator();
@@ -66,7 +163,9 @@ void DeltaTimeManager::ImGuiDebug()
         int groupIdx = static_cast<int>(group);
         ImGui::Text("[%s]", groupNames[groupIdx]);
         ImGui::SameLine();
-        ImGui::Text("Phase: %s", phaseNames[static_cast<int>(state.phase)]);
+        ImGui::Text(
+            "Phase: %s",
+            state.phase ? state.phase->GetName() : "Unknown");
 
         // スケールをプログレスバーで可視化（0.0〜2.0の範囲を想定）
         char label[64];
@@ -85,48 +184,17 @@ void DeltaTimeManager::ImGuiDebug()
 
 void DeltaTimeManager::UpdateGroupState(GroupState& state, float rawDt) 
 {
-    switch (state.phase) 
+    if (!state.phase)
     {
-    case GroupState::Phase::BlendIn:
-        state.blendTimer += rawDt;
-        {
-            float t = std::clamp(state.blendTimer / state.blendDuration, 0.0f, 1.0f);
-            // ease-out cubic
-            float ease = 1.0f - std::pow(1.0f - t, 3.0f);
-            state.currentScale = state.defaultScale + (state.targetScale - state.defaultScale) * ease;
-            if (t >= 1.0f) 
-            {
-                state.currentScale = state.targetScale;
-                state.holdTimer = 0.0f;
-                state.phase = GroupState::Phase::Hold;
-            }
-        }
-        break;
+        state.phase = std::make_unique<DeltaTimeIdlePhase>();
+        return;
+    }
 
-    case GroupState::Phase::Hold:
-        state.holdTimer += rawDt;
-        if (state.holdTimer >= state.holdTime) 
-        {
-            state.blendOutTimer = 0.0f;
-            state.phase = GroupState::Phase::BlendOut;
-        }
-        break;
-
-    case GroupState::Phase::BlendOut:
-        state.blendOutTimer += rawDt;
-        {
-            float t = std::clamp(state.blendOutTimer / state.blendOutDuration, 0.0f, 1.0f);
-            float ease = std::pow(t, 2.0f); // ease-in quad
-            state.currentScale = state.targetScale + (state.defaultScale - state.targetScale) * ease;
-            if (t >= 1.0f) 
-            {
-                state.currentScale = state.defaultScale;
-                state.phase = GroupState::Phase::Idle;
-            }
-        }
-        break;
-
-    default: break;
+    std::unique_ptr<IDeltaTimePhase> nextPhase =
+        state.phase->Update(state, rawDt);
+    if (nextPhase)
+    {
+        state.phase = std::move(nextPhase);
     }
 }
 
@@ -158,12 +226,9 @@ void DeltaTimeManager::RequestSlowMotion(DeltaTimeGroup group, float scale,
     auto& state = groups_[group];
     state.targetScale = scale;
     state.blendDuration = blendInTime;
-    state.blendTimer = 0.0f;
-    state.holdTimer = 0.0f;
     state.holdTime = holdTime;
     state.blendOutDuration = blendOutTime;
-    state.blendOutTimer = 0.0f;
-    state.phase = GroupState::Phase::BlendIn;
+    state.phase = std::make_unique<DeltaTimeBlendInPhase>();
 }
 
 void DeltaTimeManager::RequestOtherSlowMotion(DeltaTimeGroup selfGroup, float scale, float blendInTime, float holdTime, float blendOutTime)
@@ -175,12 +240,9 @@ void DeltaTimeManager::RequestOtherSlowMotion(DeltaTimeGroup selfGroup, float sc
 
         state.targetScale = scale;
         state.blendDuration = blendInTime;
-        state.blendTimer = 0.0f;
-        state.holdTimer = 0.0f;
         state.holdTime = holdTime;
         state.blendOutDuration = blendOutTime;
-        state.blendOutTimer = 0.0f;
-        state.phase = GroupState::Phase::BlendIn;
+        state.phase = std::make_unique<DeltaTimeBlendInPhase>();
     }
 }
 
@@ -189,6 +251,6 @@ void DeltaTimeManager::ResetAll()
     for (auto& [group, state] : groups_) 
     {
         state.currentScale = 1.0f;
-        state.phase = GroupState::Phase::Idle;
+        state.phase = std::make_unique<DeltaTimeIdlePhase>();
     }
 }

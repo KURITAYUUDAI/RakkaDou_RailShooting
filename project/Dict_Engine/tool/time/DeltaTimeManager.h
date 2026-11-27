@@ -76,21 +76,32 @@ public:
 private:
     DeltaTimeManager() = default;
 
+    struct GroupState;
+
+    class IDeltaTimePhase
+    {
+    public:
+        virtual ~IDeltaTimePhase() = default;
+        virtual const char* GetName() const = 0;
+        virtual std::unique_ptr<IDeltaTimePhase> Update(
+            GroupState& state, float rawDeltaTime) = 0;
+    };
+
+    class DeltaTimeIdlePhase;
+    class DeltaTimeBlendInPhase;
+    class DeltaTimeHoldPhase;
+    class DeltaTimeBlendOutPhase;
+
     struct GroupState 
     {
         float currentScale = 1.0f;
         float targetScale = 1.0f;
         float defaultScale = 1.0f;
 
-        // トランジション用
-        float blendTimer = 0.0f;
         float blendDuration = 0.0f;
-        float holdTimer = 0.0f;
         float holdTime = 0.0f;
         float blendOutDuration = 0.0f;
-        float blendOutTimer = 0.0f;
-
-        enum class Phase { Idle, BlendIn, Hold, BlendOut } phase = Phase::Idle;
+        std::unique_ptr<IDeltaTimePhase> phase;
     };
 
     void UpdateGroupState(GroupState& state, float rawDt);

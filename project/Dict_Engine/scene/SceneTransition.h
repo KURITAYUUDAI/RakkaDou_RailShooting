@@ -3,6 +3,11 @@
 #include <memory>
 #include "TransitionTrack.h"
 
+class ISceneTransitionState;
+class SceneTransitionIdleState;
+class SceneTransitionFadeOutState;
+class SceneTransitionFadeInState;
+
 class SceneTransition
 {
 public:
@@ -15,6 +20,9 @@ public:
 
     
 public:
+    SceneTransition();
+    ~SceneTransition();
+
     void Start(
         float fadeOutDuration,
         float fadeInDuration,
@@ -24,20 +32,22 @@ public:
     void Update(float deltaTime);
 
 public:
-    const SceneTransitionState& GetState() const { return state_; }
+    SceneTransitionState GetState() const;
     bool IsRunning() const;
     bool IsSceneChangeTiming() const;
 
 	void SetOnFinish(std::function<void()> onFinish) { onFinish_ = std::move(onFinish); }
 
 private:
-    void BeginFadeOut();
-    void BeginFadeIn();
+    friend class SceneTransitionIdleState;
+    friend class SceneTransitionFadeOutState;
+    friend class SceneTransitionFadeInState;
+
+    void ChangeState(std::unique_ptr<ISceneTransitionState> nextState);
     void Finish();
 
 private:
-
-    SceneTransitionState state_ = SceneTransitionState::Idle;
+    std::unique_ptr<ISceneTransitionState> currentState_;
 
     float timer_= 0.0f;
     float fadeOutDuration_ = 0.5f;
